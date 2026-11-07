@@ -9,3 +9,4 @@
 .browser-tab-close:hover{background:#ffffff14;color:#fff}
 .browser-tab-favicon{width:14px;height:14px;border-radius:3px;background:#303d67;color:#bcd0ff;display:grid;place-items:center;font-size:8px;flex:none;overflow:hidden}
 .browser-tab-favicon img{width:14px;height:14px;object-fit:contain}
+.browser-tab.grouped{box-shadow:inset 0 -2px 0 var(--group-color)}

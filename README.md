@@ -37,17 +37,24 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 
        npm start
 
-ORBIT opens with an initial web tab on the left and the assistant on the right.
+ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
 
 ## Use the browser
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
 - **Switch tabs:** Use the tab strip next to the address bar.
-- **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to orbit, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page.
+- **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to orbit, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page. Zoomed out, the cosmos shows constellation names; zoom in or select a constellation's name to see its tab titles. Double-click empty space to see everything again.
+- **Group tabs into constellations:** Each group of tabs becomes its own constellation, with its stars joined by lines. To make one:
+  - Right-click a tab (in the tab strip or the cosmos) and choose **New constellation with this tab** or **Add to constellation**.
+  - In the cosmos, Shift-click several stars and select **Make a constellation**, then type its name.
+  - Ask the assistant, for example “group github, mdn and node as Dev” or “ungroup Dev”.
+  - Describe the grouping you want in your own words, for example “group my tabs by project”, “put everything about the trip to Japan together”, or “split my tabs into work and personal”. With an AI endpoint connected, the assistant sends your instruction and your open tab titles and URLs to the model, which plans the constellations; ORBIT then creates or updates them. Without an endpoint, “group my tabs by site” still works.
+
+  Grouped tabs have a coloured line under them in the tab strip. Links opened from a grouped tab join its group. To rename a constellation, double-click its name in the cosmos or use the right-click menu. Groups last until ORBIT closes.
 - **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS).
 - **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh Google page.
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
-- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+J / Command+J focuses the assistant. Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
+- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Orbit assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
@@ -157,7 +164,7 @@ The response should list `qwen3.8:27b`.
 
 ### 7. Point ORBIT at the tunneled API
 
-In the ORBIT desktop app, open the assistant’s **···** menu (or press Ctrl+, / Command+,) and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
+In the ORBIT desktop app, click **⚙** in the assistant popup (or press Ctrl+, / Command+,) and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
 
     URL:      http://localhost:11435/v1/chat/completions
     Model:    qwen3.8:27b
@@ -228,9 +235,10 @@ This creates a distributable for the current platform. The project is configured
 ## Project files
 
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
+- tab-groups.js — tab group (constellation) names and colours, used by the main process.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
-- ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
+- ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
 - ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.
 - ui/styles/ — one stylesheet per component, plus base.css for the page layout.
 - package.json — start and packaging scripts.

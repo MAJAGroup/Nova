@@ -4,16 +4,26 @@ import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 import { el } from "../../lib/dom.js";
 import { createBackdrop } from "./backdrop.js";
 import { createTabStars } from "./tab-stars.js";
+import { createConstellations } from "./constellations.js";
 
 const SPACE_COLOR = 0x050813;
 const CLICK_TOLERANCE = 5;
+const CAMERA_GLIDE = 4;
 
-// A 3D view of every open tab as a star. It replaces the web page while open;
-// choosing a star switches to that tab. The scene only renders while open.
+// A 3D view of every open tab as a star, with tab groups drawn as
+// constellations. It replaces the web page while open; choosing a star
+// switches to that tab. The scene only renders while open.
+//
+// Click a star to open it, shift-click to select several and group them,
+// right-click for the group menu. Click a constellation's name to fly to it,
+// double-click to rename it, double-click empty space to see everything.
 export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   const container = el("cosmos");
+  const selectionBar = el("cosmos-selection");
   let isOpen = false;
   let frame = 0;
+  let flight = null;
+  let lastTime = null;
 
   let renderer;
   try {
@@ -22,12 +32,18 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     container.insertAdjacentHTML("afterbegin", '<p class="cosmos-unavailable">3D graphics are unavailable on this system.</p>');
   }
 
-  function select(tab) {
-    if (tabs.isActive(tab)) close();
-    else browser.activateTab(tab.id);
+  function select(tab, event) {
+    if (event && event.shiftKey) {
+      stars.toggleSelected(tab.id);
+      updateSelectionBar();
+    } else if (tabs.isActive(tab)) {
+      close();
+    } else {
+      browser.activateTab(tab.id);
+    }
   }
 
-  let scene, camera, controls, labels, backdrop, stars;
+  let scene, camera, controls, labels, backdrop, stars, constellations;
   if (renderer) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(SPACE_COLOR);
@@ -35,6 +51,12 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     labels = new CSS2DRenderer();
     labels.domElement.className = "cosmos-labels";
     container.prepend(renderer.domElement, labels.domElement);
+    // Tab icons and constellation names sit in an HTML layer above the
+    // canvas, so scrolling over them would never reach the camera controls.
+    labels.domElement.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      renderer.domElement.dispatchEvent(new WheelEvent("wheel", event));
+    }, { passive: false });
 
     scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(SPACE_COLOR, 0.009);
@@ -46,18 +68,58 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     controls.minDistance = 6;
     controls.maxDistance = 160;
     controls.autoRotateSpeed = 0.35;
-    controls.addEventListener("start", () => { controls.autoRotate = false; });
+    controls.addEventListener("start", () => {
+      controls.autoRotate = false;
+      flight = null;
+    });
 
     backdrop = createBackdrop(scene);
-    stars = createTabStars({ scene, camera, tabs, onSelect: select });
+    constellations = createConstellations({
+      scene,
+      camera,
+      tabs,
+      positionOf: (id) => stars.positionOf(id),
+      onFocus: flyToGroup,
+      onRename: (groupId, name) => browser.renameGroup(groupId, name)
+    });
+    stars = createTabStars({
+      scene,
+      camera,
+      tabs,
+      onSelect: select,
+      onContextMenu: (tab) => browser.showTabMenu(tab.id),
+      onLayout: (layout) => constellations.sync(layout)
+    });
     bindPointer(renderer.domElement);
     new ResizeObserver(resize).observe(container);
   }
 
   tabs.subscribe(() => {
     const count = tabs.tabs.length;
-    el("cosmos-count").textContent = count + (count === 1 ? " tab" : " tabs");
+    const groups = tabs.groups.length;
+    el("cosmos-count").textContent = count + (count === 1 ? " tab" : " tabs") +
+      (groups ? " · " + groups + (groups === 1 ? " constellation" : " constellations") : "");
+    if (stars) updateSelectionBar();
   });
+
+  el("cosmos-group").addEventListener("click", async () => {
+    const ids = stars.selectedIds();
+    if (!ids.length) return;
+    const groupId = await browser.groupTabs(ids);
+    stars.clearSelection();
+    updateSelectionBar();
+    if (groupId) constellations.editName(groupId);
+  });
+  el("cosmos-clear-selection").addEventListener("click", () => {
+    stars.clearSelection();
+    updateSelectionBar();
+  });
+
+  function updateSelectionBar() {
+    const count = stars.selectedIds().length;
+    selectionBar.hidden = count === 0;
+    el("cosmos-selection-count").textContent = count + (count === 1 ? " tab selected" : " tabs selected");
+  }
 
   function bindPointer(canvas) {
     const raycaster = new THREE.Raycaster();
@@ -78,13 +140,21 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       canvas.style.cursor = star ? "pointer" : "";
     });
     canvas.addEventListener("pointerleave", () => stars.setHovered(null));
-    canvas.addEventListener("pointerdown", (event) => { down = { x: event.clientX, y: event.clientY }; });
+    canvas.addEventListener("pointerdown", (event) => { down = { x: event.clientX, y: event.clientY, button: event.button }; });
     canvas.addEventListener("pointerup", (event) => {
-      const wasClick = down && Math.hypot(event.clientX - down.x, event.clientY - down.y) < CLICK_TOLERANCE;
+      const wasClick = down && down.button === 0 && Math.hypot(event.clientX - down.x, event.clientY - down.y) < CLICK_TOLERANCE;
       down = null;
       if (!wasClick) return;
       const star = starAt(event);
-      if (star) select(star.tab);
+      if (star) select(star.tab, event);
+    });
+    canvas.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      const star = starAt(event);
+      if (star) browser.showTabMenu(star.tab.id);
+    });
+    canvas.addEventListener("dblclick", (event) => {
+      if (!starAt(event)) flyHome();
     });
   }
 
@@ -97,23 +167,52 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     camera.updateProjectionMatrix();
   }
 
+  // Looking down on the galaxy at a steep angle so stars rarely line up
+  // behind one another.
+  function overview() {
+    const distance = Math.max(24, stars.extent() * 2.1);
+    controls.maxDistance = Math.max(160, distance * 1.6);
+    scene.fog.density = 0.6 / distance;
+    return { target: new THREE.Vector3(), camera: new THREE.Vector3(0, distance * 0.8, distance * 0.7) };
+  }
+
   function frameAll() {
-    // Look down on the disc at a steep angle so stars rarely line up
-    // behind one another.
-    const distance = Math.max(24, stars.radius() * 2.6);
-    camera.position.set(0, distance * 0.8, distance * 0.7);
-    controls.target.set(0, 0, 0);
+    const view = overview();
+    camera.position.copy(view.camera);
+    controls.target.copy(view.target);
     controls.autoRotate = true;
     controls.update();
+  }
+
+  function flyHome() {
+    flight = overview();
+  }
+
+  function flyToGroup(groupId) {
+    const center = constellations.centerOf(groupId);
+    if (!center) return;
+    const distance = Math.max(16, constellations.radiusOf(groupId) * 3.4 + 8);
+    const direction = camera.position.clone().sub(controls.target).normalize();
+    flight = { target: center, camera: center.clone().add(direction.multiplyScalar(distance)) };
+    controls.autoRotate = false;
   }
 
   function tick(now) {
     if (!isOpen) return;
     frame = requestAnimationFrame(tick);
     const time = now / 1000;
+    const delta = lastTime === null ? 0 : Math.min(0.1, time - lastTime);
+    lastTime = time;
+    if (flight) {
+      const step = 1 - Math.exp(-delta * CAMERA_GLIDE);
+      controls.target.lerp(flight.target, step);
+      camera.position.lerp(flight.camera, step);
+      if (camera.position.distanceTo(flight.camera) < 0.05) flight = null;
+    }
     controls.update();
     backdrop.update(time);
     stars.update(time);
+    constellations.update(time);
     renderer.render(scene, camera);
     labels.render(scene, camera);
   }
@@ -126,6 +225,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (!renderer) return;
     resize();
     frameAll();
+    lastTime = null;
     frame = requestAnimationFrame(tick);
   }
 
@@ -133,8 +233,13 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (!isOpen) return;
     isOpen = false;
     cancelAnimationFrame(frame);
+    flight = null;
     container.hidden = true;
-    if (stars) stars.setHovered(null);
+    if (stars) {
+      stars.setHovered(null);
+      stars.clearSelection();
+      updateSelectionBar();
+    }
     onVisibilityChange(false);
   }
 
@@ -142,6 +247,19 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     open,
     close,
     toggle: () => (isOpen ? close() : open()),
-    isOpen: () => isOpen
+    isOpen: () => isOpen,
+    // Returns true when there was a selection to clear.
+    clearSelection() {
+      if (!stars || !stars.clearSelection()) return false;
+      updateSelectionBar();
+      return true;
+    },
+    renameGroup(groupId) {
+      open();
+      if (constellations) {
+        flyToGroup(groupId);
+        constellations.editName(groupId);
+      }
+    }
   };
 }

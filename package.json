@@ -19,6 +19,8 @@
     "files": [
       "desktop-main.js",
       "desktop-preload.js",
+      "tab-groups.js",
+      "ai-grouping.js",
       "ui/**/*",
       "README.md"
     ],

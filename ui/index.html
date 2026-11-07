@@ -47,54 +47,44 @@
           </div>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
             <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span id="cosmos-count">0 tabs</span></div>
-            <div class="cosmos-hint">Drag to orbit · Scroll to zoom · Click a star to open · Esc to return</div>
+            <div class="cosmos-hint">Click a star to open · Shift-click to select · Right-click to group · Drag to orbit · Esc to return</div>
+            <div class="cosmos-selection" id="cosmos-selection" hidden>
+              <span id="cosmos-selection-count">0 tabs selected</span>
+              <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
+              <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear</button>
+            </div>
           </section>
         </section>
       </main>
+    </div>
 
-      <aside class="assistant-panel">
-        <div class="assistant-header">
-          <div class="assistant-title-wrap">
-            <div class="assistant-orb"><i></i><span></span></div>
-            <div><div class="assistant-title">Orbit assistant <span class="beta-tag">BETA</span></div><div class="assistant-subtitle"><span class="assistant-status"></span><span id="ai-status">Ready to explore</span></div></div>
-          </div>
-          <button class="icon-button more-button" id="assistant-menu" aria-label="AI settings" title="AI settings">···</button>
+    <div class="spotlight" id="assistant" hidden>
+      <img class="spotlight-snapshot" id="assistant-snapshot" alt="">
+      <section class="spotlight-panel" role="dialog" aria-modal="true" aria-label="Ask Orbit">
+        <div class="spotlight-bar">
+          <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
+          <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" spellcheck="false"></textarea>
+          <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
+          <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
         </div>
-        <div class="assistant-context">
-          <span class="context-icon">✧</span>
-          <span>Context from <b id="context-count">0 tabs</b></span>
-          <button id="context-info" aria-label="About tab context">ⓘ</button>
-        </div>
-        <div class="chat-scroll" id="chat-scroll">
-          <div class="day-divider"><span>TODAY</span></div>
-          <div class="message assistant-message">
-            <div class="message-avatar"><span class="mini-orbit">✦</span></div>
-            <div class="message-content">
-              <div class="message-name">ORBIT <span id="greeting-time"></span></div>
-              <div class="message-bubble">Hey! I’m here to help you make sense of your tabs and keep your day moving. What are we working on?</div>
-            </div>
-          </div>
-          <div class="suggestion-label">TRY ASKING</div>
-          <div class="suggestions">
+        <div class="spotlight-body" id="chat-scroll">
+          <div class="spotlight-suggestions" id="assistant-suggestions">
+            <div class="suggestion-label">SUGGESTIONS</div>
             <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
             <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
             <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
+            <button class="suggestion-chip" data-prompt="Group my tabs by topic."><span>✦</span> Group my tabs</button>
           </div>
         </div>
-        <div class="assistant-footer">
-          <div class="composer">
-            <textarea id="chat-input" rows="1" placeholder="Ask anything…" aria-label="Message Orbit assistant"></textarea>
-            <div class="composer-tools">
-              <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
-              <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
-              <div class="composer-tool-spacer"></div>
-              <span class="send-hint">↵</span>
-              <button class="send-button" id="send-message" aria-label="Send message">↑</button>
-            </div>
-          </div>
-          <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by your <b>AI model</b></div>
+        <div class="spotlight-footer">
+          <span class="assistant-status"></span><span id="ai-status">Ready to explore</span>
+          <span class="spotlight-dot">·</span>
+          <button class="spotlight-link" id="context-info" title="About tab context">Context from <b id="context-count">0 tabs</b></button>
+          <span class="spotlight-spacer"></span>
+          <span class="spotlight-keys"><kbd>↵</kbd> ask <kbd>esc</kbd> close</span>
+          <button class="spotlight-link" id="assistant-menu" title="AI settings" aria-label="AI settings">⚙</button>
         </div>
-      </aside>
+      </section>
     </div>
 
     <div class="modal-backdrop" id="settings-modal" hidden>

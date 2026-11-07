@@ -43,7 +43,20 @@ function start() {
     shownTabId = tabs.activeId;
     cosmos.close();
   });
-  const assistant = createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings: settings.open });
+  const assistant = createAssistantPanel({
+    browser,
+    tabs,
+    aiConfig,
+    onOpenSettings: settings.open,
+    onVisibilityChange: (open) => browserView.cover("assistant", open)
+  });
+  // Like Spotlight, the popup steps away once it has taken you to a tab.
+  let assistantTabId = tabs.activeId;
+  tabs.subscribe(() => {
+    if (tabs.activeId === assistantTabId) return;
+    assistantTabId = tabs.activeId;
+    assistant.close();
+  });
 
   // Commands from the application menu and its shortcuts.
   const commands = {
@@ -51,20 +64,21 @@ function start() {
     "close-tab": () => { if (tabs.activeId) browser.closeTab(tabs.activeId); },
     "focus-address": () => toolbar.focusAddress(),
     "reload": () => browser.reload(),
-    "assistant": () => assistant.focus(),
+    "assistant": () => { if (!settings.isOpen()) assistant.toggle(); },
     "settings": () => settings.open(),
-    "cosmos": () => cosmos.toggle()
+    "cosmos": () => cosmos.toggle(),
+    "rename-group": (groupId) => cosmos.renameGroup(groupId)
   };
-  browser.onCommand((command) => { if (commands[command]) commands[command](); });
+  browser.onCommand((command, arg) => { if (commands[command]) commands[command](arg); });
 
   document.addEventListener("keydown", (event) => {
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();
     if (mod && key === "l") { event.preventDefault(); toolbar.focusAddress(); }
-    if (mod && key === "j") { event.preventDefault(); assistant.focus(); }
     if (event.key === "Escape") {
       if (settings.isOpen()) settings.close();
-      else cosmos.close();
+      else if (assistant.isOpen()) assistant.close();
+      else if (!cosmos.clearSelection()) cosmos.close();
     }
   });
 }

@@ -6,8 +6,10 @@ export function createTabStrip({ browser, tabs }) {
 
   function renderTab(tab) {
     const button = document.createElement("button");
-    button.className = "browser-tab" + (tabs.isActive(tab) ? " active" : "");
-    button.title = tab.title || domainOf(tab.url);
+    const group = tabs.groupOf(tab);
+    button.className = "browser-tab" + (tabs.isActive(tab) ? " active" : "") + (group ? " grouped" : "");
+    button.title = (group ? group.name + " · " : "") + (tab.title || domainOf(tab.url));
+    if (group) button.style.setProperty("--group-color", group.color);
     const mark = tab.favicon
       ? '<img src="' + escapeHTML(tab.favicon) + '" alt="">'
       : escapeHTML(domainOf(tab.url).slice(0, 1).toUpperCase());
@@ -22,6 +24,10 @@ export function createTabStrip({ browser, tabs }) {
       } else {
         browser.activateTab(tab.id);
       }
+    });
+    button.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      browser.showTabMenu(tab.id);
     });
     return button;
   }
