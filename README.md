@@ -65,13 +65,13 @@ The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, wit
 
 The `pulling ... success` lines mean Ollama downloaded the model, and the `>>>` prompt means `ollama run` opened its chat prompt. It is not an error. Type `/bye` to leave Ollama, then `exit` to leave the management/login shell. Do not use the management node for inference; run Ollama inside a Slurm GPU allocation.
 
-The banner's `aarch64` means this Beta management node uses ARM64. Alpha uses x86_64, so install the Alpha-specific Ollama binary in Step 2. The model weights do not depend on the CPU architecture. Your Beta download is usually in Ollama's home cache; Alpha may not see that cache automatically. Copy it to the persistent project directory from Beta, then point Alpha's Ollama at that same directory. Beta `/ddn/scratch` is temporary and is not the shared model store.
+The banner's `aarch64` means this Beta management node uses ARM64. Alpha uses x86_64, so use Alpha's x86_64 Ollama binary in Step 2. Beta and Alpha have separate login and Slurm environments, and your Beta home cache may not be visible from Alpha. For the `jshin` account used in this walkthrough, the Qwen model is already staged in `$HOME/ollama-models` on Alpha. If it is not present in your Alpha home, pull it during an Alpha CPU job in Step 3. Do not run inference on a management/login node.
 
 ### 1. Connect to Alpha and check your project account
 
-From Terminal on your Mac, connect with the SSH key registered with Empire AI. This example assumes your username is `jshin` and the key is `~/.ssh/id_empireai`; adjust these if yours differ:
+From Terminal on your Mac, connect with the SSH key registered with Empire AI. The current Alpha login host is `alpha.empire-ai.org`. This example assumes your username is `jshin` and the key is `~/.ssh/id_empireai`; adjust these if yours differ:
 
-    ssh -i ~/.ssh/id_empireai -o IdentitiesOnly=yes jshin@alpha1.empireai.edu
+    ssh -i ~/.ssh/id_empireai -o IdentitiesOnly=yes jshin@alpha.empire-ai.org
 
 On Alpha, confirm the account and QoS available to your user:
 
@@ -81,44 +81,39 @@ Use an account shown in that output. The examples below use `su_cwang1_worlds` a
 
 ### 2. Install Ollama in your home directory (no root access required)
 
-The standard Linux Ollama installer writes to system directories and requires administrator access. On Alpha, install its x86_64 Linux archive into an Alpha-specific directory in your home, so it does not overwrite an ARM64 Ollama binary you may use on Beta:
+On this Alpha account, the x86_64 Ollama binary is at `~/.local/bin/ollama`. The `~/.local/ollama/bin/ollama` path may contain the ARM64 Beta binary and will fail with “Exec format error” on Alpha. Put the x86_64 path first in your shell's `PATH`:
+
+    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    ollama --version
+
+If `~/.local/bin/ollama` is missing, install the x86_64 Linux archive into a separate Alpha directory:
 
     mkdir -p "$HOME/.local/ollama-alpha"
     curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -xf - -C "$HOME/.local/ollama-alpha"
-    export PATH="$HOME/.local/ollama-alpha/bin:$PATH"
-    ollama --version
+    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
 
-To keep the Alpha binary available in future Alpha shells, add this line to `~/.bashrc`:
+The examples use `$HOME/ollama-models`, which already contains the downloaded Qwen model for this account. The model cache is about 17 GB. Empire AI home directories have a 100 GB quota, so keep an eye on space; project storage is preferable when your account has a project path that is readable and writable.
 
-    export PATH="$HOME/.local/ollama-alpha/bin:$PATH"
+### 3. Check or download the model before reserving a GPU
 
-Empire AI recommends keeping model weights in project storage rather than the 100 GB home directory. For `su_cwang1_worlds`, the project directory is `/projects/suny/cwang1/worlds`. The examples below store Ollama weights at `/projects/suny/cwang1/worlds/models/ollama`. If that path is not writable for your user, ask the project owner which project directory to use.
-
-### 3. Put the model in shared project storage
-
-You already downloaded the model in Beta, so do not pull it again yet. After leaving the `ollama run` prompt with `/bye`, use the Beta shell to copy Ollama's default model cache to persistent project storage. This copy does not run inference on the management node:
-
-    export PROJECT_OLLAMA_MODELS=/projects/suny/cwang1/worlds/models/ollama
-    mkdir -p "$PROJECT_OLLAMA_MODELS"
-    rsync -a "$HOME/.ollama/models/" "$PROJECT_OLLAMA_MODELS/"
-
-If you set a custom `OLLAMA_MODELS` on Beta, use that directory as the `rsync` source instead of `$HOME/.ollama/models/`. Keep the destination on `/projects`, not Beta's temporary `/ddn/scratch`. The `/projects` path must be writable by your project account and accessible from both systems.
-
-Then connect to Alpha, start a one-hour CPU job, and check the shared copy before requesting a GPU:
+For this account, the existing Qwen model cache is at `$HOME/ollama-models`. Set `OLLAMA_MODELS` to that directory. If `ollama list` does not show `qwen3.8:27b`, pull it during a one-hour CPU job rather than using GPU time for the download:
 
     srun --partition=cpu --account=su_cwang1_worlds --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash -l
 
-Inside the CPU job, point the x86_64 Ollama binary at the shared cache, start the local API, and check for the model:
+Inside the CPU job, start Ollama with the Alpha binary and the home cache:
 
-    export PATH="$HOME/.local/ollama-alpha/bin:$PATH"
-    export OLLAMA_MODELS=/projects/suny/cwang1/worlds/models/ollama
+    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    export OLLAMA_MODELS="$HOME/ollama-models"
     export OLLAMA_HOST=127.0.0.1:11434
     ollama serve > "$HOME/ollama-pull.log" 2>&1 &
     OLLAMA_SERVER_PID=$!
     sleep 3
     ollama list
+    ollama pull qwen3.8:27b
+    kill "$OLLAMA_SERVER_PID"
+    exit
 
-If `qwen3.8:27b` appears in the list, the existing Beta download is ready for Alpha; stop the server with `kill "$OLLAMA_SERVER_PID"`, then `exit` the CPU job. If it is missing, run `ollama pull qwen3.8:27b` in that CPU job and wait for it to finish. Ollama will reuse any layers found in the shared cache and fetch only what is missing. If the Beta cache cannot be copied or the shared path is not available from Alpha, use `ollama pull` in the Alpha CPU job to download it there. The model is about 18 GB, so keep the CPU job active until the pull completes. If needed, request another CPU job and repeat the check.
+`ollama pull` is safe to repeat: Ollama reuses the cache and fetches only missing layers. If you downloaded the model only into Beta's home cache and it is absent from `$HOME/ollama-models` on Alpha, transfer it through a storage path available to both environments or let this Alpha CPU job download it. Keep the CPU job active until the pull finishes.
 
 ### 4. Request one GPU for one hour
 
@@ -137,8 +132,8 @@ Empire AI Alpha routes a one-GPU request to its RTX PRO 6000 pool. Interactive `
 
 Inside the allocated GPU shell, start the API on loopback so it is reachable through SSH but not exposed as a public service:
 
-    export PATH="$HOME/.local/ollama-alpha/bin:$PATH"
-    export OLLAMA_MODELS=/projects/suny/cwang1/worlds/models/ollama
+    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    export OLLAMA_MODELS="$HOME/ollama-models"
     export OLLAMA_HOST=127.0.0.1:11434
     ollama serve > "$HOME/ollama-${SLURM_JOB_ID}.log" 2>&1 &
     OLLAMA_SERVER_PID=$!
@@ -149,20 +144,14 @@ Leave this allocated shell open for the duration of the session. Verify the mode
 
 ### 6. Open an SSH tunnel from your Mac
 
-Keep the Empire AI shell and Ollama server running. The commands below use local port `11435` so they do not conflict with an Ollama service that may already be running on your Mac at `11434`. In a second Terminal window on your Mac, replace `<COMPUTE_NODE_HOSTNAME>` with the value printed by `hostname -f` in the allocated job:
+Keep the Empire AI shell and Ollama server running. The commands below use local port `11435` so they do not conflict with an Ollama service that may already be running on your Mac at `11434`. The tunnel must connect through the Alpha login host to the compute node where Ollama is listening. Replace `<COMPUTE_NODE_HOSTNAME>` with the node printed in the job log or by `hostname -f` in the allocated job:
 
-    ssh -N -L 11435:localhost:11434 \
+    ssh -N -L 127.0.0.1:11435:<COMPUTE_NODE_HOSTNAME>:11434 \
       -i ~/.ssh/id_empireai \
       -o IdentitiesOnly=yes \
-      jshin@<COMPUTE_NODE_HOSTNAME>
+      jshin@alpha.empire-ai.org
 
-This forwards your Mac’s `localhost:11435` to Ollama on the allocated compute node’s `localhost:11434`. If the compute node is reachable only through the Alpha login node, use the login as a jump host:
-
-    ssh -N -L 11435:localhost:11434 \
-      -J jshin@alpha1.empireai.edu \
-      -i ~/.ssh/id_empireai \
-      -o IdentitiesOnly=yes \
-      jshin@<COMPUTE_NODE_HOSTNAME>
+This forwards your Mac’s `localhost:11435` through Alpha to Ollama on the allocated compute node’s `localhost:11434`. It uses the login node only as an SSH tunnel; inference remains on the GPU node.
 
 Keep this SSH command running in the second Terminal window. Confirm the tunnel from your Mac:
 
