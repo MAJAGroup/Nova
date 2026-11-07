@@ -81,12 +81,12 @@ Use an account shown in that output. The examples below use `su_cwang1_worlds` a
 
 ### 2. Install Ollama in your home directory (no root access required)
 
-On this Alpha account, the x86_64 Ollama binary is at `~/.local/bin/ollama`. The `~/.local/ollama/bin/ollama` path may contain the ARM64 Beta binary and will fail with “Exec format error” on Alpha. Put the x86_64 path first in your shell's `PATH`:
+On this Alpha account, the complete x86_64 Ollama package is installed at `~/.local/ollama-alpha`. Use its binary first in your shell's `PATH`. The `~/.local/ollama/bin/ollama` path contains the ARM64 Beta binary and will fail with “Exec format error” on Alpha. The standalone `~/.local/bin/ollama` CLI does not include the required `llama-server` runtime, so do not put it ahead of the complete package:
 
-    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
     ollama --version
 
-If `~/.local/bin/ollama` is missing, install the x86_64 Linux archive into a separate Alpha directory:
+If the complete package or its `lib/ollama/llama-server` runtime is missing, install the x86_64 Linux archive into the separate Alpha directory:
 
     mkdir -p "$HOME/.local/ollama-alpha"
     curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -xf - -C "$HOME/.local/ollama-alpha"
@@ -102,7 +102,7 @@ For this account, the existing Qwen model cache is at `$HOME/ollama-models`. Set
 
 Inside the CPU job, start Ollama with the Alpha binary and the home cache:
 
-    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
     export OLLAMA_MODELS="$HOME/ollama-models"
     export OLLAMA_HOST=127.0.0.1:11434
     ollama serve > "$HOME/ollama-pull.log" 2>&1 &
@@ -132,7 +132,7 @@ Empire AI Alpha routes a one-GPU request to its RTX PRO 6000 pool. Interactive `
 
 Inside the allocated GPU shell, start the API on loopback so it is reachable through SSH but not exposed as a public service:
 
-    export PATH="$HOME/.local/bin:$HOME/.local/ollama-alpha/bin:$PATH"
+    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
     export OLLAMA_MODELS="$HOME/ollama-models"
     export OLLAMA_HOST=127.0.0.1:11434
     ollama serve > "$HOME/ollama-${SLURM_JOB_ID}.log" 2>&1 &
