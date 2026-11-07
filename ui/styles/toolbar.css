@@ -1,0 +1,10 @@
+/* Back/forward/reload, address bar and new-tab button. */
+.browser-toolbar{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;border-bottom:1px solid var(--line);background:#0b1020}
+.browser-nav{display:flex;align-items:center;gap:1px;flex:none}
+.browser-nav .icon-button{font-size:20px;color:#95a2bf}
+.browser-nav #reload-page{font-size:16px}
+.address-bar{flex:0 1 340px;min-width:140px;height:28px;display:flex;align-items:center;padding:0 10px;border:1px solid #202a43;background:#0c1323;border-radius:7px;transition:.2s}
+.address-bar:focus-within{border-color:#5e75dc;box-shadow:0 0 0 3px #6d87ff16}
+.address-bar input{background:transparent;border:0;outline:0;color:#e8edff;font-size:12px;flex:1;min-width:0}
+.address-bar input::placeholder{color:#73809e}
+#new-tab{font-size:15px}

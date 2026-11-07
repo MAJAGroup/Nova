@@ -205,6 +205,8 @@ function closeTab(id) {
     tab.view.webContents.loadURL("https://www.google.com").catch(() => {});
     tab.title = "Loading…";
     tab.url = "https://www.google.com";
+    tab.favicon = "";
+    tab.loading = true;
     sendTabs();
     return true;
   }
@@ -353,6 +355,12 @@ function installPermissionPrompts() {
   configureSession(session.fromPartition("persist:orbit"));
 }
 
+function sendCommand(command, { focusUI = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (focusUI) mainWindow.webContents.focus();
+  mainWindow.webContents.send("browser:command", command);
+}
+
 function createApplicationMenu() {
   const template = [
     {
@@ -360,7 +368,7 @@ function createApplicationMenu() {
       submenu: [
         { role: "about" },
         { type: "separator" },
-        { label: "Settings", accelerator: "CommandOrControl+,", click: () => mainWindow.webContents.send("browser:command", "settings") },
+        { label: "Settings", accelerator: "CommandOrControl+,", click: () => sendCommand("settings", { focusUI: true }) },
         { type: "separator" },
         { role: "quit" }
       ]
@@ -368,8 +376,8 @@ function createApplicationMenu() {
     {
       label: "File",
       submenu: [
-        { label: "New Tab", accelerator: "CommandOrControl+T", click: () => mainWindow.webContents.send("browser:command", "new-tab") },
-        { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => mainWindow.webContents.send("browser:command", "close-tab") },
+        { label: "New Tab", accelerator: "CommandOrControl+T", click: () => sendCommand("new-tab") },
+        { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => sendCommand("close-tab") },
         { type: "separator" },
         { role: "quit" }
       ]
@@ -378,10 +386,9 @@ function createApplicationMenu() {
     {
       label: "View",
       submenu: [
-        { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => mainWindow.webContents.send("browser:command", "focus-address") },
-        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => mainWindow.webContents.send("browser:command", "reload") },
-        { label: "Orbit Workspace", accelerator: "CommandOrControl+Shift+O", click: () => mainWindow.webContents.send("browser:command", "workspace") },
-        { label: "Assistant", accelerator: "CommandOrControl+J", click: () => mainWindow.webContents.send("browser:command", "assistant") },
+        { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
+        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
+        { label: "Assistant", accelerator: "CommandOrControl+J", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
         { role: "toggleDevTools" }
       ]
@@ -397,8 +404,8 @@ function createWindow() {
   const workArea = screen.getPrimaryDisplay().workAreaSize;
   const minWidth = Math.min(800, workArea.width);
   const minHeight = Math.min(560, workArea.height);
-  const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.9)));
-  const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.9)));
+  const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.75)));
+  const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.75)));
   const win = new BrowserWindow({
     width,
     height,
@@ -408,7 +415,7 @@ function createWindow() {
     resizable: true,
     maximizable: true,
     backgroundColor: "#080d1c",
-    title: "ORBIT — Spatial Browser",
+    title: "ORBIT",
     webPreferences: {
       preload: path.join(__dirname, "desktop-preload.js"),
       contextIsolation: true,
@@ -424,7 +431,7 @@ function createWindow() {
     if (url.startsWith("file:")) return;
     event.preventDefault();
   });
-  win.loadFile(path.join(__dirname, "newtab.html"));
+  win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
     if (mainWindow === win && tabs.size === 0) createTab("https://www.google.com");
   });

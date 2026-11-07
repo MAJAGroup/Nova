@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080d1c">
+    <title>ORBIT</title>
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/toolbar.css">
+    <link rel="stylesheet" href="styles/tab-strip.css">
+    <link rel="stylesheet" href="styles/browser-view.css">
+    <link rel="stylesheet" href="styles/assistant.css">
+    <link rel="stylesheet" href="styles/settings-modal.css">
+    <link rel="stylesheet" href="styles/toast.css">
+    <script type="module" src="main.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <main class="main-panel">
+        <div class="browser-toolbar">
+          <div class="browser-nav" aria-label="Browser navigation">
+            <button class="icon-button" id="go-back" title="Back" aria-label="Go back">‹</button>
+            <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
+            <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
+          </div>
+          <div class="address-bar">
+            <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
+          </div>
+          <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
+          <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
+        </div>
+        <section id="browser-content" class="browser-content" aria-label="Current web page">
+          <div class="browser-placeholder" id="browser-placeholder">
+            <span class="placeholder-orbit">✦</span>
+            <h2>No page open</h2>
+            <p>Enter a web address above to begin.</p>
+          </div>
+        </section>
+      </main>
+
+      <aside class="assistant-panel">
+        <div class="assistant-header">
+          <div class="assistant-title-wrap">
+            <div class="assistant-orb"><i></i><span></span></div>
+            <div><div class="assistant-title">Orbit assistant <span class="beta-tag">BETA</span></div><div class="assistant-subtitle"><span class="assistant-status"></span><span id="ai-status">Ready to explore</span></div></div>
+          </div>
+          <button class="icon-button more-button" id="assistant-menu" aria-label="AI settings" title="AI settings">···</button>
+        </div>
+        <div class="assistant-context">
+          <span class="context-icon">✧</span>
+          <span>Context from <b id="context-count">0 tabs</b></span>
+          <button id="context-info" aria-label="About tab context">ⓘ</button>
+        </div>
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="day-divider"><span>TODAY</span></div>
+          <div class="message assistant-message">
+            <div class="message-avatar"><span class="mini-orbit">✦</span></div>
+            <div class="message-content">
+              <div class="message-name">ORBIT <span id="greeting-time"></span></div>
+              <div class="message-bubble">Hey! I’m here to help you make sense of your tabs and keep your day moving. What are we working on?</div>
+            </div>
+          </div>
+          <div class="suggestion-label">TRY ASKING</div>
+          <div class="suggestions">
+            <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
+            <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
+            <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
+          </div>
+        </div>
+        <div class="assistant-footer">
+          <div class="composer">
+            <textarea id="chat-input" rows="1" placeholder="Ask anything…" aria-label="Message Orbit assistant"></textarea>
+            <div class="composer-tools">
+              <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
+              <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
+              <div class="composer-tool-spacer"></div>
+              <span class="send-hint">↵</span>
+              <button class="send-button" id="send-message" aria-label="Send message">↑</button>
+            </div>
+          </div>
+          <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by your <b>AI model</b></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="modal-backdrop" id="settings-modal" hidden>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+        <div class="modal-kicker">AI SETTINGS <span>✦</span></div>
+        <h2 id="settings-title">Connect an AI model</h2>
+        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Ollama Kimi K3.1 Pro is available through Ollama Cloud; choose a preset below.</p>
+        <div class="settings-actions">
+          <button type="button" class="text-button" data-ollama-preset="local">Local Ollama API</button>
+          <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
+        </div>
+        <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
+        <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
+        <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
+        <input id="api-model" class="settings-input" type="text" placeholder="e.g. kimi-k3.1-pro:cloud">
+        <label class="field-label" for="api-key">API KEY <span>stored securely in the desktop app</span></label>
+        <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
+        <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
+        <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

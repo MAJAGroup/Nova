@@ -1,0 +1,20 @@
+/* "Connect an AI model" dialog. */
+.modal-backdrop{position:fixed;inset:0;background:#030610bd;backdrop-filter:blur(9px);z-index:20;display:grid;place-items:center;padding:20px}
+.modal-backdrop[hidden]{display:none}
+.settings-modal{width:min(450px,100%);max-height:calc(100vh - 40px);overflow-y:auto;padding:27px 28px 22px;position:relative;border:1px solid #364467;border-radius:12px;background:radial-gradient(ellipse at 97% 1%,#2a3c712c,transparent 45%),#10182a;box-shadow:0 24px 80px #0009}
+.modal-close{position:absolute;top:14px;right:14px;border:0;background:transparent;color:#8c9ab4;font-size:22px}
+.modal-kicker{font:8px var(--mono);letter-spacing:1.3px;color:#96a3c1}
+.modal-kicker span{color:#6ee2ec}
+.settings-modal h2{font:600 23px Manrope;letter-spacing:-.5px;margin:8px 0 5px}
+.modal-intro{color:#a0acc4;font-size:10px;line-height:1.6;margin:0 0 20px}
+.field-label{display:block;font:8px var(--mono);letter-spacing:.8px;color:#8d9bb7;margin:13px 0 6px}
+.field-label span{font:8px 'DM Sans',sans-serif;letter-spacing:0;color:#64718c;margin-left:5px}
+.settings-input{width:100%;height:36px;border:1px solid #303d5a;border-radius:6px;background:#0b1221;padding:0 10px;color:#e8edff;outline:0;font-size:10px}
+.settings-input:focus{border-color:#7185e5;box-shadow:0 0 0 2px #748bff18}
+.settings-input::placeholder{color:#65738f}
+.settings-hint{display:flex;gap:7px;margin:13px 0 17px;padding:9px 10px;border-radius:5px;background:#1a2340;color:#909fbd;font-size:9px;line-height:1.5}
+.settings-hint span{color:#8ca5ff}
+.settings-actions{display:flex;align-items:center;justify-content:space-between}
+.text-button{border:0;background:transparent;color:#8491ad;font-size:9px}
+.text-button:hover{color:#efb1bb}
+.settings-actions .primary-button{height:34px}

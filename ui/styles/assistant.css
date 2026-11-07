@@ -1,0 +1,54 @@
+/* Right-hand Orbit assistant: header, chat and composer. */
+.assistant-panel{min-width:0;border-left:1px solid var(--line);background:linear-gradient(160deg,#0d1324,#0b1020 65%);display:flex;flex-direction:column}
+.assistant-header{height:56px;flex:none;padding:0 17px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff0c}
+.assistant-title-wrap{display:flex;align-items:center;gap:10px}
+.assistant-orb{width:29px;height:29px;border:1px solid #6576da;border-radius:50%;position:relative;display:grid;place-items:center}
+.assistant-orb:before{content:"";width:35px;height:12px;border:1px solid #66dceb;border-radius:50%;position:absolute;transform:rotate(-33deg)}
+.assistant-orb i{width:6px;height:6px;background:#92b4ff;border-radius:50%;box-shadow:0 0 9px #a5bfff}
+.assistant-orb span{position:absolute;width:4px;height:4px;background:#74e2ec;right:-2px;top:6px;border-radius:50%}
+.assistant-title{font-size:11px;font-weight:700;color:#e6ebfa;display:flex;gap:6px;align-items:center}
+.beta-tag{font:7px var(--mono);letter-spacing:.4px;padding:2px 4px;color:#a99aff;background:#4c3c813d;border:1px solid #64519d7a;border-radius:3px}
+.assistant-subtitle{font-size:8px;color:#8793ad;margin-top:4px;display:flex;align-items:center;gap:5px}
+.assistant-status{width:5px;height:5px}
+.more-button{letter-spacing:1px;font-size:18px}
+.assistant-context{height:33px;flex:none;margin:11px 14px 0;padding:0 9px;display:flex;align-items:center;gap:7px;border:1px solid #26324c;background:#111a2c;border-radius:5px;color:#8b99b5;font-size:9px}
+.context-icon{color:#79deea}
+.assistant-context b{color:#d3dcf1;font-weight:500}
+.assistant-context button{margin-left:auto;border:0;color:#8490ac;background:transparent}
+.chat-scroll{flex:1;overflow:auto;padding:13px 14px 12px;scrollbar-width:thin;scrollbar-color:#34415c transparent}
+.day-divider{display:flex;align-items:center;gap:9px;color:#67738c;font:7px var(--mono);letter-spacing:1px;margin:0 0 18px}
+.day-divider:before,.day-divider:after{content:"";height:1px;background:#ffffff0c;flex:1}
+.message{display:flex;align-items:flex-start;gap:8px;margin:0 0 13px}
+.message-avatar{width:20px;height:20px;display:grid;place-items:center;border-radius:50%;border:1px solid #495da8;background:#152342;flex:none}
+.mini-orbit{font-size:9px;color:#83dfea}
+.message-content{min-width:0;flex:1}
+.message-name{font:7px var(--mono);letter-spacing:.65px;color:#a2adca;margin:3px 0 7px}
+.message-name span{font:7px var(--mono);color:#61708e;letter-spacing:0;margin-left:5px}
+.message-bubble{border:1px solid #2b3754;background:linear-gradient(145deg,#18233a,#131c30);border-radius:2px 8px 8px 8px;padding:10px 10px;color:#cad4e8;font-size:10px;line-height:1.62}
+.user-message{justify-content:flex-end}
+.user-message .message-content{flex:0 1 auto;max-width:84%}
+.user-message .message-name{text-align:right}
+.user-message .message-bubble{background:#273565;border-color:#4c5c9b;color:#eef2ff;border-radius:8px 2px 8px 8px}
+.suggestion-label{font:7px var(--mono);letter-spacing:1px;color:#707e9b;margin:20px 0 8px 28px}
+.suggestions{margin-left:28px;display:flex;flex-direction:column;gap:6px}
+.suggestion-chip{height:29px;border:1px solid #2c3958;background:#111a2d;color:#aab6d1;border-radius:5px;text-align:left;padding:0 8px;font-size:9px;transition:.16s}
+.suggestion-chip:hover{border-color:#6375cd;color:#e8edff;background:#17223b}
+.suggestion-chip span{display:inline-block;width:16px;color:#83dbe8;font-size:11px}
+.assistant-footer{flex:none;padding:10px 13px 12px;border-top:1px solid #ffffff0d}
+.composer{border:1px solid #303c58;background:#10182a;border-radius:8px;overflow:hidden;transition:.2s}
+.composer:focus-within{border-color:#596dbb;box-shadow:0 0 0 2px #718bff14}
+.composer textarea{display:block;width:100%;resize:none;outline:0;border:0;color:#e6edff;background:transparent;padding:10px 10px 4px;font-size:10px;min-height:39px;max-height:95px}
+.composer textarea::placeholder{color:#7886a2}
+.composer-tools{height:30px;display:flex;align-items:center;padding:0 7px}
+.composer-tool{width:23px;height:23px;border:0;background:transparent;color:#93a0bc;border-radius:5px}
+.composer-tool:hover,.composer-tool.recording{color:#ff8992;background:#3a1b2a}
+.composer-tool.voice-on{color:#83e3ed;background:#163642}
+.mic-icon{font-size:13px}
+.composer-tool-spacer{flex:1}
+.send-hint{font:8px var(--mono);color:#64718a;margin-right:6px}
+.send-button{width:22px;height:22px;border:0;border-radius:5px;background:#7589f4;color:#fff;font-size:15px;line-height:19px}
+.send-button:hover{background:#91a2ff}
+.ai-footnote{font-size:8px;color:#76839e;text-align:center;padding-top:10px}
+.ai-footnote b{color:#a8b3ca;font-weight:600}
+.footnote-spark{color:#71dce7;margin-right:3px}
+.loading-dots{display:inline-block;letter-spacing:2px;color:#91a3ff}
