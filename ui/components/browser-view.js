@@ -2,13 +2,14 @@ import { el } from "../lib/dom.js";
 
 // The area where the web page appears. The page is a native view that the
 // main process draws on top of this document, so we report this element's
-// position to it, and hide the page while an overlay needs to be seen.
+// position to it, and hide the page while something else must be seen here
+// (the settings dialog, the tab cosmos).
 export function createBrowserView({ browser, tabs }) {
   const content = el("browser-content");
-  let covered = false;
+  const coveredBy = new Set();
 
   function syncBounds() {
-    if (covered) {
+    if (coveredBy.size) {
       browser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0 });
       return;
     }
@@ -25,8 +26,11 @@ export function createBrowserView({ browser, tabs }) {
   requestAnimationFrame(syncBounds);
 
   return {
-    setCovered(value) {
-      covered = Boolean(value);
+    // reason: a name for what is covering the page; the page shows again
+    // once nothing covers it.
+    cover(reason, covered) {
+      if (covered) coveredBy.add(reason);
+      else coveredBy.delete(reason);
       syncBounds();
     }
   };

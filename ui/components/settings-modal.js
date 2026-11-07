@@ -95,5 +95,5 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", close));
   modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
 
-  return { open, close };
+  return { open, close, isOpen: () => !modal.hidden };
 }

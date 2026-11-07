@@ -1,0 +1,20 @@
+/* 3D tab cosmos: shown in place of the web page. */
+.cosmos{position:absolute;inset:0;z-index:2;overflow:hidden;background:#050813}
+.cosmos[hidden]{display:none}
+.cosmos-canvas{position:absolute;inset:0;display:block;touch-action:none}
+.cosmos-labels{position:absolute;inset:0;pointer-events:none}
+.cosmos-header{position:absolute;z-index:1;top:12px;left:14px;display:flex;align-items:center;gap:10px;font:9px var(--mono);letter-spacing:1.2px;color:#7d8aaa;pointer-events:none}
+.cosmos-title{color:#8fe8ff}
+.cosmos-hint{position:absolute;z-index:1;bottom:12px;left:50%;transform:translateX(-50%);white-space:nowrap;font:9px var(--mono);letter-spacing:.6px;color:#5f6c8c;pointer-events:none}
+.cosmos-unavailable{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#8996b2;font-size:12px}
+.star-label{pointer-events:auto;display:flex;align-items:center;gap:6px;max-width:190px;padding:3px 9px 3px 4px;border:1px solid transparent;border-radius:999px;background:rgba(8,13,28,.55);color:#c3cee9;font-size:11px;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.star-label-mark{width:15px;height:15px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:4px;background:#26325a;color:#c8d5ff;font-size:8px;font-weight:700}
+.star-label-mark img{width:15px;height:15px;object-fit:contain}
+.star-label-title{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.star-label-domain{display:none;color:#7f8bab;font-size:10px}
+.star-label.active{color:#fff;border-color:#8fe8ff55;background:rgba(14,30,48,.75)}
+.star-label.hovered,.star-label:focus-visible{color:#fff;border-color:#6a80e8;background:rgba(18,28,58,.9);outline:0;z-index:1}
+.star-label.hovered{max-width:300px}
+.star-label.hovered .star-label-domain{display:inline}
+.cosmos-toggle{font-size:15px}
+.cosmos-toggle.active{color:#8fe8ff;background:#14203a}

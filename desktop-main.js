@@ -388,6 +388,7 @@ function createApplicationMenu() {
       submenu: [
         { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
         { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
+        { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
         { label: "Assistant", accelerator: "CommandOrControl+J", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
         { role: "toggleDevTools" }

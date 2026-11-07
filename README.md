@@ -43,10 +43,11 @@ ORBIT opens with an initial web tab on the left and the assistant on the right.
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
 - **Switch tabs:** Use the tab strip next to the address bar.
+- **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to orbit, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page.
 - **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS).
 - **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh Google page.
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
-- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+J / Command+J focuses the assistant. The application menu lists the main shortcuts.
+- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+J / Command+J focuses the assistant. Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
@@ -229,7 +230,7 @@ This creates a distributable for the current platform. The project is configured
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
-- ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, and the assistant (panel, built-in browser commands, voice).
+- ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
 - ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.
 - ui/styles/ — one stylesheet per component, plus base.css for the page layout.
 - package.json — start and packaging scripts.

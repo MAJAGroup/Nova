@@ -32,5 +32,8 @@
       "target": "AppImage",
       "category": "Network;WebBrowser;"
     }
+  },
+  "dependencies": {
+    "three": "0.186.1"
   }
 }

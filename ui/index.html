@@ -12,6 +12,15 @@
     <link rel="stylesheet" href="styles/assistant.css">
     <link rel="stylesheet" href="styles/settings-modal.css">
     <link rel="stylesheet" href="styles/toast.css">
+    <link rel="stylesheet" href="styles/cosmos.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../node_modules/three/build/three.module.js",
+          "three/addons/": "../node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
     <script type="module" src="main.js"></script>
   </head>
   <body>
@@ -23,6 +32,7 @@
             <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
             <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
           </div>
+          <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
           <div class="address-bar">
             <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
           </div>
@@ -35,6 +45,10 @@
             <h2>No page open</h2>
             <p>Enter a web address above to begin.</p>
           </div>
+          <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
+            <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span id="cosmos-count">0 tabs</span></div>
+            <div class="cosmos-hint">Drag to orbit · Scroll to zoom · Click a star to open · Esc to return</div>
+          </section>
         </section>
       </main>
 
