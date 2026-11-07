@@ -40,22 +40,31 @@ function createSky() {
   }));
 }
 
-// Faint dust in the plane where the tab stars live, so the disc reads as a galaxy.
+const DUST = {
+  count: 2200,
+  size: 0.45,
+  opacity: 0.85,
+  saturation: 0.65,
+  minLightness: 0.45,
+  lightnessRange: 0.3
+};
+
+// Dust in the plane where the tab stars live, so the disc reads as a galaxy.
 function createDust() {
   const positions = [];
   const colors = [];
   const color = new THREE.Color();
-  for (let i = 0; i < 1800; i++) {
+  for (let i = 0; i < DUST.count; i++) {
     const radius = 3 + Math.pow(Math.random(), 0.7) * 55;
     const angle = Math.random() * Math.PI * 2;
     const spread = (Math.random() + Math.random() - 1) * (1 + radius * 0.06);
     positions.push(Math.cos(angle) * radius, spread, Math.sin(angle) * radius);
-    color.setHSL(0.58 + Math.random() * 0.15, 0.6, 0.35 + Math.random() * 0.3);
+    color.setHSL(0.58 + Math.random() * 0.15, DUST.saturation, DUST.minLightness + Math.random() * DUST.lightnessRange);
     colors.push(color.r, color.g, color.b);
   }
   return points(positions, colors, new THREE.PointsMaterial({
-    size: 0.35, sizeAttenuation: true, map: glowTexture(), vertexColors: true,
-    transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending
+    size: DUST.size, sizeAttenuation: true, map: glowTexture(), vertexColors: true,
+    transparent: true, opacity: DUST.opacity, depthWrite: false, blending: THREE.AdditiveBlending
   }));
 }
 
