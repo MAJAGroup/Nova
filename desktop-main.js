@@ -12,24 +12,114 @@ const {
   session
 } = require("electron");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
+const { NavigationGraph } = require("./navigation-graph");
 
 const tabs = new Map();
+let navigationGraph = new NavigationGraph();
 const permissionGrants = new Map();
 const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
 let mainWindow = null;
 let activeTabId = null;
 let nextTabId = 1;
-let browserBounds = { ...hiddenBounds };
+let focusedPane = "primary";
+let secondaryTabId = null;
+let splitMode = "single";
+let browserBounds = { primary: { ...hiddenBounds }, secondary: { ...hiddenBounds } };
 let settingsCache = null;
+let startupSession = null;
+let restoringSession = false;
+let saveTimer = null;
+let sessionClosing = false;
+
+function sessionPath() {
+  return path.join(app.getPath("userData"), "orbit-session.json");
+}
+
+function sessionSnapshot() {
+  return {
+    version: 1,
+    nextTabId,
+    layout: layoutSnapshot(),
+    tabs: Array.from(tabs.values(), tab => ({ id: tab.id, url: tab.loading && tab.pendingUrl ? tab.pendingUrl : (tab.url || tab.pendingUrl), title: tab.title,
+      lastAccessed: tab.lastAccessed })),
+    navigation: navigationGraph.getSnapshot()
+  };
+}
+
+function scheduleSessionSave() {
+  if (restoringSession || sessionClosing) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    writeSessionSnapshot();
+  }, 350);
+}
+
+function writeSessionSnapshot() {
+  try {
+    const target = sessionPath();
+    fsSync.mkdirSync(path.dirname(target), { recursive: true });
+    fsSync.writeFileSync(target + ".tmp", JSON.stringify(sessionSnapshot()), { mode: 0o600 });
+    fsSync.renameSync(target + ".tmp", target);
+  } catch (error) {
+    console.error("Could not save ORBIT session:", error);
+  }
+}
+
+function saveSessionImmediately() {
+  sessionClosing = true;
+  clearTimeout(saveTimer);
+  writeSessionSnapshot();
+}
+
+async function loadSession() {
+  try {
+    const saved = JSON.parse(await fs.readFile(sessionPath(), "utf8"));
+    if (saved.version !== 1 || !Array.isArray(saved.tabs)) return;
+    navigationGraph = NavigationGraph.fromSnapshot(saved.navigation);
+    nextTabId = Array.from(navigationGraph.tabs.keys()).reduce((next, id) =>
+      Math.max(next, Number(id) + 1 || 1), Math.max(1, Number(saved.nextTabId) || 1));
+    startupSession = saved;
+  } catch (error) {
+    if (error.code !== "ENOENT") console.error("Could not restore ORBIT session:", error);
+  }
+}
+
+function sendNavigation() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("browser:navigation-updated", navigationGraph.getSnapshot());
+  scheduleSessionSave();
+}
+
+function layoutSnapshot() {
+  return { mode: splitMode, focusedPane, primaryTabId: activeTabId,
+    secondaryTabId: splitMode === "single" ? null : secondaryTabId };
+}
+
+function currentTabId() {
+  return focusedPane === "secondary" && splitMode !== "single" ? secondaryTabId : activeTabId;
+}
+
+function validBounds(bounds) {
+  if (!bounds || typeof bounds !== "object") return { ...hiddenBounds };
+  const width = Math.max(0, Math.min(10000, Number(bounds.width) || 0));
+  const height = Math.max(0, Math.min(10000, Number(bounds.height) || 0));
+  if (!width || !height) return { ...hiddenBounds };
+  return {
+    x: Math.max(0, Math.round(Number(bounds.x) || 0)),
+    y: Math.max(0, Math.round(Number(bounds.y) || 0)),
+    width: Math.round(width), height: Math.round(height)
+  };
+}
 
 function normalizeDestination(input) {
   const value = String(input || "").trim();
   if (!value) return "https://www.google.com";
 
-  const looksLikeHost = /^(localhost(?::\d+)?|[\w-]+(?:\.[\w-]+)+(?:\/[^\s]*)?)$/i.test(value);
+  const looksLikeHost = /^(?:localhost|[\w-]+(?:\.[\w-]+)+)(?::\d+)?(?:\/[^\s]*)?$/i.test(value);
   if (looksLikeHost) {
-    try { return new URL("https://" + value).href; } catch (_) {}
+    try { return new URL((/^(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(value) ? "http://" : "https://") + value).href; } catch (_) {}
   }
   try {
     const parsed = new URL(value);
@@ -57,7 +147,9 @@ function tabSnapshot(tab) {
     title: tab.title || "New tab",
     url: tab.url || "",
     favicon: tab.favicon || "",
-    active: tab.id === activeTabId,
+    active: tab.id === currentTabId(),
+    pane: tab.id === activeTabId ? "primary" :
+      (splitMode !== "single" && tab.id === secondaryTabId ? "secondary" : null),
     loading: tab.loading,
     lastAccessed: tab.lastAccessed,
     canGoBack: history.canGoBack(),
@@ -70,35 +162,120 @@ function sendTabs() {
   const list = Array.from(tabs.values()).map(tabSnapshot);
   mainWindow.webContents.send("browser:tabs-updated", {
     tabs: list,
-    activeId: activeTabId
+    activeId: currentTabId(),
+    layout: layoutSnapshot()
   });
+  scheduleSessionSave();
 }
 
 function updateWebViewVisibility() {
   for (const tab of tabs.values()) {
-    const isVisible = browserBounds.width > 0 &&
-      browserBounds.height > 0 &&
-      tab.id === activeTabId;
+    const pane = tab.id === activeTabId ? "primary" :
+      (splitMode !== "single" && tab.id === secondaryTabId ? "secondary" : null);
+    const bounds = pane ? browserBounds[pane] : hiddenBounds;
+    const isVisible = Boolean(pane && bounds.width > 0 && bounds.height > 0);
+    tab.view.setBounds(isVisible ? bounds : hiddenBounds);
     tab.view.setVisible(isVisible);
-    tab.view.setBounds(isVisible ? browserBounds : hiddenBounds);
   }
 }
 
-function setActiveTab(id) {
+function setActiveTab(id, pane = focusedPane) {
   if (!tabs.has(String(id))) return false;
-  activeTabId = String(id);
-  tabs.get(activeTabId).lastAccessed = Date.now();
+  const target = splitMode === "single" ? "primary" :
+    (pane === "secondary" ? "secondary" : "primary");
+  const tabId = String(id);
+  if (target === "primary") {
+    if (tabId === secondaryTabId) secondaryTabId = activeTabId;
+    activeTabId = tabId;
+  } else {
+    if (tabId === activeTabId) activeTabId = secondaryTabId;
+    secondaryTabId = tabId;
+  }
+  focusedPane = target;
+  tabs.get(tabId).lastAccessed = Date.now();
   updateWebViewVisibility();
   sendTabs();
   return true;
 }
 
+function setLayout(mode) {
+  if (!["single", "vertical", "horizontal"].includes(mode)) return layoutSnapshot();
+  splitMode = mode;
+  if (mode === "single") {
+    if (focusedPane === "secondary" && secondaryTabId) activeTabId = secondaryTabId;
+    secondaryTabId = null;
+    focusedPane = "primary";
+  } else if (!secondaryTabId || secondaryTabId === activeTabId) {
+    secondaryTabId = Array.from(tabs.keys()).find((id) => id !== activeTabId) || null;
+  }
+  updateWebViewVisibility();
+  sendTabs();
+  return layoutSnapshot();
+}
+
+function closeSecondPane() {
+  splitMode = "single";
+  secondaryTabId = null;
+  focusedPane = "primary";
+  updateWebViewVisibility();
+  sendTabs();
+  return layoutSnapshot();
+}
+
+function recordNavigation(tab, url, kind = "navigate") {
+  if (!isWebUrl(url)) return;
+  const history = tab.view.webContents.navigationHistory;
+  const index = Math.max(0, history.getActiveIndex());
+  const knownVisitId = tab.nativeVisitIds[index];
+  const currentVisitId = navigationGraph.getTab(tab.id).currentVisitId;
+  const currentVisit = currentVisitId ? navigationGraph.getVisit(currentVisitId) : null;
+  if (tab.restoring && currentVisit && currentVisit.url === url) {
+    tab.nativeVisitIds[index] = currentVisitId;
+  } else if (knownVisitId && (tab.pendingTraversal ||
+    (!tab.navigationIsNew && index !== tab.lastHistoryIndex)) &&
+    navigationGraph.getVisit(knownVisitId).url === url) {
+    navigationGraph.setCurrentVisit({ tabId: tab.id, visitId: knownVisitId,
+      kind: index < tab.lastHistoryIndex ? "back" : "forward" });
+  } else if (!currentVisit || currentVisit.url !== url || tab.navigationIsNew ||
+    index !== tab.lastHistoryIndex) {
+    const visit = navigationGraph.recordVisit({ tabId: tab.id, url,
+      title: tab.view.webContents.getTitle() || tab.title || "", kind });
+    tab.nativeVisitIds = tab.nativeVisitIds.slice(0, index);
+    tab.nativeVisitIds[index] = visit.id;
+  }
+  tab.restoring = false;
+  tab.pendingTraversal = false;
+  tab.navigationIsNew = false;
+  tab.lastHistoryIndex = index;
+  tab.lastRecordedUrl = url;
+  sendNavigation();
+}
+
+function traverseHistory(tab, targetIndex) {
+  if (!tab) return false;
+  const history = tab.view.webContents.navigationHistory;
+  if (targetIndex < 0 || targetIndex >= history.length() || targetIndex === history.getActiveIndex()) return false;
+  tab.pendingTraversal = true;
+  history.goToIndex(targetIndex);
+  return true;
+}
+
 function attachWebContentsHandlers(tab) {
   const contents = tab.view.webContents;
+  contents.on("focus", () => {
+    const pane = tab.id === activeTabId ? "primary" :
+      (splitMode !== "single" && tab.id === secondaryTabId ? "secondary" : null);
+    if (pane && focusedPane !== pane) {
+      focusedPane = pane;
+      sendTabs();
+    }
+  });
   const updateUrl = (_event, url) => {
     tab.url = url || contents.getURL();
+    tab.pendingUrl = tab.url;
     tab.title = contents.getTitle() || tab.title;
     tab.loading = contents.isLoading();
+    recordNavigation(tab, tab.url);
     sendTabs();
   };
 
@@ -109,13 +286,26 @@ function attachWebContentsHandlers(tab) {
   contents.on("did-stop-loading", () => {
     tab.loading = false;
     tab.url = contents.getURL();
+    tab.pendingUrl = tab.url;
     tab.title = contents.getTitle() || tab.title;
+    const currentVisitId = navigationGraph.getTab(tab.id).currentVisitId;
+    if (currentVisitId && tab.url === navigationGraph.getVisit(currentVisitId).url) {
+      navigationGraph.updateVisit({ visitId: currentVisitId, title: tab.title });
+      sendNavigation();
+    }
     sendTabs();
   });
   contents.on("did-navigate", updateUrl);
-  contents.on("did-navigate-in-page", updateUrl);
+  contents.on("did-navigate-in-page", (event, url, isMainFrame) => {
+    if (isMainFrame) updateUrl(event, url);
+  });
   contents.on("page-title-updated", (_event, title) => {
     tab.title = title || tab.title;
+    const currentVisitId = navigationGraph.getTab(tab.id).currentVisitId;
+    if (currentVisitId) {
+      navigationGraph.updateVisit({ visitId: currentVisitId, title: tab.title });
+      sendNavigation();
+    }
     sendTabs();
   });
   contents.on("page-favicon-updated", (_event, favicons) => {
@@ -123,7 +313,7 @@ function attachWebContentsHandlers(tab) {
     sendTabs();
   });
   contents.on("will-navigate", (event, url) => {
-    if (isWebUrl(url)) return;
+    if (isWebUrl(url)) { tab.navigationIsNew = true; return; }
     event.preventDefault();
     if (/^mailto:/i.test(url)) shell.openExternal(url);
   });
@@ -131,14 +321,14 @@ function attachWebContentsHandlers(tab) {
     if (!isWebUrl(url)) event.preventDefault();
   });
   contents.setWindowOpenHandler(({ url }) => {
-    if (isWebUrl(url)) createTab(url);
+    if (isWebUrl(url)) createTab(url, focusedPane, tab.id);
     else if (/^mailto:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
   contents.on("context-menu", (_event, params) => {
     const menu = Menu.buildFromTemplate([
-      { label: "Back", enabled: contents.navigationHistory.canGoBack(), click: () => contents.navigationHistory.goBack() },
-      { label: "Forward", enabled: contents.navigationHistory.canGoForward(), click: () => contents.navigationHistory.goForward() },
+      { label: "Back", enabled: contents.navigationHistory.canGoBack(), click: () => traverseHistory(tab, contents.navigationHistory.getActiveIndex() - 1) },
+      { label: "Forward", enabled: contents.navigationHistory.canGoForward(), click: () => traverseHistory(tab, contents.navigationHistory.getActiveIndex() + 1) },
       { type: "separator" },
       { role: "copy", enabled: params.selectionText.length > 0 },
       { role: "paste" },
@@ -156,18 +346,34 @@ function attachWebContentsHandlers(tab) {
   contents.on("destroyed", () => {
     if (!tabs.has(tab.id)) return;
     tabs.delete(tab.id);
+    navigationGraph.closeTab({ tabId: tab.id });
     if (activeTabId === tab.id) {
-      activeTabId = Array.from(tabs.keys()).pop() || null;
+      activeTabId = Array.from(tabs.keys()).find((id) => id !== secondaryTabId) || secondaryTabId || null;
       if (activeTabId) tabs.get(activeTabId).lastAccessed = Date.now();
+      if (activeTabId === secondaryTabId) {
+        secondaryTabId = null;
+        splitMode = "single";
+      }
+    }
+    if (secondaryTabId === tab.id) {
+      secondaryTabId = null;
+      focusedPane = "primary";
     }
     updateWebViewVisibility();
+    sendNavigation();
     sendTabs();
   });
 }
 
-function createTab(url) {
+function createTab(url, pane = focusedPane, openerTabId = null, options = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
-  const id = String(nextTabId++);
+  const id = options.id ? String(options.id) : String(nextTabId++);
+  if (options.id) nextTabId = Math.max(nextTabId, Number(id) + 1 || nextTabId);
+  if (tabs.has(id)) return null;
+  if (!navigationGraph.tabs.has(id)) {
+    navigationGraph.openTab({ tabId: id, openerTabId,
+      restoredFromVisitId: options.restoredFromVisitId || null });
+  }
   const view = new WebContentsView({
     webPreferences: {
       partition: "persist:orbit",
@@ -182,17 +388,26 @@ function createTab(url) {
     view,
     title: "Loading…",
     url: "",
+    pendingUrl: normalizeDestination(url),
     favicon: "",
     loading: true,
-    lastAccessed: Date.now()
+    lastAccessed: Date.now(),
+    openerTabId,
+    nativeVisitIds: [],
+    lastHistoryIndex: -1,
+    lastRecordedUrl: "",
+    navigationIsNew: false,
+    pendingTraversal: false,
+    restoring: Boolean(options.id)
   };
   tabs.set(id, tab);
   mainWindow.contentView.addChildView(view);
   view.setVisible(false);
   view.setBounds(hiddenBounds);
   attachWebContentsHandlers(tab);
-  setActiveTab(id);
-  view.webContents.loadURL(normalizeDestination(url));
+  setActiveTab(id, pane);
+  sendNavigation();
+  view.webContents.loadURL(tab.pendingUrl);
   return id;
 }
 
@@ -207,15 +422,26 @@ function closeTab(id) {
     sendTabs();
     return true;
   }
-  const wasActive = activeTabId === tab.id;
+  const wasPrimary = activeTabId === tab.id;
+  const wasSecondary = secondaryTabId === tab.id;
   mainWindow.contentView.removeChildView(tab.view);
   tabs.delete(tab.id);
+  navigationGraph.closeTab({ tabId: tab.id });
   tab.view.webContents.close();
-  if (wasActive) {
-    activeTabId = Array.from(tabs.keys()).pop() || null;
+  if (wasPrimary) {
+    activeTabId = Array.from(tabs.keys()).find((id) => id !== secondaryTabId) || secondaryTabId || null;
     if (activeTabId) tabs.get(activeTabId).lastAccessed = Date.now();
   }
+  if (wasPrimary && activeTabId === secondaryTabId) {
+    secondaryTabId = null;
+    splitMode = "single";
+    focusedPane = "primary";
+  } else if (wasSecondary) {
+    secondaryTabId = null;
+    focusedPane = "primary";
+  }
   updateWebViewVisibility();
+  sendNavigation();
   sendTabs();
   return true;
 }
@@ -269,8 +495,9 @@ async function getStoredAPIKey(settings) {
 function validateAPIEndpoint(value) {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "https:" ||
-      (parsed.protocol === "http:" && parsed.hostname === "localhost");
+    const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
+    return !parsed.username && !parsed.password &&
+      (parsed.protocol === "https:" || (parsed.protocol === "http:" && loopback));
   } catch (_) {
     return false;
   }
@@ -279,7 +506,10 @@ function validateAPIEndpoint(value) {
 function isLocalOllamaEndpoint(value) {
   try {
     const parsed = new URL(value);
-    return parsed.protocol === "http:" && parsed.hostname === "localhost" && parsed.port === "11434";
+    return parsed.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) &&
+      parsed.pathname.replace(/\/+$/, "") === "/v1/chat/completions" &&
+      !parsed.username && !parsed.password;
   } catch (_) {
     return false;
   }
@@ -390,11 +620,12 @@ function createApplicationMenu() {
 }
 
 function createWindow() {
+  sessionClosing = false;
   const win = new BrowserWindow({
     width: 1500,
     height: 940,
-    minWidth: 1080,
-    minHeight: 700,
+    minWidth: 720,
+    minHeight: 540,
     backgroundColor: "#080d1c",
     title: "ORBIT — Spatial Browser",
     webPreferences: {
@@ -406,7 +637,7 @@ function createWindow() {
     }
   });
   mainWindow = win;
-  browserBounds = { ...hiddenBounds };
+  browserBounds = { primary: { ...hiddenBounds }, secondary: { ...hiddenBounds } };
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("file:")) return;
@@ -414,17 +645,46 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "newtab.html"));
   win.webContents.once("did-finish-load", () => {
-    if (mainWindow === win && tabs.size === 0) createTab("https://www.google.com");
+    if (mainWindow !== win || tabs.size !== 0) return;
+    if (startupSession && startupSession.tabs.length) {
+      restoringSession = true;
+      const saved = startupSession;
+      const primaryId = saved.layout?.primaryTabId;
+      const secondaryId = saved.layout?.secondaryTabId;
+      saved.tabs.forEach((entry) => {
+        const pane = String(entry.id) === String(secondaryId) ? "secondary" : "primary";
+        createTab(entry.url || "https://www.google.com", pane, null, { id: entry.id });
+        const tab = tabs.get(String(entry.id));
+        if (tab) tab.lastAccessed = entry.lastAccessed || Date.now();
+      });
+      if (primaryId && tabs.has(String(primaryId))) setActiveTab(primaryId, "primary");
+      if (secondaryId && tabs.has(String(secondaryId))) secondaryTabId = String(secondaryId);
+      splitMode = ["vertical", "horizontal"].includes(saved.layout?.mode) && secondaryTabId ? saved.layout.mode : "single";
+      focusedPane = saved.layout?.focusedPane === "secondary" && splitMode !== "single" ? "secondary" : "primary";
+      restoringSession = false;
+      startupSession = null;
+      updateWebViewVisibility();
+      sendNavigation();
+      sendTabs();
+    } else createTab("https://www.google.com");
+  });
+  win.on("close", () => {
+    startupSession = sessionSnapshot();
+    saveSessionImmediately();
   });
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
-      browserBounds = { ...hiddenBounds };
-      for (const tab of tabs.values()) {
+      browserBounds = { primary: { ...hiddenBounds }, secondary: { ...hiddenBounds } };
+      const oldTabs = Array.from(tabs.values());
+      tabs.clear();
+      for (const tab of oldTabs) {
         if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
       }
-      tabs.clear();
       activeTabId = null;
+      secondaryTabId = null;
+      focusedPane = "primary";
+      splitMode = "single";
     }
   });
 }
@@ -432,45 +692,72 @@ function createWindow() {
 function registerIPC() {
   ipcMain.handle("browser:get-tabs", () => ({
     tabs: Array.from(tabs.values()).map(tabSnapshot),
-    activeId: activeTabId
+    activeId: currentTabId(),
+    layout: layoutSnapshot()
   }));
-  ipcMain.handle("browser:new-tab", (_event, url) => createTab(url || "https://www.google.com"));
-  ipcMain.handle("browser:activate-tab", (_event, id) => setActiveTab(id));
+  ipcMain.handle("browser:new-tab", (_event, url, pane) => createTab(url || "https://www.google.com", pane));
+  ipcMain.handle("browser:activate-tab", (_event, id, pane) => setActiveTab(id, pane));
   ipcMain.handle("browser:close-tab", (_event, id) => closeTab(id));
+  ipcMain.handle("browser:get-navigation", () => navigationGraph.getSnapshot());
+  ipcMain.handle("browser:go-to-visit", (_event, visitId) => {
+    try {
+      const visit = navigationGraph.getVisit(visitId);
+      if (!isWebUrl(visit.url)) return false;
+      const tab = tabs.get(visit.tabId);
+      if (tab) {
+        setActiveTab(tab.id);
+        const index = tab.nativeVisitIds.indexOf(visit.id);
+        if (index >= 0) return traverseHistory(tab, index) || true;
+      }
+      return Boolean(createTab(visit.url, focusedPane, null, { restoredFromVisitId: visit.id }));
+    } catch (_) { return false; }
+  });
+  ipcMain.handle("browser:set-layout", (_event, mode) => setLayout(mode));
+  ipcMain.handle("browser:close-second-pane", () => closeSecondPane());
+  ipcMain.handle("browser:focus-pane", (_event, pane) => {
+    if (pane === "primary" || (pane === "secondary" && splitMode !== "single")) {
+      focusedPane = pane;
+      sendTabs();
+    }
+    return layoutSnapshot();
+  });
+  ipcMain.handle("browser:swap-panes", () => {
+    if (splitMode !== "single" && secondaryTabId) {
+      [activeTabId, secondaryTabId] = [secondaryTabId, activeTabId];
+      updateWebViewVisibility();
+      sendTabs();
+    }
+    return layoutSnapshot();
+  });
   ipcMain.handle("browser:navigate", (_event, input) => {
-    if (!activeTabId || !tabs.has(activeTabId)) return createTab(input);
+    const tabId = currentTabId();
+    if (!tabId || !tabs.has(tabId)) return createTab(input);
     const target = normalizeDestination(input);
-    tabs.get(activeTabId).view.webContents.loadURL(target);
+    tabs.get(tabId).pendingUrl = target;
+    tabs.get(tabId).view.webContents.loadURL(target);
     return target;
   });
   ipcMain.handle("browser:back", () => {
-    const history = activeTabId && tabs.get(activeTabId)?.view.webContents.navigationHistory;
-    if (history && history.canGoBack()) history.goBack();
+    const tab = currentTabId() && tabs.get(currentTabId());
+    if (tab) traverseHistory(tab, tab.view.webContents.navigationHistory.getActiveIndex() - 1);
   });
   ipcMain.handle("browser:forward", () => {
-    const history = activeTabId && tabs.get(activeTabId)?.view.webContents.navigationHistory;
-    if (history && history.canGoForward()) history.goForward();
+    const tab = currentTabId() && tabs.get(currentTabId());
+    if (tab) traverseHistory(tab, tab.view.webContents.navigationHistory.getActiveIndex() + 1);
   });
   ipcMain.handle("browser:reload", () => {
-    const contents = activeTabId && tabs.get(activeTabId)?.view.webContents;
+    const contents = currentTabId() && tabs.get(currentTabId())?.view.webContents;
     if (contents) contents.reload();
   });
   ipcMain.handle("browser:stop", () => {
-    const contents = activeTabId && tabs.get(activeTabId)?.view.webContents;
+    const contents = currentTabId() && tabs.get(currentTabId())?.view.webContents;
     if (contents) contents.stop();
   });
   ipcMain.on("browser:set-bounds", (_event, bounds) => {
     if (!bounds || !mainWindow) return;
-    const width = Math.max(0, Math.min(10000, Number(bounds.width) || 0));
-    const height = Math.max(0, Math.min(10000, Number(bounds.height) || 0));
-    browserBounds = width > 0 && height > 0
-      ? {
-          x: Math.max(0, Math.round(Number(bounds.x) || 0)),
-          y: Math.max(0, Math.round(Number(bounds.y) || 0)),
-          width: Math.round(width),
-          height: Math.round(height)
-        }
-      : { ...hiddenBounds };
+    browserBounds = bounds.primary || bounds.secondary
+      ? { primary: validBounds(bounds.primary), secondary: validBounds(bounds.secondary) }
+      : { primary: validBounds(bounds), secondary: { ...hiddenBounds } };
     updateWebViewVisibility();
   });
   ipcMain.handle("ai:get-config", async () => {
@@ -557,7 +844,8 @@ function registerIPC() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadSession();
   installPermissionPrompts();
   registerIPC();
   createApplicationMenu();
@@ -572,8 +860,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  for (const tab of tabs.values()) {
+  const oldTabs = Array.from(tabs.values());
+  tabs.clear();
+  for (const tab of oldTabs) {
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
   }
-  tabs.clear();
 });

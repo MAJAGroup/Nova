@@ -28,6 +28,7 @@
         </div>
         <div class="top-actions">
           <span class="live-indicator"><i></i> LOCAL SESSION</span>
+          <button class="icon-button accessibility-trigger" id="accessibility-open" type="button" aria-label="Accessibility settings" title="Accessibility settings">Aa</button>
           <button class="icon-button settings-trigger" id="settings-open" aria-label="Open AI settings" title="AI settings">
             <span class="gear-icon">⚙</span>
           </button>
@@ -67,8 +68,16 @@
               <p class="subheading" id="page-subheading">A little space to think, explore, and get things done.</p>
             </div>
             <div class="heading-actions">
+              <button id="focus-mode" class="quiet-button" type="button" aria-pressed="false" title="Toggle focus mode">Focus mode</button>
               <button id="layout-toggle" class="quiet-button"><span class="layout-glyph">⠿</span> <span id="layout-label">Constellation</span></button>
               <button id="new-tab" class="primary-button"><span>＋</span> New tab</button>
+              <div id="split-controls" class="split-controls" role="group" aria-label="Browser pane layout" hidden>
+                <button id="split-vertical" type="button" aria-label="Split pages side by side" title="Split side by side">◫</button>
+                <button id="split-horizontal" type="button" aria-label="Stack pages vertically" title="Stack pages vertically">⬒</button>
+                <button id="split-swap" type="button" aria-label="Swap browser panes" title="Swap panes" hidden>⇄</button>
+                <button id="split-maximize" type="button" aria-label="Maximize focused pane" title="Maximize pane" hidden>⛶</button>
+                <button id="split-close" type="button" aria-label="Close second pane" title="Close second pane" hidden>×</button>
+              </div>
             </div>
           </div>
 
@@ -76,6 +85,8 @@
             <div class="view-tabs">
               <button class="view-tab active" data-view="all">Overview</button>
               <button class="view-tab" data-view="recent">Recent</button>
+              <button class="view-tab" id="structured-mode" data-view="structured" type="button">Accessible list</button>
+              <button class="view-tab" id="tasks-mode" data-view="tasks" type="button">Tasks</button>
               <button class="view-tab browser-mode-button" id="browse-mode" type="button" hidden>Browse</button>
             </div>
             <div class="workspace-meta" id="workspace-meta"><span class="meta-pulse"></span><span id="workspace-count">0 ACTIVE TABS</span><span class="meta-divider">·</span><span id="workspace-space">ALL SPACES</span></div>
@@ -101,11 +112,52 @@
             <div class="canvas-caption"><span class="caption-dot"></span> DRAG TO REARRANGE <span class="caption-divider">·</span> SELECT TO REVISIT</div>
             <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-value">100%</span><button id="zoom-in" aria-label="Zoom in">＋</button><span class="zoom-divider"></span><button id="recenter" aria-label="Recenter workspace">◎</button></div>
           </section>
+          <section id="structured-view" class="structured-view" hidden aria-labelledby="structured-title">
+            <div class="structured-heading">
+              <div>
+                <h2 id="structured-title">Browse your workspace as a list</h2>
+                <p>Open tabs and visit history are available without using the cosmic canvas.</p>
+              </div>
+              <label class="structured-search-label" for="structured-search">Search tabs and history
+                <input id="structured-search" type="search" autocomplete="off" placeholder="Title or web address">
+              </label>
+            </div>
+            <div class="structured-columns">
+              <section class="structured-group" aria-labelledby="structured-tabs-title">
+                <h3 id="structured-tabs-title">Open tabs <span id="structured-tab-count"></span></h3>
+                <ul id="structured-tab-list" class="structured-list"></ul>
+              </section>
+              <section class="structured-group" aria-labelledby="structured-history-title">
+                <h3 id="structured-history-title">Navigation history <span id="structured-history-count"></span></h3>
+                <ol id="structured-history-list" class="structured-list history-list"></ol>
+              </section>
+            </div>
+          </section>
+          <section id="task-view" class="task-view" hidden aria-labelledby="task-view-title">
+            <div class="structured-heading">
+              <div><h2 id="task-view-title">Browser tasks</h2><p>Follow browser commands and assistant activity here.</p></div>
+            </div>
+            <div id="task-list" class="task-list" role="list">
+              <p class="task-empty">No browser tasks are running.</p>
+            </div>
+          </section>
           <section id="browser-content" class="browser-content" hidden aria-label="Current web page">
-            <div class="browser-placeholder" id="browser-placeholder">
-              <span class="placeholder-orbit">✦</span>
-              <h2>Choose a page to open</h2>
-              <p>Pick a tab in the workspace, or enter a web address above.</p>
+            <div id="browser-pane-primary" class="browser-pane browser-pane-primary" role="region" aria-label="Primary browser pane" tabindex="-1">
+              <button class="pane-header" type="button" aria-label="Focus primary browser pane"><span class="pane-marker">1</span><span id="pane-primary-label">Current page</span><span id="pane-primary-status" class="pane-status" role="status"></span></button>
+              <div class="browser-placeholder" id="browser-placeholder">
+                <span class="placeholder-orbit">✦</span>
+                <h2>Choose a page to open</h2>
+                <p>Pick a tab in the workspace, or enter a web address above.</p>
+              </div>
+            </div>
+            <div id="pane-divider" class="pane-divider" role="separator" aria-label="Resize browser panes" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" tabindex="0" hidden></div>
+            <div id="browser-pane-secondary" class="browser-pane browser-pane-secondary" role="region" aria-label="Second browser pane" tabindex="-1" hidden>
+              <button class="pane-header" type="button" aria-label="Focus second browser pane"><span class="pane-marker">2</span><span id="pane-secondary-label">Second page</span><span id="pane-secondary-status" class="pane-status" role="status"></span></button>
+              <div id="pane-secondary-placeholder" class="browser-placeholder">
+                <span class="placeholder-orbit">✦</span>
+                <h2>Choose a second page</h2>
+                <p>Select a tab to open beside your current page.</p>
+              </div>
             </div>
           </section>
 
@@ -167,19 +219,32 @@
         <button class="modal-close" data-close-modal aria-label="Close">×</button>
         <div class="modal-kicker">MISSION CONTROL <span>✦</span></div>
         <h2 id="settings-title">Connect an AI model</h2>
-        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Ollama Kimi K3.1 Pro is available through Ollama Cloud; choose a preset below.</p>
+        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Use a local model, an Empire AI tunnel, or a cloud provider.</p>
         <div class="settings-actions">
           <button type="button" class="text-button" data-ollama-preset="local">Local Ollama API</button>
+          <button type="button" class="text-button" data-ollama-preset="alpha">Empire AI tunnel</button>
           <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
         </div>
         <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
         <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
         <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
-        <input id="api-model" class="settings-input" type="text" placeholder="e.g. kimi-k3.1-pro:cloud">
+        <input id="api-model" class="settings-input" type="text" placeholder="e.g. qwen3.8:27b">
         <label class="field-label" for="api-key">API KEY <span>stored securely in the desktop app</span></label>
         <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
-        <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
+        <div class="settings-hint"><span>ⓘ</span> Local or tunneled Ollama usually needs no key. A cloud provider may require one. When you ask Orbit, it sends your prompt and open tab titles and URLs to the endpoint you choose.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+      </section>
+    </div>
+    <div class="modal-backdrop" id="accessibility-modal" hidden>
+      <section class="settings-modal accessibility-modal" role="dialog" aria-modal="true" aria-labelledby="accessibility-title" aria-describedby="accessibility-intro">
+        <button class="modal-close" id="accessibility-close" type="button" aria-label="Close accessibility settings">×</button>
+        <div class="modal-kicker">PRESENTATION <span>✦</span></div>
+        <h2 id="accessibility-title">Accessibility settings</h2>
+        <p id="accessibility-intro" class="modal-intro">Adjust the browser interface for comfortable reading and navigation.</p>
+        <label class="accessibility-option" for="reduced-motion-toggle"><span><strong>Reduce motion</strong><small>Limit decorative animation and movement.</small></span><input id="reduced-motion-toggle" type="checkbox"></label>
+        <label class="accessibility-option" for="high-contrast-toggle"><span><strong>High contrast</strong><small>Strengthen text, borders, and focus indicators.</small></span><input id="high-contrast-toggle" type="checkbox"></label>
+        <label class="accessibility-option" for="text-scale"><span><strong>Text size</strong><small>Increase text across the browser controls.</small></span><select id="text-scale"><option value="1">Default</option><option value="1.15">Large</option><option value="1.3">Larger</option></select></label>
+        <p class="accessibility-note">The Accessible list and Focus mode buttons are available in the main browser controls.</p>
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

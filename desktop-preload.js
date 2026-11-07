@@ -4,9 +4,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("orbitBrowser", {
   getTabs: () => ipcRenderer.invoke("browser:get-tabs"),
-  newTab: (url) => ipcRenderer.invoke("browser:new-tab", url),
-  activateTab: (id) => ipcRenderer.invoke("browser:activate-tab", id),
+  newTab: (url, pane) => ipcRenderer.invoke("browser:new-tab", url, pane),
+  activateTab: (id, pane) => ipcRenderer.invoke("browser:activate-tab", id, pane),
   closeTab: (id) => ipcRenderer.invoke("browser:close-tab", id),
+  getNavigation: () => ipcRenderer.invoke("browser:get-navigation"),
+  goToVisit: (id) => ipcRenderer.invoke("browser:go-to-visit", id),
+  setLayout: (mode) => ipcRenderer.invoke("browser:set-layout", mode),
+  closeSecondPane: () => ipcRenderer.invoke("browser:close-second-pane"),
+  focusPane: (pane) => ipcRenderer.invoke("browser:focus-pane", pane),
+  swapPanes: () => ipcRenderer.invoke("browser:swap-panes"),
   navigate: (url) => ipcRenderer.invoke("browser:navigate", url),
   goBack: () => ipcRenderer.invoke("browser:back"),
   goForward: () => ipcRenderer.invoke("browser:forward"),
@@ -21,6 +27,11 @@ contextBridge.exposeInMainWorld("orbitBrowser", {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("browser:tabs-updated", listener);
     return () => ipcRenderer.removeListener("browser:tabs-updated", listener);
+  },
+  onNavigationUpdated: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("browser:navigation-updated", listener);
+    return () => ipcRenderer.removeListener("browser:navigation-updated", listener);
   },
   onCommand: (callback) => {
     const listener = (_event, command) => callback(command);

@@ -28,6 +28,13 @@
   var voiceReplies = false;
   var activeTabId = null;
   var browserMode = false;
+  var currentView = "all";
+  var browserLayout = { mode: "single", focusedPane: "primary", primaryTabId: null, secondaryTabId: null };
+  var navigation = { tabs: [], visits: [], edges: [], events: [] };
+  var splitRatio = 50;
+  var accessibility = { focusMode: false, reducedMotion: false, highContrast: false, textScale: "1" };
+  var modalReturnFocus = null;
+  var activity = [];
   var isDesktopApp = Boolean(window.orbitBrowser && window.orbitBrowser.getTabs);
   var isChromeExtension = Boolean(window.chrome && chrome.tabs && chrome.tabs.query && chrome.runtime && chrome.runtime.getURL);
   if (isDesktopApp) document.body.classList.add("desktop-app");
@@ -70,15 +77,36 @@
   }
 
   function setTabs(nextTabs) {
+    var focused = document.activeElement;
+    var restoreFocus = null;
+    var focusedCard = focused && focused.closest && focused.closest(".tab-card");
+    var focusedStripTab = focused && focused.closest && focused.closest(".browser-tab");
+    var focusedSpace = focused && focused.closest && focused.closest(".space-item");
+    if (focusedCard) restoreFocus = { kind: "card", id: focusedCard.dataset.key, close: focused.classList.contains("card-close") };
+    else if (focusedStripTab) restoreFocus = { kind: "strip", id: focusedStripTab.dataset.tabId, close: focused.classList.contains("browser-tab-close") };
+    else if (focusedSpace) restoreFocus = { kind: "space", id: focusedSpace.dataset.space };
     tabs = nextTabs.filter(function (tab) { return tab && (tab.url || tab.pendingUrl) && !isInternalUrl(tab.url || tab.pendingUrl); });
     ensureAssignments();
     renderSpaces();
     renderTabs();
     renderBrowserTabs();
+    renderStructuredView();
+    updatePaneUI();
     updateCounts();
+    if (restoreFocus && document.activeElement === document.body) {
+      var target = null;
+      if (restoreFocus.kind === "card") {
+        var card = Array.from(document.querySelectorAll(".tab-card")).find(function (item) { return item.dataset.key === restoreFocus.id; });
+        target = card && card.querySelector(restoreFocus.close ? ".card-close" : ".card-open");
+      } else if (restoreFocus.kind === "strip") {
+        var stripTab = Array.from(document.querySelectorAll(".browser-tab")).find(function (item) { return item.dataset.tabId === restoreFocus.id; });
+        target = stripTab && stripTab.querySelector(restoreFocus.close ? ".browser-tab-close" : ".browser-tab-select");
+      } else target = document.querySelector('.space-item[data-space="' + restoreFocus.id + '"]');
+      if (target) target.focus({ preventScroll: true });
+    }
     if (isDesktopApp) {
       var active = tabs.find(function (tab) { return String(tab.id) === String(activeTabId); });
-      el("browser-placeholder").hidden = Boolean(active);
+      el("browser-placeholder").hidden = tabs.some(function (tab) { return String(tab.id) === String(browserLayout.primaryTabId); });
       el("go-back").disabled = !active || !active.canGoBack;
       el("go-forward").disabled = !active || !active.canGoForward;
       if (browserMode && active) {
@@ -110,11 +138,21 @@
     if (isDesktopApp) {
       window.orbitBrowser.getTabs().then(function (payload) {
         activeTabId = payload.activeId;
+        browserLayout = payload.layout || browserLayout;
         setTabs(payload.tabs || []);
+        window.orbitBrowser.getNavigation().then(function (graph) {
+          navigation = graph || navigation;
+          renderStructuredView();
+        });
       });
       window.orbitBrowser.onTabsUpdated(function (payload) {
         activeTabId = payload.activeId;
+        browserLayout = payload.layout || browserLayout;
         setTabs(payload.tabs || []);
+      });
+      window.orbitBrowser.onNavigationUpdated(function (graph) {
+        navigation = graph || navigation;
+        renderStructuredView();
       });
     } else if (isChromeExtension) {
       chrome.tabs.query({}, function (openTabs) {
@@ -152,48 +190,196 @@
     activeSpace = id;
     renderSpaces();
     renderTabs();
+    renderStructuredView();
     el("workspace-space").textContent = id === "all" ? "ALL SPACES" : id.toUpperCase();
   }
 
   function setBrowserMode(enabled) {
-    if (!isDesktopApp) return;
-    browserMode = Boolean(enabled);
-    el("workspace").hidden = browserMode;
+    setView(enabled && isDesktopApp ? "browse" : "all");
+  }
+
+  function setView(view) {
+    currentView = view;
+    recentOnly = view === "recent";
+    browserMode = view === "browse" && isDesktopApp;
+    el("workspace").hidden = view !== "all" && view !== "recent";
     el("browser-content").hidden = !browserMode;
-    el("workspace-meta").hidden = browserMode;
+    el("structured-view").hidden = view !== "structured";
+    el("task-view").hidden = view !== "tasks";
+    el("workspace-meta").hidden = browserMode || view === "structured" || view === "tasks";
     el("browser-tabs").hidden = !browserMode;
-    el("layout-toggle").hidden = browserMode;
-    el("browse-mode").classList.toggle("active", browserMode);
-    document.querySelector('.view-tab[data-view="' + (recentOnly ? "recent" : "all") + '"]').classList.toggle("active", !browserMode);
+    el("layout-toggle").hidden = browserMode || view === "structured" || view === "tasks";
+    el("split-controls").hidden = !browserMode;
+    document.querySelectorAll(".view-tab").forEach(function (button) {
+      button.classList.toggle("active", button === el("browse-mode") ? browserMode : button.dataset.view === view);
+      button.setAttribute("aria-current", button.classList.contains("active") ? "page" : "false");
+    });
     if (browserMode) {
       var active = tabs.find(function (tab) { return String(tab.id) === String(activeTabId); });
       el("workspace-count").textContent = active ? (active.loading ? "LOADING PAGE" : domainOf(active.url).toUpperCase()) : "NO ACTIVE TAB";
-      el("browser-placeholder").hidden = Boolean(active);
+      el("browser-placeholder").hidden = tabs.some(function (tab) { return String(tab.id) === String(browserLayout.primaryTabId); });
       el("page-heading").firstChild.nodeValue = "Browsing";
       el("page-subheading").textContent = active ? (active.title || domainOf(active.url)) : "Enter a web address above to begin.";
       el("page-eyebrow").lastChild.textContent = " / BROWSER";
       if (active && document.activeElement !== el("omnibox")) el("omnibox").value = active.url || "";
     } else {
-      el("page-heading").firstChild.nodeValue = "Your orbit";
-      el("page-subheading").textContent = "A little space to think, explore, and get things done.";
-      el("page-eyebrow").lastChild.textContent = " / MISSION CONTROL";
+      el("page-heading").firstChild.nodeValue = view === "structured" ? "Accessible list" : view === "tasks" ? "Browser activity" : "Your orbit";
+      el("page-subheading").textContent = view === "structured" ? "Tabs and page visits in a keyboard-friendly list." :
+        view === "tasks" ? "Follow commands and assistant requests." : "A little space to think, explore, and get things done.";
+      el("page-eyebrow").lastChild.textContent = " / " + (view === "structured" ? "NAVIGATION" : view === "tasks" ? "ACTIVITY" : "MISSION CONTROL");
       if (document.activeElement !== el("omnibox")) el("omnibox").value = "";
     }
+    updatePaneUI();
     requestAnimationFrame(sendBrowserBounds);
   }
 
   function sendBrowserBounds() {
     if (!isDesktopApp) return;
     if (!browserMode || el("browser-content").hidden) {
-      window.orbitBrowser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0 });
+      window.orbitBrowser.setBrowserBounds({ primary: {}, secondary: {} });
       return;
     }
-    var rect = el("browser-content").getBoundingClientRect();
+    function boundsFor(element, header) {
+      var rect = element.getBoundingClientRect();
+      return { x: rect.left, y: rect.top + header, width: rect.width, height: Math.max(0, rect.height - header) };
+    }
+    var split = browserLayout.mode !== "single";
     window.orbitBrowser.setBrowserBounds({
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height
+      primary: boundsFor(split ? el("browser-pane-primary") : el("browser-content"), split ? 35 : 0),
+      secondary: split ? boundsFor(el("browser-pane-secondary"), 35) : {}
+    });
+  }
+
+  function updatePaneUI() {
+    if (!isDesktopApp) return;
+    var split = browserLayout.mode !== "single";
+    var content = el("browser-content");
+    content.classList.toggle("is-split", split);
+    content.classList.toggle("split-vertical", browserLayout.mode === "vertical");
+    content.classList.toggle("split-horizontal", browserLayout.mode === "horizontal");
+    content.style.setProperty("--split-ratio", splitRatio + "%");
+    el("browser-pane-secondary").hidden = !split;
+    el("pane-divider").hidden = !split;
+    ["split-swap", "split-maximize", "split-close"].forEach(function (id) { el(id).hidden = !split; });
+    el("split-vertical").setAttribute("aria-pressed", String(browserLayout.mode === "vertical"));
+    el("split-horizontal").setAttribute("aria-pressed", String(browserLayout.mode === "horizontal"));
+    el("pane-divider").setAttribute("aria-orientation", browserLayout.mode === "vertical" && window.innerWidth > 470 ? "vertical" : "horizontal");
+    el("pane-divider").setAttribute("aria-valuenow", String(splitRatio));
+    var primary = tabs.find(function (tab) { return String(tab.id) === String(browserLayout.primaryTabId); });
+    var secondary = tabs.find(function (tab) { return String(tab.id) === String(browserLayout.secondaryTabId); });
+    el("pane-primary-label").textContent = primary ? primary.title || domainOf(primary.url) : "Current page";
+    el("pane-secondary-label").textContent = secondary ? secondary.title || domainOf(secondary.url) : "Second page";
+    el("pane-primary-status").textContent = primary && primary.loading ? "Loading" : "";
+    el("pane-secondary-status").textContent = secondary && secondary.loading ? "Loading" : "";
+    el("pane-secondary-placeholder").hidden = Boolean(secondary);
+    el("browser-pane-primary").classList.toggle("pane-focused", browserLayout.focusedPane === "primary");
+    el("browser-pane-secondary").classList.toggle("pane-focused", browserLayout.focusedPane === "secondary");
+    if (browserMode) requestAnimationFrame(sendBrowserBounds);
+  }
+
+  function renderStructuredView() {
+    var tabList = el("structured-tab-list");
+    var historyList = el("structured-history-list");
+    if (!tabList || !historyList) return;
+    var query = (el("structured-search").value || "").trim().toLowerCase();
+    tabList.replaceChildren();
+    historyList.replaceChildren();
+    var filteredTabs = tabs.filter(function (tab) {
+      return (activeSpace === "all" || assignments[tabKey(tab)] === activeSpace) &&
+        (!query || (tab.title + " " + tab.url).toLowerCase().includes(query));
+    });
+    filteredTabs.forEach(function (tab) {
+      var item = document.createElement("li");
+      var open = document.createElement("button");
+      open.type = "button";
+      open.textContent = (tab.title || domainOf(tab.url)) + (tab.pane ? " — " + tab.pane + " pane" : "");
+      open.addEventListener("click", function () { activateTab(tab); });
+      var address = document.createElement("small");
+      address.textContent = tab.url || "New tab";
+      var select = document.createElement("select");
+      select.setAttribute("aria-label", "Space for " + (tab.title || domainOf(tab.url)));
+      spaces.forEach(function (space) {
+        var option = document.createElement("option");
+        option.value = space.id;
+        option.textContent = space.name;
+        option.selected = assignments[tabKey(tab)] === space.id;
+        select.appendChild(option);
+      });
+      select.addEventListener("change", function () { moveTabToSpace(tabKey(tab), select.value); });
+      item.append(open, address, select);
+      tabList.appendChild(item);
+    });
+    el("structured-tab-count").textContent = "(" + filteredTabs.length + ")";
+    var visitMap = new Map((navigation.visits || []).map(function (visit) { return [visit.id, visit]; }));
+    var graphTabs = new Map((navigation.tabs || []).map(function (tab) { return [tab.id, tab]; }));
+    var filteredVisits = (navigation.visits || []).filter(function (visit) {
+      var graphTab = graphTabs.get(visit.tabId);
+      if (activeSpace !== "all" && assignments[visit.tabId] !== activeSpace) return false;
+      return !query || ((visit.title || "") + " " + visit.url).toLowerCase().includes(query) ||
+        (graphTab && String(graphTab.id).toLowerCase().includes(query));
+    }).sort(function (a, b) { return b.visitedAt - a.visitedAt; }).slice(0, 300);
+    filteredVisits.forEach(function (visit) {
+      var item = document.createElement("li");
+      var open = document.createElement("button");
+      open.type = "button";
+      open.textContent = visit.title || domainOf(visit.url);
+      open.addEventListener("click", function () {
+        if (isDesktopApp) window.orbitBrowser.goToVisit(visit.id).then(function (ok) {
+          if (ok) setBrowserMode(true);
+          else showToast("This visit could not be reopened.");
+        });
+        else openNewTab(visit.url);
+      });
+      var detail = document.createElement("small");
+      var parent = visit.parentVisitId && visitMap.get(visit.parentVisitId);
+      var graphTab = graphTabs.get(visit.tabId);
+      detail.textContent = visit.url + " · " + new Date(visit.visitedAt).toLocaleString() +
+        (parent ? " · From " + (parent.title || domainOf(parent.url)) : "") +
+        (graphTab && graphTab.closedAt !== null ? " · Closed tab" : "");
+      item.append(open, detail);
+      historyList.appendChild(item);
+    });
+    el("structured-history-count").textContent = "(" + filteredVisits.length + ")";
+    if (!filteredTabs.length) { var emptyTab = document.createElement("li"); emptyTab.textContent = "No matching open tabs."; tabList.appendChild(emptyTab); }
+    if (!filteredVisits.length) { var emptyVisit = document.createElement("li"); emptyVisit.textContent = "No matching page visits yet."; historyList.appendChild(emptyVisit); }
+  }
+
+  function logActivity(label, status, detail) {
+    var entry = { id: "activity-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      label: label, status: status, detail: detail || "", time: Date.now() };
+    activity.unshift(entry);
+    activity = activity.slice(0, 50);
+    renderActivity();
+    return entry;
+  }
+
+  function updateActivity(entry, status, detail) {
+    entry.status = status;
+    if (detail !== undefined) entry.detail = detail;
+    renderActivity();
+  }
+
+  function renderActivity() {
+    var list = el("task-list");
+    if (!list) return;
+    list.replaceChildren();
+    if (!activity.length) {
+      var empty = document.createElement("p");
+      empty.className = "task-empty";
+      empty.textContent = "No browser activity yet.";
+      list.appendChild(empty);
+      return;
+    }
+    activity.forEach(function (entry) {
+      var item = document.createElement("div");
+      item.className = "task-entry";
+      item.setAttribute("role", "listitem");
+      var title = document.createElement("strong");
+      title.textContent = entry.label;
+      var info = document.createElement("p");
+      info.textContent = entry.status + (entry.detail ? " · " + entry.detail : "") + " · " + new Date(entry.time).toLocaleTimeString();
+      item.append(title, info);
+      list.appendChild(item);
     });
   }
 
@@ -203,20 +389,27 @@
     if (!strip) return;
     strip.innerHTML = "";
     tabs.forEach(function (tab) {
+      var item = document.createElement("div");
+      item.className = "browser-tab" + (String(tab.id) === String(activeTabId) ? " active" : "");
+      item.dataset.tabId = String(tab.id);
       var button = document.createElement("button");
-      button.className = "browser-tab" + (String(tab.id) === String(activeTabId) ? " active" : "");
+      button.type = "button";
+      button.className = "browser-tab-select";
       button.title = tab.title || domainOf(tab.url);
+      button.setAttribute("aria-label", "Open " + (tab.title || domainOf(tab.url)) + (tab.pane ? " in " + tab.pane + " pane" : ""));
       var mark = tab.favicon
         ? '<span class="browser-tab-favicon"><img src="' + escapeHTML(tab.favicon) + '" alt=""></span>'
         : '<span class="browser-tab-favicon">' + escapeHTML(domainOf(tab.url).slice(0, 1).toUpperCase()) + '</span>';
-      button.innerHTML = mark + '<span class="browser-tab-title">' + escapeHTML(tab.title || "New tab") + '</span><span class="browser-tab-close" role="button" aria-label="Close tab">×</span>';
-      button.addEventListener("click", function (event) {
-        if (event.target.closest(".browser-tab-close")) {
-          event.stopPropagation();
-          closeTab(tab);
-        } else activateTab(tab);
-      });
-      strip.appendChild(button);
+      button.innerHTML = mark + '<span class="browser-tab-title">' + escapeHTML(tab.title || "New tab") + '</span>';
+      button.addEventListener("click", function () { activateTab(tab); });
+      var close = document.createElement("button");
+      close.type = "button";
+      close.className = "browser-tab-close";
+      close.textContent = "×";
+      close.setAttribute("aria-label", "Close " + (tab.title || domainOf(tab.url)));
+      close.addEventListener("click", function () { closeTab(tab); });
+      item.append(button, close);
+      strip.appendChild(item);
     });
   }
 
@@ -247,13 +440,9 @@
       card.style.left = position.x + "%";
       card.style.top = position.y + "%";
       card.style.setProperty("--depth", (position.z || orbitalDepth(index, shown.length)) + "px");
-      card.setAttribute("aria-label", "Open tab: " + (tab.title || domainOf(tab.url)));
       var favicon = faviconUrl(tab.url, tab);
-      card.innerHTML = '<div class="card-top"><span class="favicon">' + (favicon ? '<img src="' + escapeHTML(favicon) + '" alt="" onerror="this.style.display=\'none\'">' : escapeHTML(domainOf(tab.url).slice(0, 1).toUpperCase())) + '</span><span class="card-domain">' + escapeHTML(domainOf(tab.url)) + '</span><button class="card-close" aria-label="Close tab" title="Close tab">×</button></div><div class="card-title">' + escapeHTML(tab.title || domainOf(tab.url)) + '</div><div class="card-meta"><span class="card-tag"><i></i>' + escapeHTML(assignments[key] || "Research") + '</span><span>OPEN TAB ↗</span></div>';
-      card.addEventListener("click", function (event) {
-        if (event.target.closest(".card-close")) return;
-        activateTab(tab);
-      });
+      card.innerHTML = '<button class="card-open" type="button" aria-label="Open tab: ' + escapeHTML(tab.title || domainOf(tab.url)) + '"><div class="card-top"><span class="favicon">' + (favicon ? '<img src="' + escapeHTML(favicon) + '" alt="">' : escapeHTML(domainOf(tab.url).slice(0, 1).toUpperCase())) + '</span><span class="card-domain">' + escapeHTML(domainOf(tab.url)) + '</span></div><div class="card-title">' + escapeHTML(tab.title || domainOf(tab.url)) + '</div><div class="card-meta"><span class="card-tag"><i></i>' + escapeHTML(assignments[key] || "Research") + '</span><span>OPEN TAB ↗</span></div></button><button class="card-close" type="button" aria-label="Close ' + escapeHTML(tab.title || domainOf(tab.url)) + '" title="Close tab">×</button><span class="card-drag-handle" aria-hidden="true" title="Drag to arrange">⋮⋮</span>';
+      card.querySelector(".card-open").addEventListener("click", function () { activateTab(tab); });
       card.querySelector(".card-close").addEventListener("click", function (event) {
         event.stopPropagation();
         closeTab(tab);
@@ -344,8 +533,6 @@
     el("context-count").textContent = tabs.length + (tabs.length === 1 ? " tab" : " tabs");
     el("tab-stat").textContent = tabs.length + (tabs.length === 1 ? " tab" : " tabs");
     el("space-stat").textContent = spaces.length + (spaces.length === 1 ? " space" : " spaces");
-    renderSpaces();
-    renderBrowserTabs();
   }
 
   function openNewTab(url) {
@@ -385,7 +572,8 @@
       var parsed = new URL(query);
       if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
     } catch (_) {}
-    if (/^(localhost(?::\d+)?|[\w-]+(?:\.[\w-]+)+(?:\/[^\s]*)?)$/i.test(query)) return "https://" + query;
+    if (/^(?:localhost|[\w-]+(?:\.[\w-]+)+)(?::\d+)?(?:\/[^\s]*)?$/i.test(query))
+      return (/^(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(query) ? "http://" : "https://") + query;
     return "https://www.google.com/search?q=" + encodeURIComponent(query);
   }
 
@@ -397,23 +585,74 @@
     toastTimer = setTimeout(function () { toast.classList.remove("visible"); }, 2600);
   }
 
+  function isLoopbackCompletionUrl(value) {
+    try {
+      var parsed = new URL(value);
+      return parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) &&
+        parsed.pathname.replace(/\/+$/, "") === "/v1/chat/completions" && !parsed.username && !parsed.password;
+    } catch (_) { return false; }
+  }
+
+  function validAIEndpoint(value) {
+    try {
+      var parsed = new URL(value);
+      return !parsed.username && !parsed.password && (parsed.protocol === "https:" || isLoopbackCompletionUrl(value));
+    } catch (_) { return false; }
+  }
+
+  function openModal(id, focusId) {
+    modalReturnFocus = document.activeElement;
+    el(id).hidden = false;
+    setTimeout(function () { el(focusId).focus(); }, 20);
+  }
+
+  function closeModal(id) {
+    el(id).hidden = true;
+    if (modalReturnFocus && modalReturnFocus.isConnected) modalReturnFocus.focus();
+    modalReturnFocus = null;
+  }
+
+  function applyAccessibility() {
+    document.body.classList.toggle("focus-mode", Boolean(accessibility.focusMode));
+    document.body.classList.toggle("reduced-motion", Boolean(accessibility.reducedMotion));
+    document.body.classList.toggle("high-contrast", Boolean(accessibility.highContrast));
+    document.body.dataset.textScale = ["1", "1.15", "1.3"].includes(accessibility.textScale) ? accessibility.textScale : "1";
+    el("focus-mode").setAttribute("aria-pressed", String(Boolean(accessibility.focusMode)));
+    el("reduced-motion-toggle").checked = Boolean(accessibility.reducedMotion);
+    el("high-contrast-toggle").checked = Boolean(accessibility.highContrast);
+    el("text-scale").value = document.body.dataset.textScale;
+    requestAnimationFrame(sendBrowserBounds);
+  }
+
+  function saveAccessibility() {
+    applyAccessibility();
+    storageSet({ accessibility: accessibility });
+  }
+
   function openSettings() {
-    el("settings-modal").hidden = false;
+    openModal("settings-modal", "api-url");
     el("api-url").value = config.url || "";
     el("api-model").value = config.model || "";
     el("api-key").value = isDesktopApp ? "" : (config.key || "");
-    var localOllama = /^http:\/\/localhost:11434\//i.test(config.url || "");
+    var localOllama = isLoopbackCompletionUrl(config.url || "");
     el("api-key").placeholder = localOllama ? "Not required for local Ollama" : (isDesktopApp && config.keyConfigured ? "Key stored securely — leave blank to keep" : "Paste the API key for this provider");
-    setTimeout(function () { el("api-url").focus(); }, 50);
   }
 
   function setOllamaPreset(mode) {
     if (mode === "local") {
       el("api-url").value = "http://localhost:11434/v1/chat/completions";
-      el("api-model").value = "kimi-k3.1-pro:cloud";
+      el("api-model").value = config.model || "";
       el("api-key").value = "";
       el("api-key").placeholder = "Not required for local Ollama";
-      showToast("Local Ollama selected. Sign in to Ollama to use its cloud model.");
+      showToast("Local Ollama selected. Enter the model you have installed.");
+      return;
+    }
+    if (mode === "alpha") {
+      el("api-url").value = "http://localhost:11435/v1/chat/completions";
+      el("api-model").value = "qwen3.8:27b";
+      el("api-key").value = "";
+      el("api-key").placeholder = "Not required for the SSH tunnel";
+      showToast("Empire AI tunnel selected. Start the GPU job and SSH tunnel before asking Orbit.");
       return;
     }
     el("api-url").value = "https://ollama.com/v1/chat/completions";
@@ -426,35 +665,36 @@
   function saveSettings() {
     var previousUrl = config.url || "";
     var hadSavedKey = Boolean(config.keyConfigured);
-    config = { url: el("api-url").value.trim(), model: el("api-model").value.trim(), key: el("api-key").value.trim() };
-    if (config.url && !/^https:\/\//i.test(config.url) && !/^http:\/\/localhost(?::\d+)?(?:\/|$)/i.test(config.url)) return showToast("Enter an HTTPS URL (or a localhost URL for development).");
-    if (!isDesktopApp && /^https:\/\/ollama\.com\//i.test(config.url)) return showToast("Use the desktop app to store Ollama Cloud keys securely.");
+    var nextConfig = { url: el("api-url").value.trim(), model: el("api-model").value.trim(), key: el("api-key").value.trim() };
+    if (nextConfig.url && !validAIEndpoint(nextConfig.url)) return showToast("Enter an HTTPS URL or a loopback chat completions URL.");
+    if (!isDesktopApp && /^https:\/\/ollama\.com\//i.test(nextConfig.url)) return showToast("Use the desktop app to store Ollama Cloud keys securely.");
     var sameProvider = false;
-    try { sameProvider = new URL(previousUrl).origin === new URL(config.url).origin; } catch (_) {}
-    if (isDesktopApp && /^https:\/\/ollama\.com\//i.test(config.url) && !config.key && !(hadSavedKey && sameProvider)) return showToast("Add your Ollama API key before saving this cloud endpoint.");
+    try { sameProvider = new URL(previousUrl).origin === new URL(nextConfig.url).origin; } catch (_) {}
+    if (isDesktopApp && /^https:\/\/ollama\.com\//i.test(nextConfig.url) && !nextConfig.key && !(hadSavedKey && sameProvider)) return showToast("Add your Ollama API key before saving this cloud endpoint.");
     if (isDesktopApp) {
-      window.orbitBrowser.saveAIConfig({ url: config.url, model: config.model, apiKey: config.key }).then(function (result) {
+      window.orbitBrowser.saveAIConfig({ url: nextConfig.url, model: nextConfig.model, apiKey: nextConfig.key }).then(function (result) {
         if (!result.ok) return showToast(result.error);
-        config = { url: config.url, model: config.model, keyConfigured: result.keyConfigured, connected: result.connected };
-        el("settings-modal").hidden = true;
+        config = { url: nextConfig.url, model: nextConfig.model, keyConfigured: result.keyConfigured, connected: result.connected };
+        closeModal("settings-modal");
         el("ai-status").textContent = config.connected ? "AI configured" : "Ready to explore";
         showToast("AI connection saved.");
       }).catch(function () { showToast("Could not save the AI settings."); });
       return;
     }
-    if (isChromeExtension && config.url) {
+    if (isChromeExtension && nextConfig.url) {
       var origin;
-      try { origin = new URL(config.url).origin + "/*"; } catch (_) { return showToast("Enter a valid chat completions URL."); }
+      try { origin = new URL(nextConfig.url).origin + "/*"; } catch (_) { return showToast("Enter a valid chat completions URL."); }
       chrome.permissions.request({ origins: [origin] }, function (granted) {
         if (!granted) return showToast("Allow access to the AI endpoint to connect.");
+        config = nextConfig;
         persistConfig();
       });
-    } else persistConfig();
+    } else { config = nextConfig; persistConfig(); }
   }
 
   function persistConfig() {
     storageSet({ bullsaiConfig: config }).then(function () {
-      el("settings-modal").hidden = true;
+      closeModal("settings-modal");
       el("ai-status").textContent = config.url ? "AI connected" : "Ready to explore";
       showToast(config.url ? "AI connection saved on this device." : "AI connection cleared.");
     });
@@ -502,6 +742,23 @@
     return "I can organize and discuss your open tabs. Connect an AI endpoint in settings to enable model-powered answers. You can still search tabs, open pages, and sort them into spaces here.";
   }
 
+  function namedDestination(name) {
+    var cleaned = String(name || "").trim().replace(/[.!?]+$/, "");
+    var known = {
+      youtube: "https://www.youtube.com/", reddit: "https://www.reddit.com/",
+      google: "https://www.google.com/", wikipedia: "https://www.wikipedia.org/",
+      github: "https://github.com/", bullsai: "https://www.buffalo.edu/ubit/services/BullsAI.html"
+    };
+    return known[cleaned.toLowerCase()] || normalizeAddress(cleaned);
+  }
+
+  async function openSplitPages(first, second) {
+    await window.orbitBrowser.setLayout("vertical");
+    await window.orbitBrowser.newTab(namedDestination(first), "primary");
+    await window.orbitBrowser.newTab(namedDestination(second), "secondary");
+    setBrowserMode(true);
+  }
+
   function handleBrowserIntent(prompt) {
     if (!isDesktopApp) return "";
     var text = prompt.trim();
@@ -522,6 +779,43 @@
     if (/^(show|open) (my )?(orbit|workspace|constellation)$/.test(lower)) {
       setBrowserMode(false);
       return "Back to your orbit.";
+    }
+    if (/^(show|open) (my )?(navigation universe|history)$/.test(lower)) {
+      setView("structured");
+      return "Showing your tabs and navigation history.";
+    }
+    if (/^close (?:the )?(right|second|bottom) pane[.!?]?$/.test(lower)) {
+      window.orbitBrowser.closeSecondPane();
+      return "Closed the second pane. Its tab is still open.";
+    }
+    match = text.match(/^(?:split (?:the )?screen between|open)\s+(.+?)\s+and\s+(.+?)[.!?]?$/i);
+    if (match) {
+      openSplitPages(match[1], match[2]).catch(function () { showToast("Could not open the two panes."); });
+      return "Opening " + match[1] + " and " + match[2] + " in separate panes.";
+    }
+    match = text.match(/^move (.+?) to (?:the )?(left|right) pane[.!?]?$/i);
+    if (match) {
+      var paneTarget = tabs.find(function (tab) { return (tab.title || "").toLowerCase().includes(match[1].toLowerCase()) || domainOf(tab.url).includes(match[1].toLowerCase()); });
+      if (!paneTarget) return "I couldn’t find a tab matching “" + match[1] + "”.";
+      window.orbitBrowser.setLayout(browserLayout.mode === "single" ? "vertical" : browserLayout.mode).then(function () {
+        return window.orbitBrowser.activateTab(paneTarget.id, match[2].toLowerCase() === "left" ? "primary" : "secondary");
+      }).then(function () { setBrowserMode(true); });
+      return "Moving “" + (paneTarget.title || domainOf(paneTarget.url)) + "” to the " + match[2].toLowerCase() + " pane.";
+    }
+    match = text.match(/^make (.+?) (?:full screen|fullscreen|maximized)[.!?]?$/i);
+    if (match) {
+      var fullTarget = tabs.find(function (tab) { return (tab.title || "").toLowerCase().includes(match[1].toLowerCase()) || domainOf(tab.url).includes(match[1].toLowerCase()); });
+      if (!fullTarget) return "I couldn’t find a tab matching “" + match[1] + "”.";
+      window.orbitBrowser.activateTab(fullTarget.id).then(function () { return window.orbitBrowser.setLayout("single"); }).then(function () { setBrowserMode(true); });
+      return "Showing “" + (fullTarget.title || domainOf(fullTarget.url)) + "” in one pane.";
+    }
+    match = text.match(/^switch to (?:my )?(.+?) workspace[.!?]?$/i);
+    if (match) {
+      var workspaceSpace = spaces.find(function (space) { return space.name.toLowerCase() === match[1].toLowerCase(); });
+      if (!workspaceSpace) return "I couldn’t find that workspace.";
+      chooseSpace(workspaceSpace.id);
+      setBrowserMode(false);
+      return "Showing the " + workspaceSpace.name + " space.";
     }
     match = text.match(/^(?:search(?: the web)?(?: for)?|google)\s+(.+)$/i);
     if (match) {
@@ -575,13 +869,16 @@
     el("chat-input").style.height = "";
     var intentReply = handleBrowserIntent(trimmed);
     if (intentReply) {
+      logActivity("Browser command", "Complete", intentReply);
       appendMessage(intentReply, "assistant");
       return;
     }
     if (!config.url) {
+      logActivity("Local assistant reply", "Complete", trimmed.slice(0, 80));
       appendMessage(localAssistantReply(trimmed), "assistant");
       return;
     }
+    var activityEntry = logActivity("AI question", "Running", trimmed.slice(0, 80));
     var pending = document.createElement("div");
     pending.className = "message assistant-message pending-message";
     pending.innerHTML = '<div class="message-avatar"><span class="mini-orbit">✦</span></div><div class="message-content"><div class="message-name">ORBIT <span>thinking</span></div><div class="message-bubble"><span class="loading-dots">•••</span></div></div>';
@@ -596,11 +893,13 @@
         });
         pending.remove();
         if (!desktopResult.ok) {
+          updateActivity(activityEntry, "Failed", desktopResult.error);
           appendMessage("I couldn’t reach the configured AI endpoint. " + desktopResult.error, "assistant");
           el("ai-status").textContent = "Connection issue";
           return;
         }
         appendMessage(desktopResult.text, "assistant");
+        updateActivity(activityEntry, "Complete", "Response received");
         el("ai-status").textContent = "AI connected";
         return;
       }
@@ -623,10 +922,12 @@
       if (!answer) throw new Error("The response did not include a chat completion.");
       pending.remove();
       appendMessage(answer, "assistant");
+      updateActivity(activityEntry, "Complete", "Response received");
       el("ai-status").textContent = "AI connected";
     } catch (error) {
       pending.remove();
       appendMessage("I couldn’t reach the configured AI endpoint. " + error.message + " Check the URL, model ID, auth format, and connection settings.", "assistant");
+      updateActivity(activityEntry, "Failed", error.message);
       el("ai-status").textContent = "Connection issue";
     }
   }
@@ -674,10 +975,13 @@
   }
 
   function init() {
-    storageGet(["assignments", "positions", "spaces", "bullsaiConfig"]).then(function (data) {
+    storageGet(["assignments", "positions", "spaces", "bullsaiConfig", "accessibility", "splitRatio"]).then(function (data) {
       assignments = data.assignments || {};
       positions = data.positions || {};
       spaces = data.spaces && data.spaces.length ? data.spaces : defaultSpaces.slice();
+      accessibility = Object.assign(accessibility, data.accessibility || {});
+      splitRatio = Number(data.splitRatio) >= 25 && Number(data.splitRatio) <= 75 ? Number(data.splitRatio) : 50;
+      applyAccessibility();
       if (isDesktopApp) {
         el("browse-mode").hidden = false;
         document.querySelector(".browser-nav").hidden = false;
@@ -698,10 +1002,71 @@
     el("new-tab").addEventListener("click", function () { openNewTab(); });
     el("empty-new-tab").addEventListener("click", function () { openNewTab(); });
     el("layout-toggle").addEventListener("click", function () { listLayout = !listLayout; el("layout-label").textContent = listLayout ? "List view" : "Constellation"; renderTabs(); });
+    el("structured-search").addEventListener("input", renderStructuredView);
+    function changeSplit(mode) {
+      if (!isDesktopApp) return;
+      window.orbitBrowser.setLayout(mode).then(function (layout) {
+        browserLayout = layout;
+        setBrowserMode(true);
+        updatePaneUI();
+        logActivity(mode === "single" ? "Closed second pane" : "Changed pane layout", "Complete", mode);
+      });
+    }
+    el("split-vertical").addEventListener("click", function () { changeSplit("vertical"); });
+    el("split-horizontal").addEventListener("click", function () { changeSplit("horizontal"); });
+    el("split-close").addEventListener("click", function () {
+      window.orbitBrowser.closeSecondPane().then(function (layout) {
+        browserLayout = layout;
+        updatePaneUI();
+        logActivity("Closed second pane", "Complete", "Both tabs remain open");
+      });
+    });
+    el("split-maximize").addEventListener("click", function () { changeSplit("single"); });
+    el("split-swap").addEventListener("click", function () {
+      window.orbitBrowser.swapPanes().then(function (layout) { browserLayout = layout; updatePaneUI(); });
+    });
+    ["primary", "secondary"].forEach(function (pane) {
+      el("browser-pane-" + pane).querySelector(".pane-header").addEventListener("click", function () {
+        window.orbitBrowser.focusPane(pane).then(function (layout) { browserLayout = layout; updatePaneUI(); });
+      });
+    });
+    var divider = el("pane-divider");
+    var resizing = false;
+    divider.addEventListener("pointerdown", function (event) { resizing = true; divider.setPointerCapture(event.pointerId); event.preventDefault(); });
+    divider.addEventListener("pointermove", function (event) {
+      if (!resizing) return;
+      var rect = el("browser-content").getBoundingClientRect();
+      var sideBySide = getComputedStyle(el("browser-content")).flexDirection === "row";
+      var nextRatio = sideBySide ? (event.clientX - rect.left) / rect.width * 100 :
+        (event.clientY - rect.top) / rect.height * 100;
+      splitRatio = Math.max(25, Math.min(75, Math.round(nextRatio)));
+      updatePaneUI();
+    });
+    divider.addEventListener("pointerup", function () { resizing = false; storageSet({ splitRatio: splitRatio }); });
+    divider.addEventListener("pointercancel", function () { resizing = false; });
+    divider.addEventListener("keydown", function (event) {
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === "Home") splitRatio = 25;
+      else if (event.key === "End") splitRatio = 75;
+      else splitRatio = Math.max(25, Math.min(75, splitRatio + (["ArrowRight", "ArrowDown"].includes(event.key) ? 5 : -5)));
+      updatePaneUI();
+      storageSet({ splitRatio: splitRatio });
+    });
     el("zoom-in").addEventListener("click", function () { zoom = Math.min(130, zoom + 10); renderTabs(); });
     el("zoom-out").addEventListener("click", function () { zoom = Math.max(70, zoom - 10); renderTabs(); });
     el("recenter").addEventListener("click", function () { positions = {}; storageSet({ positions: positions }); renderTabs(); showToast("Constellation recentered."); });
     el("settings-open").addEventListener("click", openSettings);
+    el("accessibility-open").addEventListener("click", function () { openModal("accessibility-modal", "reduced-motion-toggle"); });
+    el("accessibility-close").addEventListener("click", function () { closeModal("accessibility-modal"); });
+    el("accessibility-modal").addEventListener("click", function (event) { if (event.target === el("accessibility-modal")) closeModal("accessibility-modal"); });
+    el("focus-mode").addEventListener("click", function () {
+      accessibility.focusMode = !accessibility.focusMode;
+      saveAccessibility();
+    });
+    el("reduced-motion-toggle").addEventListener("change", function () { accessibility.reducedMotion = this.checked; saveAccessibility(); });
+    el("high-contrast-toggle").addEventListener("change", function () { accessibility.highContrast = this.checked; saveAccessibility(); });
+    el("text-scale").addEventListener("change", function () { accessibility.textScale = this.value; saveAccessibility(); });
     document.querySelectorAll("[data-ollama-preset]").forEach(function (button) {
       if (!isDesktopApp) button.hidden = true;
       button.addEventListener("click", function () { setOllamaPreset(button.dataset.ollamaPreset); });
@@ -714,7 +1079,7 @@
       el("api-key").value = "";
       if (isDesktopApp) {
         window.orbitBrowser.clearAIConfig().then(function () {
-          el("settings-modal").hidden = true;
+          closeModal("settings-modal");
           el("ai-status").textContent = "Ready to explore";
           showToast("AI connection cleared.");
         });
@@ -723,8 +1088,8 @@
         persistConfig();
       }
     });
-    document.querySelectorAll("[data-close-modal]").forEach(function (button) { button.addEventListener("click", function () { el("settings-modal").hidden = true; }); });
-    el("settings-modal").addEventListener("click", function (event) { if (event.target === el("settings-modal")) el("settings-modal").hidden = true; });
+    document.querySelectorAll("[data-close-modal]").forEach(function (button) { button.addEventListener("click", function () { closeModal("settings-modal"); }); });
+    el("settings-modal").addEventListener("click", function (event) { if (event.target === el("settings-modal")) closeModal("settings-modal"); });
     el("send-message").addEventListener("click", function () { askAssistant(el("chat-input").value); });
     el("chat-input").addEventListener("keydown", function (event) { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); askAssistant(el("chat-input").value); } });
     el("chat-input").addEventListener("input", function () { this.style.height = "auto"; this.style.height = Math.min(this.scrollHeight, 95) + "px"; });
@@ -743,10 +1108,9 @@
           else setBrowserMode(true);
           return;
         }
-        document.querySelectorAll(".view-tab").forEach(function (item) { item.classList.toggle("active", item === button); });
         recentOnly = button.dataset.view === "recent";
         renderTabs();
-        if (isDesktopApp) setBrowserMode(false);
+        setView(button.dataset.view || "all");
       });
     });
     el("new-space").addEventListener("click", addSpace);
@@ -763,10 +1127,26 @@
     el("go-forward").addEventListener("click", function () { if (isDesktopApp) window.orbitBrowser.goForward(); });
     el("reload-page").addEventListener("click", function () { if (isDesktopApp) window.orbitBrowser.reload(); });
     document.addEventListener("keydown", function (event) {
+      var openDialog = [el("accessibility-modal"), el("settings-modal")].find(function (dialog) { return !dialog.hidden; });
+      if (openDialog) {
+        if (event.key === "Escape") { event.preventDefault(); closeModal(openDialog.id); return; }
+        if (event.key === "Tab") {
+          var focusable = Array.from(openDialog.querySelectorAll("button:not([disabled]):not([hidden]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href]")).filter(function (item) { return item.getClientRects().length; });
+          if (focusable.length) {
+            var first = focusable[0], last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+          }
+        }
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); el("omnibox").focus(); }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "l") { event.preventDefault(); el("omnibox").focus(); el("omnibox").select(); }
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") { event.preventDefault(); el("chat-input").focus(); }
-      if (event.key === "Escape") { el("settings-modal").hidden = true; document.activeElement.blur(); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        if (accessibility.focusMode) { accessibility.focusMode = false; saveAccessibility(); }
+        requestAnimationFrame(function () { el("chat-input").focus(); });
+      }
     });
     if (isDesktopApp) {
       window.orbitBrowser.onCommand(function (command) {
@@ -778,7 +1158,10 @@
         if (command === "focus-address") { el("omnibox").focus(); el("omnibox").select(); }
         if (command === "reload") window.orbitBrowser.reload();
         if (command === "workspace") setBrowserMode(false);
-        if (command === "assistant") el("chat-input").focus();
+        if (command === "assistant") {
+          if (accessibility.focusMode) { accessibility.focusMode = false; saveAccessibility(); }
+          requestAnimationFrame(function () { el("chat-input").focus(); });
+        }
         if (command === "settings") openSettings();
       });
       var resizeObserver = new ResizeObserver(sendBrowserBounds);

@@ -6,6 +6,7 @@
   "main": "desktop-main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test desktop-main.test.js navigation-graph.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -19,6 +20,7 @@
     "files": [
       "desktop-main.js",
       "desktop-preload.js",
+      "navigation-graph.js",
       "newtab.html",
       "app.js",
       "styles.css",
