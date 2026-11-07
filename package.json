@@ -1,17 +1,40 @@
 {
-  "name": "orbit-spatial-browser",
+  "name": "cosmic-browser",
   "version": "0.2.0",
   "private": true,
-  "description": "A Chromium desktop browser with a spatial tab workspace and BullsAI assistant.",
+  "description": "A native Chromium desktop browser with a living cosmic tab universe",
   "main": "desktop-main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "pack": "node scripts/prepare-desktop.cjs && electron-builder --projectDir .desktop-build --dir",
+    "dist": "node scripts/prepare-desktop.cjs && electron-builder --projectDir .desktop-build",
+    "desktop": "electron .",
+    "dev": "vite",
+    "dev:api": "tsx watch apps/api/main.ts",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test --test-concurrency=1 tests/security.test.ts tests/integration.test.ts tests/agent.test.ts tests/ui.test.ts tests/desktop-state.test.ts",
+    "format": "prettier --write apps packages tests vite.config.ts tsconfig.json desktop-main.js desktop-preload.js desktop-state.js app.js newtab.html styles.css scripts/prepare-desktop.cjs",
+    "format:check": "prettier --check apps packages tests vite.config.ts tsconfig.json desktop-main.js desktop-preload.js desktop-state.js app.js newtab.html styles.css scripts/prepare-desktop.cjs",
+    "thin": "tsx apps/thin-client/main.ts",
+    "start:server": "node --env-file-if-exists=.env --import tsx apps/api/main.ts",
+    "test:desktop": "tsx --test tests/desktop.test.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@vitejs/plugin-react": "6.2.1",
     "electron": "^45.0.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "^26.0.0",
+    "node": "22.23.4",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.6"
   },
   "build": {
     "appId": "edu.buffalo.orbit",
@@ -23,7 +46,8 @@
       "app.js",
       "styles.css",
       "manifest.json",
-      "README.md"
+      "README.md",
+      "desktop-state.js"
     ],
     "mac": {
       "category": "public.app-category.productivity"
@@ -34,6 +58,27 @@
     "linux": {
       "target": "AppImage",
       "category": "Network;WebBrowser;"
+    },
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
     }
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.5",
+    "@fastify/rate-limit": "11.2.2",
+    "@fastify/static": "10.1.10",
+    "@fastify/websocket": "11.3.7",
+    "@xyflow/react": "12.12.1",
+    "better-sqlite3": "13.0.3",
+    "fastify": "5.12.8",
+    "ipaddr.js": "2.5.0",
+    "playwright": "1.65.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

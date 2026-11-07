@@ -1,135 +1,89 @@
-# ORBIT
+# ORBIT · Cosmic Browser
 
-ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and a BullsAI assistant.
+A native Chromium desktop browser with a living universe of tabs. **The desktop app is the primary experience.** No server, Docker, account, or separate Chromium installation is needed for desktop browsing. The Linux app is built at `release/ORBIT-0.2.0.AppImage`.
 
-The desktop app is the primary program. The same folder also includes an optional Chrome new-tab extension prototype.
+## Launch the desktop app
 
-## What you need
+Use Node 22.12 or newer:
 
-- A computer running macOS, Windows, or Linux.
-- Node.js with npm. Electron recommends the current Node.js LTS release for development. Install it from https://nodejs.org/en/download/.
-- An internet connection for installing Electron and for visiting websites.
-- For the BullsAI assistant, developer access to BullsAI Model Hub, including the endpoint URL, model ID, and API credentials.
+```bash
+npm ci
+npm start
+```
 
-Check that Node.js and npm are installed by opening a terminal and running:
+`npm run desktop` launches the same application. Websites render directly inside isolated Electron `WebContentsView` instances, with native keyboard, pointer, scrolling and media behavior. There is no JPEG stream or HTTP server in desktop mode.
 
-    node -v
-    npm -v
+## Your living universe
 
-Both commands should print version numbers. On Windows, use PowerShell or Command Prompt to run the desktop app rather than WSL.
+- Tabs become softly glowing stars with subtle drifting and halo animations. Loading stars move differently; active and pinned stars have visible orbits.
+- **Select a star** to inspect it; **double-click** to open its page. Enter opens its details using the keyboard.
+- See the title, site, loading/error/audio state, last activity, and page journey in the inspector.
+- Pin, duplicate, mute, reload, close, or move a tab into a named space. Split a selected tab with the active tab; both use real, independently interactive Chromium views. **Single pane** restores one view.
+- Search by page title or address; sort by activity, title, or site. Switch to List view for a conventional alternative.
+- Reopen recently closed tabs. Tabs, pinned/muted state, supported native history and browsing cookies persist across app restarts. In-memory web app state is not guaranteed to restore.
+- Choose **Reduce motion**, or use your operating system’s reduced-motion preference.
+- Ctrl/Cmd+L focuses the address bar; Ctrl/Cmd+T opens a tab; Ctrl/Cmd+W closes it; Ctrl/Cmd+Shift+O opens Universe.
 
-## Install and launch ORBIT
+The desktop assistant retains the original optional BullsAI/OpenAI-compatible connection in Settings. Its direct commands work without a model. Advanced autonomous tasks from the optional server implementation are not yet exposed through the native app.
 
-1. Open Terminal, PowerShell, or Command Prompt.
-2. Change to the project folder. Replace the example path with the folder where you saved this project:
+## Build an application
 
-       cd "/path/to/UB Hackathon"
+```bash
+npm run pack   # unpacked native app under release/
+npm run dist   # platform installer / Linux AppImage
+```
 
-   On Windows, a path might look like:
+Packaging stages only the native browser sources, keeping server, SQLite, React and Playwright runtime dependencies out of the app. Build macOS and Windows installers on their respective platforms. Signing/notarization is not configured.
 
-       cd "C:\path\to\UB Hackathon"
+## Optional self-hosted remote mode
 
-3. Install the project dependencies:
+The remote implementation remains available for future use:
 
-       npm install
+```bash
+npx playwright install --with-deps chromium
+cp .env.example .env
+npm run build
+npm run start:server
+```
 
-   This installs Electron and electron-builder. Electron also downloads its platform binary, so this step may take a few minutes and needs access to npm and Electron's release downloads.
+Open http://127.0.0.1:3000. This optional mode uses accounts, server-side Chromium, streaming, semantic views and bounded background agents. The following remote-mode features do not imply native desktop feature parity.
 
-4. Start the browser:
+## Remote-mode browsing
 
-       npm start
+- Navigate using a pane’s address bar, back, forward, and reload buttons.
+- Click a streamed webpage or focus it and type. Escape exits remote keyboard capture. The text bar supports paste and mobile input.
+- **Accessible view** exposes headings, links, and labeled form controls from the same remote page. Refresh structure after dynamic changes.
+- Enter **Open YouTube and Reddit** to create two independent remote browsing panes. Explicit HTTP(S) URLs also work. Fixture tests avoid reliance on public websites.
+- Resize the split using the keyboard-operable pane balance slider; rotate or swap panes. Hide a pane without closing its tab.
+- **Universe** represents real visits as glowing stars, with branching journey trails, subtle active-star halos, pan, zoom, fit, search, and a semantic history list. Reduced motion disables the star arrival and halo animation.
+- **Mission control** runs bounded AI tasks on a selected tab or in a separate browser workspace. Approve exact page-bound actions, pause, cancel, or take control. Background execution is opt-in.
+- **Settings** controls contrast, motion, text scale, stream quality/rate, device revocation, history clearing, and account deletion.
+- Ctrl/Cmd+L focuses the address bar. Ctrl/Cmd+J focuses workspace commands.
 
-ORBIT opens to the constellation workspace with an initial web tab. Select a tab card or choose **Browse** to display its page.
+AI requires server-side configuration in `.env`. No model credentials are included. See [AI_AGENT.md](AI_AGENT.md).
 
-## Use the browser
+## Checks
 
-- **Open a page:** Enter a website address or search phrase in the top address bar and press Enter.
-- **Switch tabs:** Select a card in the orbit, or use the tab strip while browsing.
-- **Open a tab:** Select **New tab** or press Ctrl+T (Command+T on macOS).
-- **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh Google page.
-- **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
-- **Return to the workspace:** Select **Overview**, or use the application menu’s **Orbit Workspace** command.
-- **Organize tabs:** Choose a space in the sidebar. Drag cards to reposition them or drop them on a space. Right-click a card to move it from a menu.
-- **Create a space:** Select **New space** in the sidebar.
-- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+J / Command+J focuses the assistant. The application menu lists the main shortcuts.
+```bash
+npm run typecheck
+npm run build
+npm test
+npm run format:check
+npm run test:desktop  # needs a graphical display
+```
 
-ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
+Tests start real Chromium, fixture websites, an authenticated API, WebSocket clients, and a deterministic test-only model server. UI tests exercise registration, split browsing, semantics, star navigation, mobile layout, keyboard shortcuts, reduced motion, and axe checks. Screenshots are written to `artifacts/` (ignored by Git). Live model and public website compatibility require additional deployment-specific testing.
 
-## Configure BullsAI
+## Deploy
 
-The assistant needs developer access details; ORBIT does not include a default API endpoint or key.
+```bash
+docker compose up -d --build
+```
 
-1. Open the gear menu in ORBIT.
-2. Enter the chat-completions URL and model ID supplied with your BullsAI developer access.
-3. Paste the API key and choose **Save connection**.
-4. If prompted, allow ORBIT to connect to the endpoint host.
-5. Ask a question in the assistant panel.
+The container binds only `127.0.0.1:3000` on the host and persists application data in a named volume. Use an HTTPS reverse proxy with WebSocket upgrades, exact `PUBLIC_ORIGIN`, and `COOKIE_SECURE=true` for remote access. The host must permit Chromium’s sandbox. The provided container configuration has not been executed in this environment; see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-The public UBIT BullsAI page identifies Model Hub as the developer API service, but does not publish the endpoint, model IDs, or authentication format. Request developer access and use the details in the BullsAI developer documentation: https://www.buffalo.edu/ubit/services/BullsAI.html
+## Documentation
 
-The current adapter expects an OpenAI-compatible chat-completions request and a response containing choices[0].message.content. It sends the API key as a Bearer token. If the endpoint supplied by BullsAI uses a different request path, authentication header, or response format, update the adapter in desktop-main.js.
+[Architecture](ARCHITECTURE.md) · [Setup](SETUP.md) · [Agent](AI_AGENT.md) · [Accessibility](ACCESSIBILITY.md) · [Security](SECURITY.md) · [Deployment](DEPLOYMENT.md) · [Decisions](DECISIONS.md) · [Progress](PROGRESS.md) · [Known limitations](KNOWN_LIMITATIONS.md) · [Thin-client protocol](docs/PROTOCOL.md)
 
-### API key storage
-
-When OS-backed encryption is available, ORBIT stores the API key using Electron safeStorage. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder; the renderer does not store the key in browser local storage.
-
-On Linux, ORBIT requires a protected desktop keyring for saving the key. If one is unavailable, provide the key through the BULLSAI_API_KEY environment variable before starting ORBIT. This variable takes precedence over a key saved in settings.
-
-macOS or Linux:
-
-    export BULLSAI_API_KEY="your-developer-key"
-    npm start
-
-Windows PowerShell:
-
-    $env:BULLSAI_API_KEY = "your-developer-key"
-    npm start
-
-Do not commit a real API key to this project or put it in README.md.
-
-### What the assistant sends
-
-When you submit a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured BullsAI endpoint. It does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
-
-The microphone button starts voice input and sends the recognized transcript as the prompt. The adjacent voice-reply button toggles spoken assistant responses. If voice recognition is unavailable or microphone access is denied, you can continue by typing.
-
-## Build a distributable app
-
-Run these commands from the project folder after installing dependencies:
-
-    npm run pack
-
-This creates an unpacked application build for the current platform.
-
-    npm run dist
-
-This creates a distributable for the current platform. The project is configured for macOS, Windows (NSIS), and Linux (AppImage). Build each platform’s installer on that operating system. Code signing and notarization are not configured in this prototype.
-
-## Optional: load the Chrome extension
-
-To use ORBIT as a Chrome new-tab page instead of running the standalone app:
-
-1. Open chrome://extensions in Chrome.
-2. Enable **Developer mode**.
-3. Select **Load unpacked**.
-4. Choose this project folder.
-5. Open a new tab.
-
-The extension can visualize real Chrome tabs and organize them into spaces. The standalone app provides the actual Chromium browser view and is the recommended way to run the full program.
-
-## Troubleshooting
-
-- **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
-- **npm start says Electron is missing:** Run npm install from the project folder and check for installation errors.
-- **A website does not load:** Check your internet connection, then try entering the full address, such as https://example.com.
-- **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
-- **Voice input is unavailable:** Check OS microphone access and the ORBIT permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
-- **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.
-
-## Project files
-
-- desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and BullsAI requests.
-- desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
-- newtab.html, app.js, styles.css — ORBIT workspace, browser controls, and assistant interface.
-- manifest.json — optional Chrome extension configuration.
-- package.json — start and packaging scripts.
+This is a functional single-host implementation under continued development. It does not yet satisfy every advanced requirement in the master prompt. The limitations file explicitly identifies the remaining capabilities.

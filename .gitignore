@@ -2,3 +2,11 @@ node_modules/
 dist/
 release/
 .DS_Store
+
+data/
+.env
+.env.*
+!.env.example
+artifacts/
+
+.desktop-build/

@@ -1,0 +1,30 @@
+services:
+  cosmic:
+    build: .
+    init: true
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      HOST: 0.0.0.0
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      BRAND_NAME: ${BRAND_NAME:-Cosmic}
+      REGISTRATION_DISABLED: ${REGISTRATION_DISABLED:-false}
+      CHROMIUM_SANDBOX: "true"
+      MAX_TABS: ${MAX_TABS:-12}
+      MAX_CONTEXTS: ${MAX_CONTEXTS:-8}
+      IDLE_TIMEOUT_MS: ${IDLE_TIMEOUT_MS:-900000}
+      ALLOW_INTERNAL_HOSTS: ${ALLOW_INTERNAL_HOSTS:-}
+      AI_PROVIDER: ${AI_PROVIDER:-openai-compatible}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+    volumes:
+      - cosmic-data:/app/data
+    shm_size: 1gb
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 512
+    restart: unless-stopped
+volumes:
+  cosmic-data:

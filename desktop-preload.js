@@ -3,6 +3,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("orbitBrowser", {
+  openSplit: (urls) => ipcRenderer.invoke("browser:open-split", urls),
+  tabAction: (id, action, value) =>
+    ipcRenderer.invoke("browser:tab-action", id, action, value),
+  restoreClosed: () => ipcRenderer.invoke("browser:restore-closed"),
   getTabs: () => ipcRenderer.invoke("browser:get-tabs"),
   newTab: (url) => ipcRenderer.invoke("browser:new-tab", url),
   activateTab: (id) => ipcRenderer.invoke("browser:activate-tab", id),
@@ -26,5 +30,5 @@ contextBridge.exposeInMainWorld("orbitBrowser", {
     const listener = (_event, command) => callback(command);
     ipcRenderer.on("browser:command", listener);
     return () => ipcRenderer.removeListener("browser:command", listener);
-  }
+  },
 });
