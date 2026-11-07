@@ -1,17 +1,20 @@
 {
   "name": "orbit-spatial-browser",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "A Chromium desktop browser with a built-in AI assistant.",
   "main": "desktop-main.js",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test": "node --test tests/history.test.cjs",
+    "test:desktop": "node --test tests/history-desktop.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "^26.0.0",
+    "playwright": "1.65.0"
   },
   "build": {
     "appId": "edu.buffalo.orbit",
@@ -22,7 +25,16 @@
       "tab-groups.js",
       "ai-grouping.js",
       "ui/**/*",
-      "README.md"
+      "README.md",
+      "history-store.js",
+      {
+        "from": "node_modules/three/examples/jsm",
+        "to": "node_modules/three/examples/jsm",
+        "filter": [
+          "controls/OrbitControls.js",
+          "renderers/CSS2DRenderer.js"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity"

@@ -7,6 +7,8 @@ import { createSettingsModal } from "./components/settings-modal.js";
 import { createAssistantPanel } from "./components/assistant/assistant-panel.js";
 import { createCosmosView } from "./components/cosmos/cosmos-view.js";
 
+import { createHistoryView } from "./components/history/history-view.js";
+
 const browser = window.orbitBrowser;
 
 function start() {
@@ -16,8 +18,8 @@ function start() {
   const toolbar = createToolbar({
     browser,
     tabs,
-    onNavigate: () => cosmos.close(),
-    onToggleCosmos: () => cosmos.toggle()
+    onNavigate: () => { cosmos.close(); history.close(); },
+    onToggleCosmos: () => { history.close(); cosmos.toggle(); }
   });
   createTabStrip({ browser, tabs });
   const browserView = createBrowserView({ browser, tabs });
@@ -35,19 +37,38 @@ function start() {
     }
   });
 
-  // Switching tabs while the cosmos is open brings the page back.
+  const history = createHistoryView({
+    browser,
+    onVisibilityChange: (open) => {
+      if (open) cosmos.close();
+      browserView.cover("history", open);
+      document.getElementById("history-toggle").setAttribute("aria-pressed", String(open));
+    }
+  });
+  document.getElementById("history-toggle").onclick = () => history.toggle();
+
+  // Switching tabs (a star, the tab strip, the assistant, a new tab) brings
+  // the page back.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
     shownTabId = tabs.activeId;
     cosmos.close();
+    history.close();
   });
   const assistant = createAssistantPanel({
     browser,
     tabs,
     aiConfig,
     onOpenSettings: settings.open,
-    onVisibilityChange: (open) => browserView.setAssistantOpen(open)
+    onVisibilityChange: (open) => browserView.cover("assistant", open)
+  });
+  // Like Spotlight, the popup steps away once it has taken you to a tab.
+  let assistantTabId = tabs.activeId;
+  tabs.subscribe(() => {
+    if (tabs.activeId === assistantTabId) return;
+    assistantTabId = tabs.activeId;
+    assistant.close();
   });
 
   // Commands from the application menu and its shortcuts.
@@ -58,7 +79,8 @@ function start() {
     "reload": () => browser.reload(),
     "assistant": () => { if (!settings.isOpen()) assistant.toggle(); },
     "settings": () => settings.open(),
-    "cosmos": () => cosmos.toggle(),
+    "cosmos": () => { history.close(); cosmos.toggle(); },
+    "history": () => history.toggle(),
     "rename-group": (groupId) => cosmos.renameGroup(groupId)
   };
   browser.onCommand((command, arg) => { if (commands[command]) commands[command](arg); });
@@ -70,6 +92,7 @@ function start() {
     if (event.key === "Escape") {
       if (settings.isOpen()) settings.close();
       else if (assistant.isOpen()) assistant.close();
+      else if (history.isOpen()) history.close();
       else if (!cosmos.clearSelection()) cosmos.close();
     }
   });
