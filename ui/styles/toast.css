@@ -1,0 +1,4 @@
+/* Short status messages, shown over the assistant panel because the web page is drawn above this document. */
+.toast{position:fixed;z-index:30;right:16px;bottom:118px;width:288px;transform:translateY(10px);opacity:0;pointer-events:none;border:1px solid #3c5278;border-radius:7px;background:#172440;padding:10px 14px;color:#dce7ff;font-size:10px;box-shadow:0 8px 25px #0008;transition:.2s}
+.toast.visible{opacity:1;transform:translateY(0)}
+@media(max-width:900px){.toast{width:240px}}

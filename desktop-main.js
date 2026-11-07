@@ -8,6 +8,7 @@ const {
   Menu,
   dialog,
   safeStorage,
+  screen,
   shell,
   session
 } = require("electron");
@@ -419,6 +420,8 @@ function closeTab(id) {
     tab.view.webContents.loadURL("https://www.google.com").catch(() => {});
     tab.title = "Loading…";
     tab.url = "https://www.google.com";
+    tab.favicon = "";
+    tab.loading = true;
     sendTabs();
     return true;
   }
@@ -524,17 +527,22 @@ function isOllamaCloudEndpoint(value) {
   }
 }
 
+function isGeminiEndpoint(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && parsed.hostname === "generativelanguage.googleapis.com";
+  } catch (_) {
+    return false;
+  }
+}
+
 function endpointOrigin(value) {
   try { return new URL(value).origin; } catch (_) { return ""; }
 }
 
 function getEnvironmentAPIKey(value) {
   if (isOllamaCloudEndpoint(value)) return process.env.OLLAMA_API_KEY || "";
-  try {
-    if (new URL(value).hostname === "generativelanguage.googleapis.com") {
-      return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
-    }
-  } catch (_) {}
+  if (isGeminiEndpoint(value)) return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
   return process.env.BULLSAI_API_KEY || "";
 }
 
@@ -586,6 +594,12 @@ function installPermissionPrompts() {
   configureSession(session.fromPartition("persist:orbit"));
 }
 
+function sendCommand(command, { focusUI = false } = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (focusUI) mainWindow.webContents.focus();
+  mainWindow.webContents.send("browser:command", command);
+}
+
 function createApplicationMenu() {
   const template = [
     {
@@ -593,7 +607,7 @@ function createApplicationMenu() {
       submenu: [
         { role: "about" },
         { type: "separator" },
-        { label: "Settings", accelerator: "CommandOrControl+,", click: () => mainWindow.webContents.send("browser:command", "settings") },
+        { label: "Settings", accelerator: "CommandOrControl+,", click: () => sendCommand("settings", { focusUI: true }) },
         { type: "separator" },
         { role: "quit" }
       ]
@@ -601,8 +615,8 @@ function createApplicationMenu() {
     {
       label: "File",
       submenu: [
-        { label: "New Tab", accelerator: "CommandOrControl+T", click: () => mainWindow.webContents.send("browser:command", "new-tab") },
-        { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => mainWindow.webContents.send("browser:command", "close-tab") },
+        { label: "New Tab", accelerator: "CommandOrControl+T", click: () => sendCommand("new-tab") },
+        { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => sendCommand("close-tab") },
         { type: "separator" },
         { role: "quit" }
       ]
@@ -611,10 +625,13 @@ function createApplicationMenu() {
     {
       label: "View",
       submenu: [
-        { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => mainWindow.webContents.send("browser:command", "focus-address") },
-        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => mainWindow.webContents.send("browser:command", "reload") },
-        { label: "Orbit Workspace", accelerator: "CommandOrControl+Shift+O", click: () => mainWindow.webContents.send("browser:command", "workspace") },
-        { label: "Assistant", accelerator: "CommandOrControl+J", click: () => mainWindow.webContents.send("browser:command", "assistant") },
+        { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
+        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
+        { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
+        { label: "Accessible Tabs and History", accelerator: "CommandOrControl+Shift+H", click: () => sendCommand("accessible-list", { focusUI: true }) },
+        { label: "Accessibility Settings", accelerator: "CommandOrControl+Shift+A", click: () => sendCommand("accessibility", { focusUI: true }) },
+        { label: "Split Side by Side", click: () => sendCommand("split-vertical", { focusUI: true }) },
+        { label: "Assistant", accelerator: "CommandOrControl+J", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
         { role: "toggleDevTools" }
       ]
@@ -625,13 +642,19 @@ function createApplicationMenu() {
 
 function createWindow() {
   sessionClosing = false;
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const minWidth = Math.min(800, workArea.width);
+  const minHeight = Math.min(560, workArea.height);
+  const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.75)));
+  const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.75)));
   const win = new BrowserWindow({
-    width: 1500,
-    height: 940,
-    minWidth: 720,
-    minHeight: 540,
+    minWidth,
+    minHeight,
+    center: true,
+    resizable: true,
+    maximizable: true,
     backgroundColor: "#080d1c",
-    title: "ORBIT — Spatial Browser",
+    title: "ORBIT",
     webPreferences: {
       preload: path.join(__dirname, "desktop-preload.js"),
       contextIsolation: true,
@@ -647,7 +670,7 @@ function createWindow() {
     if (url.startsWith("file:")) return;
     event.preventDefault();
   });
-  win.loadFile(path.join(__dirname, "newtab.html"));
+  win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
     if (mainWindow !== win || tabs.size !== 0) return;
     if (startupSession && startupSession.tabs.length) {
@@ -782,6 +805,12 @@ function registerIPC() {
     const previous = await readSettings();
     const next = { bullsaiUrl: url, model };
     const origin = endpointOrigin(url);
+    const existingStoredKey = Boolean(previous.apiKeyCiphertext &&
+      endpointOrigin(previous.bullsaiUrl) === origin &&
+      (!previous.apiKeyOrigin || previous.apiKeyOrigin === origin));
+    if (isGeminiEndpoint(url) && !apiKey && !existingStoredKey && !getEnvironmentAPIKey(url)) {
+      return { ok: false, error: "Add a Gemini API key or set GEMINI_API_KEY before launching ORBIT." };
+    }
     if (apiKey) {
       if (!await hasProtectedSecretStore()) {
         return { ok: false, error: "OS-backed secret storage is unavailable. Set GEMINI_API_KEY, GOOGLE_API_KEY, OLLAMA_API_KEY, or BULLSAI_API_KEY before launching ORBIT." };

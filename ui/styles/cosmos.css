@@ -1,0 +1,34 @@
+/* 3D tab cosmos: shown in place of the web page. */
+.cosmos{position:absolute;inset:0;z-index:2;overflow:hidden;background:#050813}
+.cosmos[hidden]{display:none}
+.cosmos-canvas{position:absolute;inset:0;display:block;touch-action:none}
+.cosmos-labels{position:absolute;inset:0;pointer-events:none}
+.cosmos-header{position:absolute;z-index:1;top:12px;left:14px;display:flex;align-items:center;gap:10px;font:9px var(--mono);letter-spacing:1.2px;color:#7d8aaa;pointer-events:none}
+.cosmos-title{color:#8fe8ff}
+.cosmos-hint{position:absolute;z-index:1;bottom:12px;left:50%;transform:translateX(-50%);white-space:nowrap;font:9px var(--mono);letter-spacing:.6px;color:#5f6c8c;pointer-events:none}
+.cosmos-unavailable{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#8996b2;font-size:12px}
+.star-label{pointer-events:auto;display:flex;align-items:center;gap:6px;max-width:190px;padding:3px 9px 3px 4px;border:1px solid transparent;border-radius:999px;background:rgba(8,13,28,.55);color:#c3cee9;font-size:11px;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.star-label-mark{width:15px;height:15px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:4px;background:#26325a;color:#c8d5ff;font-size:8px;font-weight:700}
+.star-label-mark img{width:15px;height:15px;object-fit:contain}
+.star-label-title{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.star-label-domain{display:none;color:#7f8bab;font-size:10px}
+.star-label.active{color:#fff;border-color:#8fe8ff55;background:rgba(14,30,48,.75)}
+.star-label.hovered,.star-label:focus-visible{color:#fff;border-color:#6a80e8;background:rgba(18,28,58,.9);outline:0;z-index:1}
+.star-label.hovered{max-width:300px}
+.star-label.hovered .star-label-domain{display:inline}
+.cosmos-toggle{font-size:15px}
+.cosmos-toggle.active{color:#8fe8ff;background:#14203a}
+.cosmos-header{pointer-events:none}
+.cosmos-mode-controls{display:flex;gap:4px;margin-left:8px;pointer-events:auto}
+.cosmos-mode-controls button{border:1px solid #283858;border-radius:5px;padding:4px 8px;background:#0b1325;color:#a6b4d0;font:9px var(--mono);letter-spacing:.25px}
+.cosmos-mode-controls button[aria-pressed="true"]{border-color:#5d83a4;background:#14243a;color:#a5edf4}
+.journey-label{pointer-events:auto;display:flex;flex-direction:column;max-width:210px;padding:5px 8px;border:1px solid #445477;border-radius:7px;background:rgba(8,13,28,.88);color:#d6e1fa;text-align:left;cursor:pointer;box-shadow:0 3px 14px #0008}
+.journey-label:hover,.journey-label:focus-visible{border-color:#a0eafa;background:#14213a;color:#fff;outline:2px solid #a0eafa}
+.journey-label.active{border-color:#83e6f2;box-shadow:0 0 13px #83e6f255}
+.journey-title{max-width:194px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:600}
+.journey-domain{max-width:194px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8fa3c7;font-size:8px;margin-top:2px}
+.journey-empty{position:absolute;z-index:1;left:50%;top:50%;transform:translate(-50%,-50%);max-width:260px;padding:12px 15px;border:1px solid #344263;border-radius:8px;background:#0b1427dc;color:#c7d3ec;text-align:center;font-size:11px;pointer-events:none}
+.journey-empty[hidden]{display:none}
+body.high-contrast .cosmos{background:#000}
+body.high-contrast .star-label,body.high-contrast .journey-label{background:#000;color:#fff;border-color:#fff}
+body.high-contrast .cosmos-mode-controls button{background:#000;color:#fff;border-color:#fff}

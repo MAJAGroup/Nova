@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080d1c">
+    <title>ORBIT</title>
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/toolbar.css">
+    <link rel="stylesheet" href="styles/tab-strip.css">
+    <link rel="stylesheet" href="styles/browser-view.css">
+    <link rel="stylesheet" href="styles/assistant.css">
+    <link rel="stylesheet" href="styles/settings-modal.css">
+    <link rel="stylesheet" href="styles/toast.css">
+    <link rel="stylesheet" href="styles/cosmos.css">
+    <link rel="stylesheet" href="styles/accessibility.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../node_modules/three/build/three.module.js",
+          "three/addons/": "../node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module" src="main.js"></script>
+  </head>
+  <body>
+    <div class="app">
+      <main class="main-panel">
+        <div class="browser-toolbar">
+          <div class="browser-nav" aria-label="Browser navigation">
+            <button class="icon-button" id="go-back" title="Back" aria-label="Go back">‹</button>
+            <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
+            <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
+          </div>
+          <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
+          <button class="icon-button" id="accessible-list-open" title="Search tabs and history" aria-label="Open accessible tab and history list">☷</button>
+          <div class="address-bar">
+            <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
+          </div>
+          <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
+          <div class="split-controls" role="group" aria-label="Browser pane layout">
+            <button class="icon-button" id="split-vertical" type="button" aria-label="Split pages side by side" title="Split pages side by side">◫</button>
+            <button class="icon-button" id="split-horizontal" type="button" aria-label="Stack pages vertically" title="Stack pages vertically">⬒</button>
+            <button class="icon-button" id="split-swap" type="button" aria-label="Swap browser panes" title="Swap panes" hidden>⇄</button>
+            <button class="icon-button" id="split-maximize" type="button" aria-label="Show one browser pane" title="Show one pane" hidden>⛶</button>
+            <button class="icon-button" id="split-close" type="button" aria-label="Close second browser pane" title="Close second pane" hidden>×</button>
+          </div>
+          <button class="icon-button" id="focus-mode" title="Toggle focus mode" aria-label="Toggle focus mode" aria-pressed="false">◉</button>
+          <button class="icon-button" id="accessibility-open" title="Accessibility settings" aria-label="Open accessibility settings">Aa</button>
+          <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
+        </div>
+        <section id="browser-content" class="browser-content" aria-label="Current web page">
+          <div class="browser-placeholder" id="browser-placeholder">
+            <span class="placeholder-orbit">✦</span>
+            <h2>No page open</h2>
+            <p>Enter a web address above to begin.</p>
+          </div>
+          <section class="browser-pane browser-pane-primary" id="browser-pane-primary" aria-label="Primary browser pane">
+            <header class="pane-header" id="primary-pane-header"><span>PRIMARY PAGE</span><button type="button" data-focus-pane="primary">Focus pane</button></header>
+          </section>
+          <div class="pane-divider" id="pane-divider" role="separator" aria-label="Resize browser panes" aria-orientation="vertical" aria-valuemin="25" aria-valuemax="75" aria-valuenow="50" tabindex="0" hidden></div>
+          <section class="browser-pane browser-pane-secondary" id="browser-pane-secondary" aria-label="Secondary browser pane" hidden>
+            <header class="pane-header" id="secondary-pane-header"><span>SECONDARY PAGE</span><button type="button" data-focus-pane="secondary">Focus pane</button></header>
+          </section>
+          <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
+            <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span id="cosmos-count">0 tabs</span><div class="cosmos-mode-controls" role="group" aria-label="Cosmos view"><button type="button" id="cosmos-open-tabs" aria-pressed="true">Open tabs</button><button type="button" id="cosmos-journeys" aria-pressed="false">Journeys</button></div></div>
+            <div class="cosmos-hint">Drag to orbit · Scroll to zoom · Click a star to open · Esc to return</div>
+          </section>
+        </section>
+      </main>
+
+      <aside class="assistant-panel">
+        <div class="assistant-header">
+          <div class="assistant-title-wrap">
+            <div class="assistant-orb"><i></i><span></span></div>
+            <div><div class="assistant-title">Orbit assistant <span class="beta-tag">BETA</span></div><div class="assistant-subtitle"><span class="assistant-status"></span><span id="ai-status">Ready to explore</span></div></div>
+          </div>
+          <button class="icon-button more-button" id="assistant-menu" aria-label="AI settings" title="AI settings">···</button>
+        </div>
+        <div class="assistant-context">
+          <span class="context-icon">✧</span>
+          <span>Context from <b id="context-count">0 tabs</b></span>
+          <button id="context-info" aria-label="About tab context">ⓘ</button>
+        </div>
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="day-divider"><span>TODAY</span></div>
+          <div class="message assistant-message">
+            <div class="message-avatar"><span class="mini-orbit">✦</span></div>
+            <div class="message-content">
+              <div class="message-name">ORBIT <span id="greeting-time"></span></div>
+              <div class="message-bubble">Hey! I’m here to help you make sense of your tabs and keep your day moving. What are we working on?</div>
+            </div>
+          </div>
+          <div class="suggestion-label">TRY ASKING</div>
+          <div class="suggestions">
+            <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
+            <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
+            <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
+          </div>
+        </div>
+        <div class="assistant-footer">
+          <div class="composer">
+            <textarea id="chat-input" rows="1" placeholder="Ask anything…" aria-label="Message Orbit assistant"></textarea>
+            <div class="composer-tools">
+              <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
+              <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
+              <div class="composer-tool-spacer"></div>
+              <span class="send-hint">↵</span>
+              <button class="send-button" id="send-message" aria-label="Send message">↑</button>
+            </div>
+          </div>
+          <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by your <b>AI model</b></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="modal-backdrop" id="accessible-list-modal" hidden>
+      <section class="settings-modal accessible-list-modal" role="dialog" aria-modal="true" aria-labelledby="accessible-list-title" aria-describedby="accessible-list-intro">
+        <button class="modal-close" data-close-accessible-list aria-label="Close tab and history list">×</button>
+        <div class="modal-kicker">KEYBOARD FRIENDLY NAVIGATION <span>✦</span></div>
+        <h2 id="accessible-list-title">Tabs and journeys</h2>
+        <p class="modal-intro" id="accessible-list-intro">Search open tabs and visited pages, then select one to return to it.</p>
+        <label class="field-label" for="accessible-list-search">SEARCH TABS AND HISTORY</label>
+        <input id="accessible-list-search" class="settings-input" type="search" autocomplete="off" placeholder="Search by page title or address">
+        <div class="accessible-list-columns">
+          <section aria-labelledby="accessible-tabs-heading"><h3 id="accessible-tabs-heading">Open tabs <span id="accessible-tabs-count"></span></h3><ul id="accessible-tabs" class="accessible-results"></ul></section>
+          <section aria-labelledby="accessible-history-heading"><h3 id="accessible-history-heading">Visited pages <span id="accessible-history-count"></span></h3><ul id="accessible-history" class="accessible-results"></ul></section>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="accessibility-modal" hidden>
+      <section class="settings-modal accessibility-modal" role="dialog" aria-modal="true" aria-labelledby="accessibility-title" aria-describedby="accessibility-intro">
+        <button class="modal-close" id="accessibility-close" type="button" aria-label="Close accessibility settings">×</button>
+        <div class="modal-kicker">DISPLAY & MOTION <span>✦</span></div>
+        <h2 id="accessibility-title">Accessibility settings</h2>
+        <p id="accessibility-intro" class="modal-intro">Adjust the browser interface for comfortable reading and navigation.</p>
+        <label class="accessibility-option" for="reduced-motion-toggle"><span><strong>Reduce motion</strong><small>Stop automatic orbiting and decorative pulsing.</small></span><input id="reduced-motion-toggle" type="checkbox"></label>
+        <label class="accessibility-option" for="high-contrast-toggle"><span><strong>High contrast</strong><small>Strengthen text, borders, and focus indicators.</small></span><input id="high-contrast-toggle" type="checkbox"></label>
+        <label class="accessibility-option" for="text-scale"><span><strong>Text size</strong><small>Increase text across browser controls.</small></span><select id="text-scale"><option value="1">Default</option><option value="1.15">Large</option><option value="1.3">Larger</option></select></label>
+        <p class="accessibility-note">The Accessible list button opens a searchable alternative to the 3D tab and journey views.</p>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="settings-modal" hidden>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+        <div class="modal-kicker">AI SETTINGS <span>✦</span></div>
+        <h2 id="settings-title">Connect an AI model</h2>
+        <p class="modal-intro">Connect Gemini or another OpenAI-compatible chat service. Your API key stays in the desktop app's protected settings.</p>
+        <div class="settings-actions">
+          <button type="button" class="text-button" data-provider-preset="gemini">Use Google Gemini</button>
+        </div>
+        <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
+        <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
+        <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
+        <input id="api-model" class="settings-input" type="text" placeholder="e.g. gemini-3.8-flash">
+        <label class="field-label" for="api-key">API KEY <span>stored securely in the desktop app</span></label>
+        <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
+        <div class="settings-hint"><span>ⓘ</span> Gemini requests send your prompt and open tab titles and addresses to Google. ORBIT does not automatically send webpage text.</div>
+        <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

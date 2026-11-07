@@ -1,28 +1,25 @@
-# ORBIT app implementation audit
+# Cosmic Browser app adoption audit
 
-Updated November 7, 2026. Scope: the existing Electron desktop app and its optional new-tab interface. This audit follows `Cosmic_Browser_Master_Implementation_Prompt.md` where an app-side implementation is possible. No server was created.
+Updated November 7, 2026. This pass integrates the app-side browser features with the teammate's modular 3D cosmic UI. It does not create or modify a server.
 
-## Implemented in this pass
+## Adopted app-side features
 
-| Prompt area | App-side result |
+| Area | App implementation |
 | --- | --- |
-| Navigation journeys (§7) | A distinct visit graph records tab opens, page visits, back/forward events, branches, opener relationships, and closed tabs. The graph and open tabs are saved in the local ORBIT profile and restored on launch. The Accessible list exposes searchable visits and can reopen them. |
-| Split browsing (§8) | Two independent Chromium `WebContentsView` panes can be shown side by side or stacked. Each pane keeps its own tab and page state. Users can resize, swap, maximize, or close the second pane without deleting its tabs. The layout is saved locally. Deterministic commands such as “Open YouTube and Reddit” open both sites in separate panes. |
-| Accessibility (§13, §16) | Added a keyboard-operable Accessible list, Focus mode, reduced motion, high contrast, text scaling, visible focus indicators, responsive layouts, native pane controls, and focus handling for dialogs. The Tasks view shows actual local command and assistant request activity. |
-| AI connection (§9.4) | Added an Empire AI tunnel preset (`localhost:11435`, `qwen3.8:27b`) and accepted keyless loopback chat-completions endpoints on any local port. This corrects the mismatch with the existing Alpha guide. |
+| Cosmic navigation | The 3D workspace retains its open-tab constellation and adds a linked 3D journey view for visit history. The searchable Accessible list provides a keyboard-operable route to open tabs and visited pages. |
+| Navigation graph | Page visits, branches, opener relationships, and closed tabs are recorded in a local graph. Selecting a visit returns to it or opens it in a tab. |
+| Split browsing | Two independent Chromium views support side-by-side or stacked layouts, keyboard-resizable divider, pane focus, swap, maximize, and closing the second pane. Pane layout and tabs are saved locally. |
+| Session recovery | Open tab URLs, pane assignments, layout, and navigation graph are restored from the local ORBIT profile on launch. |
+| Accessibility | Added the searchable Accessible list, keyboard focus indicators and dialog focus handling, reduced motion (including the 3D animation), high contrast, text scaling, and Focus mode. |
+| AI connection | The settings dialog includes a Google Gemini preset using Google's OpenAI-compatible chat endpoint. Gemini keys can be saved with Electron `safeStorage` or supplied through `GEMINI_API_KEY` / `GOOGLE_API_KEY`. The assistant continues to accept other OpenAI-compatible endpoints. |
 
-## Current limits against the master prompt
+## Product limits
 
-- The browser still runs Chromium locally in Electron. Server-side browsing, authentication, multi-user isolation, streaming, and cross-device recovery (§2–6, §14–15) require the separate server project and are not represented as complete here.
-- The existing cosmic canvas shows open tabs. It does not yet draw the new visit graph or provide pan/zoom over historical nodes. The graph data and accessible history are available for the separately ongoing 3D workspace work (§7).
-- The assistant supports local browser commands and configured chat-completions requests. It does not inspect page DOM/accessibility trees, execute autonomous plans, run background jobs, or manage sensitive-action approvals (§9–12). The Tasks view does not imply those capabilities.
-- The interface has not had a manual screen-reader or WCAG 2.2 AA audit. Mobile CSS is responsive, but the Electron app is a desktop program; there is no thin remote client (§13–14).
-- Split panes and session recovery have deterministic main-process tests, but a real Electron visual pass is pending: `npm start` exited with `SIGABRT` before opening a window in this execution environment.
+- Chromium still runs locally in Electron. Server-side browsing, multi-user isolation, remote streaming, and cross-device sessions require the separate server project and are not represented as complete here.
+- The assistant can answer chat prompts with open tab titles and URLs and run existing deterministic local browser commands. It does not inspect webpage DOM/accessibility trees, execute autonomous plans, run background jobs, or request approvals for sensitive actions.
+- Accessibility features are app-side controls; this pass did not include a manual screen-reader or WCAG 2.2 AA audit.
+- Browser session and journey data are stored locally in the user's ORBIT profile. They are not synchronized between devices.
 
-## Verification
+## Verification status
 
-- `npm test`: 9 passing tests. They cover branching graph behavior, distinct revisits, tab relationships, snapshot recovery, independent pane navigation and bounds, historical visit restoration, keyless Alpha tunnel configuration, and local session recovery.
-- `node --check` passes for `app.js`, `desktop-main.js`, and `desktop-preload.js`.
-- `git diff --check` passes.
-
-The test harness mocks Electron process and rendering APIs. It verifies application state transitions, not Chromium website rendering or visual layout.
+The app was not launched for a visual pass in this integration. Existing automated tests from the earlier app-only branch remain in the repository, but were not run during this pass. Static syntax and whitespace checks are recorded after integration work.

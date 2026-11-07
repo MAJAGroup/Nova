@@ -1,0 +1,46 @@
+/* Page reset, layout grid and shared controls. */
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#070b16;font-synthesis:none;text-rendering:optimizeLegibility;--bg:#070b16;--panel:#0b1020;--line:rgba(174,193,255,.11);--muted:#8791ad;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;overflow:hidden;background:#070b16}
+button,input,textarea{font:inherit}
+button{color:inherit;cursor:pointer}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:minmax(0,1fr)}
+.icon-button{border:0;background:transparent;color:#929eb8;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;flex:none}
+.icon-button:hover{background:#ffffff0c;color:white}
+.icon-button:disabled{opacity:.35;cursor:default;background:transparent}
+.primary-button{height:32px;border-radius:6px;padding:0 11px;font-size:10px;border:1px solid #8394ff;background:linear-gradient(135deg,#8495ff,#5f70d8);color:white;font-weight:600;box-shadow:0 4px 15px #6278ed26}
+.primary-button:hover{filter:brightness(1.1)}
+.primary-button>span{font-size:13px;margin-right:4px}
+@media(max-width:900px){.app{grid-template-columns:minmax(0,1fr) 270px}}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid #a7ebf4;outline-offset:2px}
+.focus-mode .app{grid-template-columns:minmax(0,1fr) 0}
+.focus-mode .assistant-panel{display:none}
+.accessibility-option{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-top:1px solid #354561;cursor:pointer}
+.accessibility-option span{display:flex;flex-direction:column;gap:4px}
+.accessibility-option strong{font-size:12px;color:#f1f5ff}
+.accessibility-option small{font-size:10px;line-height:1.4;color:#b7c5db}
+.accessibility-option input{width:22px;height:22px;accent-color:#829bff;flex:none}
+.accessibility-option select{min-height:38px;min-width:110px;border:1px solid #64789c;border-radius:6px;background:#101a2c;color:#f1f5ff;padding:0 8px;font-size:12px}
+.accessibility-note{margin:18px 0 0;font-size:10px;line-height:1.5;color:#b7c5db}
+.accessible-list-modal{width:min(820px,100%)}
+.accessible-list-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;margin-top:18px}
+.accessible-list-columns h3{font-size:11px;color:#dce6fa;margin:0 0 7px}
+.accessible-list-columns h3 span{font:9px var(--mono);color:#8292af;margin-left:5px}
+.accessible-results{list-style:none;margin:0;padding:0;max-height:min(38vh,340px);overflow:auto}
+.accessible-results li+li{margin-top:5px}
+.accessible-result{display:block;width:100%;text-align:left;padding:8px 10px;border:1px solid #283753;border-radius:6px;background:#0c1425;color:#e1e9fb}
+.accessible-result:hover,.accessible-result:focus-visible{border-color:#86d9e9;background:#14233b}
+.accessible-result strong,.accessible-result small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.accessible-result strong{font-size:10px;font-weight:600}
+.accessible-result small{font-size:9px;color:#99a7c1;margin-top:3px}
+.accessible-empty{padding:10px;color:#aab7d0;font-size:10px}
+body.high-contrast{background:#000;color:#fff}
+body.high-contrast .browser-toolbar,body.high-contrast .assistant-panel,body.high-contrast .browser-pane,body.high-contrast .settings-modal{background:#000;color:#fff;border-color:#d8e8ff}
+body.high-contrast :where(button,input,textarea,select,[tabindex]):focus-visible{outline-color:#fff;box-shadow:0 0 0 4px #000}
+body.high-contrast .accessible-result,body.high-contrast .message-bubble{border-color:#d8e8ff;background:#050505;color:#fff}
+body.high-contrast .accessible-result small,body.high-contrast .modal-intro,body.high-contrast .field-label{color:#e5edff}
+body.reduced-motion *,body.reduced-motion *::before,body.reduced-motion *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+body[data-text-scale="1.15"] .app{font-size:1.15em}
+body[data-text-scale="1.3"] .app{font-size:1.3em}
+@media(max-width:700px){.accessible-list-columns{grid-template-columns:1fr}.browser-toolbar{gap:4px;padding:0 4px}.browser-nav .icon-button,.browser-toolbar>.icon-button{width:25px}}

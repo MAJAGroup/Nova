@@ -1,8 +1,6 @@
 # ORBIT
 
-ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and an AI assistant that can use Google Gemini, BullsAI, local Ollama, or another OpenAI-compatible chat endpoint.
-
-The desktop app is the primary program. The same folder also includes an optional Chrome new-tab extension prototype.
+ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, the teammate's 3D cosmic workspace, branching navigation history, split browsing, accessibility controls, and an AI assistant. Gemini is the documented default; other OpenAI-compatible endpoints can also be configured.
 
 ## What you need
 
@@ -39,7 +37,7 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 
        npm start
 
-ORBIT opens to the constellation workspace with an initial web tab. Select a tab card or choose **Browse** to display its page.
+ORBIT opens with a web tab. Select the star-shaped **Tab cosmos** button to switch between the browser page and the 3D view of open tabs.
 
 ## Use the browser
 
@@ -48,12 +46,12 @@ ORBIT opens to the constellation workspace with an initial web tab. Select a tab
 - **Open a tab:** Select **New tab** or press Ctrl+T (Command+T on macOS).
 - **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh Google page.
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
-- **Return to the workspace:** Select **Overview**, or use the application menu’s **Orbit Workspace** command.
-- **Organize tabs:** Choose a space in the sidebar. Drag cards to reposition them or drop them on a space. Right-click a card to move it from a menu.
-- **Create a space:** Select **New space** in the sidebar.
+- **Split the browser:** Use the split buttons to show two independent tabs side by side or stacked. Drag the divider to resize; use the swap and close controls as needed.
+- **Find a page:** Open **Accessible list** to search open tabs and navigation visits without using the 3D canvas. Selecting a visit returns to it or reopens it in a tab.
+- **Adjust accessibility:** Use **Accessibility settings** to reduce motion, enable high contrast, or enlarge interface text. **Focus mode** hides the assistant while browsing.
 - **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+J / Command+J focuses the assistant. The application menu lists the main shortcuts.
 
-ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
+ORBIT saves open tabs, pane layout, and navigation history in the local app profile and restores them on launch. Website cookies and local storage use a persistent Chromium session. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
 ## Connect ORBIT to Google Gemini API (free tier)
 
@@ -70,7 +68,7 @@ See Google's [API key guide](https://ai.google.dev/gemini-api/docs/api-key) and 
 ### 2. Configure ORBIT
 
 1. Start the desktop app with `npm start`.
-2. Open the gear menu to show **Connect an AI model**. Enter these values:
+2. Select **AI settings** (`···`) in the assistant header, then enter these values:
 
        URL:      https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
        Model:    gemini-3.8-flash
@@ -78,7 +76,7 @@ See Google's [API key guide](https://ai.google.dev/gemini-api/docs/api-key) and 
 
 3. Select **Save connection**, then ask the assistant a short question.
 
-Gemini's OpenAI-compatible endpoint uses the standard chat-completions format and accepts the API key as a Bearer token. The ORBIT settings window stores the key with Electron `safeStorage` when OS-backed encryption is available. Do not put the key in README.md, source code, or a shared Git repository. The optional Chrome extension does not provide the desktop app's protected key storage.
+Gemini's OpenAI-compatible endpoint uses the standard chat-completions format and accepts the API key as a Bearer token. The ORBIT settings window stores the key with Electron `safeStorage` when OS-backed encryption is available. Do not put the key in README.md, source code, or a shared Git repository.
 
 ### Free-tier limits and privacy
 
@@ -96,7 +94,7 @@ Enter an HTTPS chat-completions URL, model ID, and API key from that provider. F
 
 ### API key storage
 
-In the desktop app, ORBIT stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder. The renderer does not store desktop API keys in browser local storage. The Chrome extension prototype does not provide the same protected key storage; use the desktop app for direct cloud API keys.
+ORBIT stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder. The renderer does not store API keys in browser local storage.
 
 On Linux, ORBIT requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting ORBIT. For Gemini, use `GEMINI_API_KEY` (or `GOOGLE_API_KEY`); Ollama Cloud uses `OLLAMA_API_KEY`; BullsAI and other compatible providers can use `BULLSAI_API_KEY`. Environment variables take precedence over a saved key.
 
@@ -130,18 +128,6 @@ This creates an unpacked application build for the current platform.
 
 This creates a distributable for the current platform. The project is configured for macOS, Windows (NSIS), and Linux (AppImage). Build each platform’s installer on that operating system. Code signing and notarization are not configured in this prototype.
 
-## Optional: load the Chrome extension
-
-To use ORBIT as a Chrome new-tab page instead of running the standalone app:
-
-1. Open chrome://extensions in Chrome.
-2. Enable **Developer mode**.
-3. Select **Load unpacked**.
-4. Choose this project folder.
-5. Open a new tab.
-
-The extension can visualize real Chrome tabs and organize them into spaces. The standalone app provides the actual Chromium browser view and is the recommended way to run the full program.
-
 ## Troubleshooting
 
 - **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
@@ -158,6 +144,7 @@ The extension can visualize real Chrome tabs and organize them into spaces. The 
 
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
-- newtab.html, app.js, styles.css — ORBIT workspace, browser controls, and assistant interface.
-- manifest.json — optional Chrome extension configuration.
+- ui/ — the 3D cosmic workspace, browser controls, and assistant interface.
+- navigation-graph.js — branching visit graph used for history and session recovery.
+- APP_IMPLEMENTATION_AUDIT.md — implemented app-side features and current limits.
 - package.json — start and packaging scripts.
