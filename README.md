@@ -1,6 +1,6 @@
 # ORBIT
 
-ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and an AI assistant that can use a local Ollama model hosted on Empire AI Alpha, BullsAI, or another compatible chat endpoint.
+ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and an AI assistant that can use Google Gemini, BullsAI, local Ollama, or another OpenAI-compatible chat endpoint.
 
 The desktop app is the primary program. The same folder also includes an optional Chrome new-tab extension prototype.
 
@@ -9,7 +9,7 @@ The desktop app is the primary program. The same folder also includes an optiona
 - A computer running macOS, Windows, or Linux.
 - Node.js with npm. Electron recommends the current Node.js LTS release for development. Install it from https://nodejs.org/en/download/.
 - An internet connection for installing Electron and for visiting websites.
-- To run the AI locally on Empire AI, an active Empire AI Alpha account, an approved project Slurm account, and an SSH key registered with Empire AI. The walkthrough below uses the `su_cwang1_worlds` project account as an example; use an account listed for your own user by Slurm.
+- For the Gemini walkthrough below, a Google account and a Gemini API key from Google AI Studio. ORBIT can also use other OpenAI-compatible services.
 
 Check that Node.js and npm are installed by opening a terminal and running:
 
@@ -55,127 +55,40 @@ ORBIT opens to the constellation workspace with an initial web tab. Select a tab
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
-## Run Ollama Qwen3.8:27b on Empire AI Alpha
+## Connect ORBIT to Google Gemini API (free tier)
 
-This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the ORBIT desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using ORBIT.
+ORBIT sends chat-completions requests to Gemini's OpenAI-compatible API. No Empire AI allocation or local model is needed. Google currently lists `gemini-3.8-flash` as a stable Gemini API model with free-tier token pricing; free-tier request limits still apply.
 
-The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, with a maximum context window of 256K. A single Alpha GPU is a reasonable starting point; the scheduler routes single-GPU jobs to the RTX PRO 6000 Blackwell pool (about 96 GB VRAM). The model weights and context cache both use memory, so begin with a moderate context if you encounter memory errors. Empire AI Beta requires at least four GPUs per job and is unnecessary for this setup. See the [Ollama model details](https://ollama.com/library/qwen3.8:27b) and [Empire AI Alpha QoS guide](https://empireai.freshdesk.com/support/solutions/articles/157000374474-alpha-job-submission-and-qos-overview).
+### 1. Create a Gemini API key
 
-#### If your terminal shows the NVL72 Beta banner
+1. Sign in to [Google AI Studio](https://aistudio.google.com/).
+2. Open **Get API key** and create a key in a Free Tier project. New users may receive a project and key automatically.
+3. Keep the project on the free tier and do not enable Cloud Billing if you want to avoid paid API usage.
 
-The `pulling ... success` lines mean Ollama downloaded the model, and the `>>>` prompt means `ollama run` opened its chat prompt. It is not an error. Type `/bye` to leave Ollama, then `exit` to leave the management/login shell. Do not use the management node for inference; run Ollama inside a Slurm GPU allocation.
+See Google's [API key guide](https://ai.google.dev/gemini-api/docs/api-key) and [pricing page](https://ai.google.dev/gemini-api/docs/pricing). Free quotas are model-specific and can change; check the AI Studio usage dashboard for your project's current limits.
 
-The banner's `aarch64` means this Beta management node uses ARM64. Alpha uses x86_64, so use Alpha's x86_64 Ollama binary in Step 2. Beta and Alpha have separate login and Slurm environments, and your Beta home cache may not be visible from Alpha. For the `jshin` account used in this walkthrough, the Qwen model is already staged in `$HOME/ollama-models` on Alpha. If it is not present in your Alpha home, pull it during an Alpha CPU job in Step 3. Do not run inference on a management/login node.
+### 2. Configure ORBIT
 
-### 1. Connect to Alpha and check your project account
+1. Start the desktop app with `npm start`.
+2. Open the gear menu to show **Connect an AI model**. Enter these values:
 
-From Terminal on your Mac, connect with the SSH key registered with Empire AI. The current Alpha login host is `alpha.empire-ai.org`. This example assumes your username is `jshin` and the key is `~/.ssh/id_empireai`; adjust these if yours differ:
+       URL:      https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+       Model:    gemini-3.8-flash
+       API key:  your Google AI Studio key
 
-    ssh -i ~/.ssh/id_empireai -o IdentitiesOnly=yes jshin@alpha.empire-ai.org
+3. Select **Save connection**, then ask the assistant a short question.
 
-On Alpha, confirm the account and QoS available to your user:
+Gemini's OpenAI-compatible endpoint uses the standard chat-completions format and accepts the API key as a Bearer token. The ORBIT settings window stores the key with Electron `safeStorage` when OS-backed encryption is available. Do not put the key in README.md, source code, or a shared Git repository. The optional Chrome extension does not provide the desktop app's protected key storage.
 
-    sacctmgr show assoc user="$USER" format=Account%20,QOS%60
+### Free-tier limits and privacy
 
-Use an account shown in that output. The examples below use `su_cwang1_worlds` and the `test` QoS, which is intended for interactive GPU sessions and supports a one-hour run. If that account or QoS is not listed for you, replace it with one that is.
+- A free API key is subject to Google's per-model rate limits and quota. A `429` response usually means a rate limit was reached; check the AI Studio usage dashboard and retry later.
+- Google says content sent through unpaid Gemini API services, and the generated responses, may be used to improve Google products. Human reviewers may review that data. Do not send sensitive, confidential, or personal information through the free tier. Read Google's [Gemini API terms](https://ai.google.dev/gemini-api/terms).
+- ORBIT sends your prompt and open tab titles and URLs to the configured endpoint. It does not automatically send webpage text, but tab titles and URLs can still reveal sensitive information.
+- Each teammate should create and enter their own API key. Do not share one key in chat or commit it to Git.
 
-### 2. Install Ollama in your home directory (no root access required)
+See Google's [OpenAI compatibility guide](https://ai.google.dev/gemini-api/docs/openai) for supported request behavior and model compatibility.
 
-On this Alpha account, the complete x86_64 Ollama package is installed at `~/.local/ollama-alpha`. Use its binary first in your shell's `PATH`. The `~/.local/ollama/bin/ollama` path contains the ARM64 Beta binary and will fail with “Exec format error” on Alpha. The standalone `~/.local/bin/ollama` CLI does not include the required `llama-server` runtime, so do not put it ahead of the complete package:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    ollama --version
-
-If the complete package or its `lib/ollama/llama-server` runtime is missing, install the x86_64 Linux archive into the separate Alpha directory:
-
-    mkdir -p "$HOME/.local/ollama-alpha"
-    curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -xf - -C "$HOME/.local/ollama-alpha"
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-
-The examples use `$HOME/ollama-models`, which already contains the downloaded Qwen model for this account. The model cache is about 17 GB. Empire AI home directories have a 100 GB quota, so keep an eye on space; project storage is preferable when your account has a project path that is readable and writable.
-
-### 3. Check or download the model before reserving a GPU
-
-For this account, the existing Qwen model cache is at `$HOME/ollama-models`. Set `OLLAMA_MODELS` to that directory. If `ollama list` does not show `qwen3.8:27b`, pull it during a one-hour CPU job rather than using GPU time for the download:
-
-    srun --partition=cpu --account=su_cwang1_worlds --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash -l
-
-Inside the CPU job, start Ollama with the Alpha binary and the home cache:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    export OLLAMA_MODELS="$HOME/ollama-models"
-    export OLLAMA_HOST=127.0.0.1:11434
-    ollama serve > "$HOME/ollama-pull.log" 2>&1 &
-    OLLAMA_SERVER_PID=$!
-    sleep 3
-    ollama list
-    ollama pull qwen3.8:27b
-    kill "$OLLAMA_SERVER_PID"
-    exit
-
-`ollama pull` is safe to repeat: Ollama reuses the cache and fetches only missing layers. If you downloaded the model only into Beta's home cache and it is absent from `$HOME/ollama-models` on Alpha, transfer it through a storage path available to both environments or let this Alpha CPU job download it. Keep the CPU job active until the pull finishes.
-
-### 4. Request one GPU for one hour
-
-From the Alpha login shell, request the interactive GPU job. `test` permits up to two hours; the one-hour request below is enough for a short ORBIT session:
-
-    srun --partition=alpha --qos=test --account=su_cwang1_worlds --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=01:00:00 --pty bash -l
-
-Once Slurm starts the job, you are on the allocated GPU node. Confirm the device and record the node name for the tunnel:
-
-    nvidia-smi
-    hostname -f
-
-Empire AI Alpha routes a one-GPU request to its RTX PRO 6000 pool. Interactive `test` jobs are billed at half the standard service-unit rate; one GPU for one hour is nominally 0.5 SU. The project is charged for the allocated GPU time. See the current [QoS and service-unit rules](https://empireai.freshdesk.com/support/solutions/articles/157000374474-alpha-job-submission-and-qos-overview).
-
-### 5. Start Ollama on the GPU node
-
-Inside the allocated GPU shell, start the API on loopback so it is reachable through SSH but not exposed as a public service:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    export OLLAMA_MODELS="$HOME/ollama-models"
-    export OLLAMA_HOST=127.0.0.1:11434
-    ollama serve > "$HOME/ollama-${SLURM_JOB_ID}.log" 2>&1 &
-    OLLAMA_SERVER_PID=$!
-    sleep 3
-    curl -fsS http://127.0.0.1:11434/api/tags
-
-Leave this allocated shell open for the duration of the session. Verify the model uses the GPU after you send a prompt with `ollama ps` and `nvidia-smi`. If the tag is missing, run `ollama pull qwen3.8:27b` inside the job and wait for it to finish.
-
-### 6. Open an SSH tunnel from your Mac
-
-Keep the Empire AI shell and Ollama server running. The commands below use local port `11435` so they do not conflict with an Ollama service that may already be running on your Mac at `11434`. The tunnel must connect through the Alpha login host to the compute node where Ollama is listening. Replace `<COMPUTE_NODE_HOSTNAME>` with the node printed in the job log or by `hostname -f` in the allocated job:
-
-    ssh -N -L 127.0.0.1:11435:<COMPUTE_NODE_HOSTNAME>:11434 \
-      -i ~/.ssh/id_empireai \
-      -o IdentitiesOnly=yes \
-      jshin@alpha.empire-ai.org
-
-This forwards your Mac’s `localhost:11435` through Alpha to Ollama on the allocated compute node’s `localhost:11434`. It uses the login node only as an SSH tunnel; inference remains on the GPU node.
-
-Keep this SSH command running in the second Terminal window. Confirm the tunnel from your Mac:
-
-    curl http://localhost:11435/api/tags
-
-The response should list `qwen3.8:27b`.
-
-### 7. Point ORBIT at the tunneled API
-
-In the ORBIT desktop app, open the gear menu and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
-
-    URL:      http://localhost:11435/v1/chat/completions
-    Model:    qwen3.8:27b
-    API key:  leave blank
-
-Save the settings and send a prompt. Ollama provides the OpenAI-compatible chat-completions route that ORBIT uses. You can also check it from your Mac with:
-
-    curl http://localhost:11435/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{"model":"qwen3.8:27b","messages":[{"role":"user","content":"Reply that ORBIT is connected."}]}'
-
-ORBIT sends the prompt and open tab titles and URLs through the tunnel to the Empire AI server. It does not automatically send page text. The API is available only while the Slurm job, Ollama server, and SSH tunnel are all active. When you finish, stop the tunnel with Ctrl+C. In the allocated shell, run `kill "$OLLAMA_SERVER_PID"` and then `exit`; Slurm releases the GPU. Slurm also ends the job when its one-hour limit expires.
-
-For current cluster guidance, see [Empire AI Alpha Interactive Slurm Quickstart](https://empireai.freshdesk.com/support/solutions/articles/157000374475-empire-ai-alpha-%E2%80%94-interactive-slurm-quickstart) and [Empire AI Alpha Jupyter, SSH & Tunnels](https://empireai.freshdesk.com/support/solutions/articles/157000374476-empire-ai-alpha-%E2%80%94-jupyter-ssh-tunnels).
 
 ### Use another compatible provider
 
@@ -185,23 +98,23 @@ Enter an HTTPS chat-completions URL, model ID, and API key from that provider. F
 
 In the desktop app, ORBIT stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder. The renderer does not store desktop API keys in browser local storage. The Chrome extension prototype does not provide the same protected key storage; use the desktop app for direct cloud API keys.
 
-On Linux, ORBIT requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting ORBIT. `OLLAMA_API_KEY` is only needed for Ollama’s direct cloud API; it is not used for the tunneled Empire AI endpoint. `BULLSAI_API_KEY` remains supported for BullsAI and compatible endpoints. Environment variables take precedence over a saved key.
+On Linux, ORBIT requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting ORBIT. For Gemini, use `GEMINI_API_KEY` (or `GOOGLE_API_KEY`); Ollama Cloud uses `OLLAMA_API_KEY`; BullsAI and other compatible providers can use `BULLSAI_API_KEY`. Environment variables take precedence over a saved key.
 
-macOS or Linux:
+macOS or Linux, when using Gemini:
 
-    export OLLAMA_API_KEY="your-ollama-api-key"
+    export GEMINI_API_KEY="your-gemini-api-key"
     npm start
 
 Windows PowerShell:
 
-    $env:OLLAMA_API_KEY = "your-ollama-api-key"
+    $env:GEMINI_API_KEY = "your-gemini-api-key"
     npm start
 
 Do not commit a real API key to this project or put it in README.md.
 
 ### What the assistant sends
 
-For a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured endpoint. With the Empire AI setup above, this information travels through SSH to the Alpha compute node. With another cloud provider, it is sent to that provider. ORBIT does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
+For a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured endpoint. When using Gemini, that information is sent to Google's Gemini API. ORBIT does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
 
 The microphone button starts voice input and sends the recognized transcript as the prompt. The adjacent voice-reply button toggles spoken assistant responses. If voice recognition is unavailable or microphone access is denied, you can continue by typing.
 
@@ -234,9 +147,9 @@ The extension can visualize real Chrome tabs and organize them into spaces. The 
 - **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
 - **npm start says Electron is missing:** Run npm install from the project folder and check for installation errors.
 - **A website does not load:** Check your internet connection, then try entering the full address, such as https://example.com.
-- **ORBIT cannot reach Ollama on Alpha:** Confirm the Slurm job is still running, `ollama serve` is active on the allocated compute node, and the SSH tunnel is still open. On your Mac, `curl http://localhost:11435/api/tags` should return the model list.
-- **Ollama runs on CPU or reports an out-of-memory error:** Run Ollama inside the GPU allocation, check `nvidia-smi` and `ollama ps`, and retry with a shorter context. Make sure the model pull completed before starting the GPU job.
-- **The Slurm request is rejected:** Check `sacctmgr show assoc user="$USER" format=Account%20,QOS%60` and use an account/QoS permitted for your user. Alpha requires an explicit project account; Beta is a separate system and requires at least four GPUs per job.
+- **Gemini returns 401 or 403:** Check the API key, the Free Tier project, and the endpoint URL. Create or rotate a key in Google AI Studio if needed.
+- **Gemini returns 404:** Confirm the model ID is `gemini-3.8-flash` and use Google's OpenAI-compatible chat-completions URL.
+- **Gemini returns 429:** The project reached a model rate limit or quota. Check the AI Studio usage dashboard and try again when the limit resets.
 - **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
 - **Voice input is unavailable:** Check OS microphone access and the ORBIT permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
 - **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.

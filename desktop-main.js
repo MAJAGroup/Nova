@@ -529,9 +529,13 @@ function endpointOrigin(value) {
 }
 
 function getEnvironmentAPIKey(value) {
-  return isOllamaCloudEndpoint(value)
-    ? (process.env.OLLAMA_API_KEY || "")
-    : (process.env.BULLSAI_API_KEY || "");
+  if (isOllamaCloudEndpoint(value)) return process.env.OLLAMA_API_KEY || "";
+  try {
+    if (new URL(value).hostname === "generativelanguage.googleapis.com") {
+      return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "";
+    }
+  } catch (_) {}
+  return process.env.BULLSAI_API_KEY || "";
 }
 
 function permissionOrigin(value) {
@@ -780,7 +784,7 @@ function registerIPC() {
     const origin = endpointOrigin(url);
     if (apiKey) {
       if (!await hasProtectedSecretStore()) {
-        return { ok: false, error: "OS-backed secret storage is unavailable. Set OLLAMA_API_KEY or BULLSAI_API_KEY before launching ORBIT." };
+        return { ok: false, error: "OS-backed secret storage is unavailable. Set GEMINI_API_KEY, GOOGLE_API_KEY, OLLAMA_API_KEY, or BULLSAI_API_KEY before launching ORBIT." };
       }
       const encrypted = await safeStorage.encryptStringAsync(apiKey);
       next.apiKeyCiphertext = encrypted.toString("base64");
