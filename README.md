@@ -1,6 +1,6 @@
 # ORBIT
 
-ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and a BullsAI assistant.
+ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, a spatial workspace, named spaces, standard browser navigation, and an AI assistant that can use Ollama Kimi K3.1 Pro, BullsAI, or another compatible chat endpoint.
 
 The desktop app is the primary program. The same folder also includes an optional Chrome new-tab extension prototype.
 
@@ -9,7 +9,7 @@ The desktop app is the primary program. The same folder also includes an optiona
 - A computer running macOS, Windows, or Linux.
 - Node.js with npm. Electron recommends the current Node.js LTS release for development. Install it from https://nodejs.org/en/download/.
 - An internet connection for installing Electron and for visiting websites.
-- For the BullsAI assistant, developer access to BullsAI Model Hub, including the endpoint URL, model ID, and API credentials.
+- For Kimi K3.1 Pro, an Ollama account with cloud-model access and usage credits or a plan that includes the model. Other compatible providers may require their own API access and key.
 
 Check that Node.js and npm are installed by opening a terminal and running:
 
@@ -55,41 +55,67 @@ ORBIT opens to the constellation workspace with an initial web tab. Select a tab
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
-## Configure BullsAI
+## Connect Ollama Kimi K3.1 Pro
 
-The assistant needs developer access details; ORBIT does not include a default API endpoint or key.
+ORBIT can call Kimi through either the local Ollama API or Ollama’s direct cloud API. Both use an OpenAI-compatible chat-completions request.
 
-1. Open the gear menu in ORBIT.
-2. Enter the chat-completions URL and model ID supplied with your BullsAI developer access.
-3. Paste the API key and choose **Save connection**.
-4. If prompted, allow ORBIT to connect to the endpoint host.
-5. Ask a question in the assistant panel.
+### Option A: Ollama app and local API
 
-The public UBIT BullsAI page identifies Model Hub as the developer API service, but does not publish the endpoint, model IDs, or authentication format. Request developer access and use the details in the BullsAI developer documentation: https://www.buffalo.edu/ubit/services/BullsAI.html
+This is the easiest option for ORBIT. The model itself runs on Ollama’s hosted service; the Ollama app on your computer exposes a local API for ORBIT to call.
 
-The current adapter expects an OpenAI-compatible chat-completions request and a response containing choices[0].message.content. It sends the API key as a Bearer token. If the endpoint supplied by BullsAI uses a different request path, authentication header, or response format, update the adapter in desktop-main.js.
+1. Install Ollama for macOS, Windows, or Linux from https://ollama.com/download.
+2. Sign in to your Ollama account. Cloud models need an account with model access and available usage credits or a plan that includes them.
+3. In Terminal, run the model once to confirm access:
+
+       ollama run kimi-k3.1-pro:cloud
+
+   If prompted, send a short message. Type `/bye` to exit the chat. The cloud model does not download its 2.81T-parameter weights to your computer.
+4. Open ORBIT’s gear menu and choose **Local Ollama API**. The preset fills these settings:
+
+       URL:   http://localhost:11434/v1/chat/completions
+       Model: kimi-k3.1-pro:cloud
+
+   No API key is needed in ORBIT for this local endpoint. Ollama uses the sign-in saved by its app or CLI to access the cloud model.
+5. Save the connection and send a short prompt in ORBIT.
+
+Keep Ollama running while using this connection. To check its local API from Terminal, run:
+
+    curl http://localhost:11434/api/tags
+
+### Option B: Ollama’s direct cloud API
+
+This option does not require installing Ollama. Create an API key in your Ollama account, then use **Ollama Cloud API** in ORBIT’s gear menu:
+
+    URL:   https://ollama.com/v1/chat/completions
+    Model: kimi-k3.1-pro
+
+Paste your key into the API key field and save. For this direct API, use the model name without the `:cloud` suffix. Usage is metered by tokens; check current model pricing and your account balance before regular use.
+
+### Use another compatible provider
+
+Enter an HTTPS chat-completions URL, model ID, and API key from that provider. For BullsAI, request developer access and use the endpoint, model ID, and authentication details from its developer documentation: https://www.buffalo.edu/ubit/services/BullsAI.html. The public UBIT page identifies Model Hub but does not publish those connection details.
 
 ### API key storage
 
-When OS-backed encryption is available, ORBIT stores the API key using Electron safeStorage. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder; the renderer does not store the key in browser local storage.
+In the desktop app, ORBIT stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder. The renderer does not store desktop API keys in browser local storage. The Chrome extension prototype does not provide the same protected key storage; use the desktop app for direct cloud API keys.
 
-On Linux, ORBIT requires a protected desktop keyring for saving the key. If one is unavailable, provide the key through the BULLSAI_API_KEY environment variable before starting ORBIT. This variable takes precedence over a key saved in settings.
+On Linux, ORBIT requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting ORBIT. `OLLAMA_API_KEY` is used for Ollama’s direct cloud API; `BULLSAI_API_KEY` remains supported for BullsAI and compatible endpoints. Environment variables take precedence over a saved key.
 
 macOS or Linux:
 
-    export BULLSAI_API_KEY="your-developer-key"
+    export OLLAMA_API_KEY="your-ollama-api-key"
     npm start
 
 Windows PowerShell:
 
-    $env:BULLSAI_API_KEY = "your-developer-key"
+    $env:OLLAMA_API_KEY = "your-ollama-api-key"
     npm start
 
 Do not commit a real API key to this project or put it in README.md.
 
 ### What the assistant sends
 
-When you submit a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured BullsAI endpoint. It does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
+For a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured endpoint. When using Kimi through Ollama Cloud, that means the information is sent to Ollama’s hosted service. ORBIT does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
 
 The microphone button starts voice input and sends the recognized transcript as the prompt. The adjacent voice-reply button toggles spoken assistant responses. If voice recognition is unavailable or microphone access is denied, you can continue by typing.
 
@@ -122,13 +148,14 @@ The extension can visualize real Chrome tabs and organize them into spaces. The 
 - **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
 - **npm start says Electron is missing:** Run npm install from the project folder and check for installation errors.
 - **A website does not load:** Check your internet connection, then try entering the full address, such as https://example.com.
+- **Ollama returns an error:** Confirm Ollama is running, you are signed in for cloud models, the model is spelled correctly, and your Ollama account has access/usage available. For direct cloud API access, check the API key and use `kimi-k3.1-pro` without `:cloud`.
 - **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
 - **Voice input is unavailable:** Check OS microphone access and the ORBIT permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
 - **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.
 
 ## Project files
 
-- desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and BullsAI requests.
+- desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - newtab.html, app.js, styles.css — ORBIT workspace, browser controls, and assistant interface.
 - manifest.json — optional Chrome extension configuration.

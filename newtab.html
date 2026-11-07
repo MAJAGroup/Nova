@@ -156,7 +156,7 @@
                 <button class="send-button" id="send-message" aria-label="Send message">↑</button>
               </div>
             </div>
-            <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by <b>BullsAI</b> <span class="footnote-divider">·</span> Your choice of model</div>
+            <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by your <b>AI model</b></div>
           </div>
         </aside>
       </div>
@@ -166,15 +166,19 @@
       <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <button class="modal-close" data-close-modal aria-label="Close">×</button>
         <div class="modal-kicker">MISSION CONTROL <span>✦</span></div>
-        <h2 id="settings-title">Connect BullsAI</h2>
-        <p class="modal-intro">Connect your UB-hosted model to power Orbit’s assistant. Add the chat completions URL and credentials from your BullsAI developer access.</p>
+        <h2 id="settings-title">Connect an AI model</h2>
+        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Ollama Kimi K3.1 Pro is available through Ollama Cloud; choose a preset below.</p>
+        <div class="settings-actions">
+          <button type="button" class="text-button" data-ollama-preset="local">Local Ollama API</button>
+          <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
+        </div>
         <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
         <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
         <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
-        <input id="api-model" class="settings-input" type="text" placeholder="Model ID from BullsAI Model Hub">
-        <label class="field-label" for="api-key">API KEY <span>stored locally</span></label>
-        <input id="api-key" class="settings-input" type="password" placeholder="Paste your developer key">
-        <div class="settings-hint"><span>ⓘ</span> Orbit expects an OpenAI-compatible chat completions response. Confirm the exact endpoint, model ID, and auth format in your BullsAI developer docs.</div>
+        <input id="api-model" class="settings-input" type="text" placeholder="e.g. kimi-k3.1-pro:cloud">
+        <label class="field-label" for="api-key">API KEY <span>stored securely in the desktop app</span></label>
+        <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
+        <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
       </section>
     </div>

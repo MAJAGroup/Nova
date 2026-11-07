@@ -402,28 +402,51 @@
     el("api-url").value = config.url || "";
     el("api-model").value = config.model || "";
     el("api-key").value = isDesktopApp ? "" : (config.key || "");
-    el("api-key").placeholder = isDesktopApp && config.keyConfigured ? "Key already stored securely — leave blank to keep" : "Paste your developer key";
+    var localOllama = /^http:\/\/localhost:11434\//i.test(config.url || "");
+    el("api-key").placeholder = localOllama ? "Not required for local Ollama" : (isDesktopApp && config.keyConfigured ? "Key stored securely — leave blank to keep" : "Paste the API key for this provider");
     setTimeout(function () { el("api-url").focus(); }, 50);
   }
 
+  function setOllamaPreset(mode) {
+    if (mode === "local") {
+      el("api-url").value = "http://localhost:11434/v1/chat/completions";
+      el("api-model").value = "kimi-k3.1-pro:cloud";
+      el("api-key").value = "";
+      el("api-key").placeholder = "Not required for local Ollama";
+      showToast("Local Ollama selected. Sign in to Ollama to use its cloud model.");
+      return;
+    }
+    el("api-url").value = "https://ollama.com/v1/chat/completions";
+    el("api-model").value = "kimi-k3.1-pro";
+    el("api-key").value = "";
+    el("api-key").placeholder = "Paste your Ollama API key";
+    showToast("Ollama Cloud selected. Add your API key before saving.");
+  }
+
   function saveSettings() {
+    var previousUrl = config.url || "";
+    var hadSavedKey = Boolean(config.keyConfigured);
     config = { url: el("api-url").value.trim(), model: el("api-model").value.trim(), key: el("api-key").value.trim() };
     if (config.url && !/^https:\/\//i.test(config.url) && !/^http:\/\/localhost(?::\d+)?(?:\/|$)/i.test(config.url)) return showToast("Enter an HTTPS URL (or a localhost URL for development).");
+    if (!isDesktopApp && /^https:\/\/ollama\.com\//i.test(config.url)) return showToast("Use the desktop app to store Ollama Cloud keys securely.");
+    var sameProvider = false;
+    try { sameProvider = new URL(previousUrl).origin === new URL(config.url).origin; } catch (_) {}
+    if (isDesktopApp && /^https:\/\/ollama\.com\//i.test(config.url) && !config.key && !(hadSavedKey && sameProvider)) return showToast("Add your Ollama API key before saving this cloud endpoint.");
     if (isDesktopApp) {
       window.orbitBrowser.saveAIConfig({ url: config.url, model: config.model, apiKey: config.key }).then(function (result) {
         if (!result.ok) return showToast(result.error);
-        config = { url: config.url, model: config.model, keyConfigured: result.keyConfigured };
+        config = { url: config.url, model: config.model, keyConfigured: result.keyConfigured, connected: result.connected };
         el("settings-modal").hidden = true;
-        el("ai-status").textContent = config.url && config.keyConfigured ? "BullsAI connected" : "Ready to explore";
-        showToast("BullsAI connection saved.");
-      }).catch(function () { showToast("Could not save the BullsAI settings."); });
+        el("ai-status").textContent = config.connected ? "AI configured" : "Ready to explore";
+        showToast("AI connection saved.");
+      }).catch(function () { showToast("Could not save the AI settings."); });
       return;
     }
     if (isChromeExtension && config.url) {
       var origin;
-      try { origin = new URL(config.url).origin + "/*"; } catch (_) { return showToast("Enter a valid BullsAI chat completions URL."); }
+      try { origin = new URL(config.url).origin + "/*"; } catch (_) { return showToast("Enter a valid chat completions URL."); }
       chrome.permissions.request({ origins: [origin] }, function (granted) {
-        if (!granted) return showToast("Allow access to the BullsAI endpoint to connect.");
+        if (!granted) return showToast("Allow access to the AI endpoint to connect.");
         persistConfig();
       });
     } else persistConfig();
@@ -432,8 +455,8 @@
   function persistConfig() {
     storageSet({ bullsaiConfig: config }).then(function () {
       el("settings-modal").hidden = true;
-      el("ai-status").textContent = config.url ? "BullsAI connected" : "Ready to explore";
-      showToast(config.url ? "BullsAI connection saved on this device." : "AI connection cleared.");
+      el("ai-status").textContent = config.url ? "AI connected" : "Ready to explore";
+      showToast(config.url ? "AI connection saved on this device." : "AI connection cleared.");
     });
   }
 
@@ -467,16 +490,16 @@
     if (text.indexOf("summar") > -1 || text.indexOf("overview") > -1) {
       lines.push("You have " + tabs.length + " tabs across " + spaces.length + " spaces.");
       tabs.slice(0, 5).forEach(function (tab) { lines.push("• " + (tab.title || domainOf(tab.url)) + " — " + domainOf(tab.url)); });
-      if (!isChromeExtension) lines.push("Connect your BullsAI developer endpoint in settings to get AI-powered summaries.");
+      if (!isChromeExtension) lines.push("Connect an AI endpoint in settings to get AI-powered summaries.");
       return lines.join("\n");
     }
     if (text.indexOf("find") > -1) {
-      return "I can help locate a tab. Try its site name or a word from its title in the search bar above. I can also use your open-tab context once BullsAI is connected.";
+      return "I can help locate a tab. Try its site name or a word from its title in the search bar above. I can also use your open-tab context once an AI endpoint is connected.";
     }
     if (text.indexOf("plan") > -1 || text.indexOf("hour") > -1) {
-      return "A simple next-hour plan:\n1. Pick one Research or Build tab as your focus.\n2. Close or park anything unrelated in its own space.\n3. Spend 40 minutes on the main task, then take a short reset.\n\nConnect BullsAI for a plan tailored to the pages in your orbit.";
+      return "A simple next-hour plan:\n1. Pick one Research or Build tab as your focus.\n2. Close or park anything unrelated in its own space.\n3. Spend 40 minutes on the main task, then take a short reset.\n\nConnect an AI endpoint for a plan tailored to the pages in your orbit.";
     }
-    return "I can organize and discuss your open tabs. Connect a BullsAI Model Hub endpoint in settings to enable model-powered answers. You can still search tabs, open pages, and sort them into spaces here.";
+    return "I can organize and discuss your open tabs. Connect an AI endpoint in settings to enable model-powered answers. You can still search tabs, open pages, and sort them into spaces here.";
   }
 
   function handleBrowserIntent(prompt) {
@@ -573,12 +596,12 @@
         });
         pending.remove();
         if (!desktopResult.ok) {
-          appendMessage("I couldn’t reach the configured BullsAI endpoint. " + desktopResult.error, "assistant");
+          appendMessage("I couldn’t reach the configured AI endpoint. " + desktopResult.error, "assistant");
           el("ai-status").textContent = "Connection issue";
           return;
         }
         appendMessage(desktopResult.text, "assistant");
-        el("ai-status").textContent = "BullsAI connected";
+        el("ai-status").textContent = "AI connected";
         return;
       }
       var context = tabs.map(function (tab) { return { title: tab.title || "Untitled tab", url: tab.url }; });
@@ -593,17 +616,17 @@
           ]
         })
       });
-      if (!response.ok) throw new Error("The BullsAI endpoint returned " + response.status + ".");
+      if (!response.ok) throw new Error("The AI endpoint returned " + response.status + ".");
       var data = await response.json();
       var answer = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       if (Array.isArray(answer)) answer = answer.map(function (part) { return part.text || ""; }).join("");
       if (!answer) throw new Error("The response did not include a chat completion.");
       pending.remove();
       appendMessage(answer, "assistant");
-      el("ai-status").textContent = "BullsAI connected";
+      el("ai-status").textContent = "AI connected";
     } catch (error) {
       pending.remove();
-      appendMessage("I couldn’t reach the configured BullsAI endpoint. " + error.message + " Check the URL, model ID, auth format, and connection settings.", "assistant");
+      appendMessage("I couldn’t reach the configured AI endpoint. " + error.message + " Check the URL, model ID, auth format, and connection settings.", "assistant");
       el("ai-status").textContent = "Connection issue";
     }
   }
@@ -660,13 +683,13 @@
         document.querySelector(".browser-nav").hidden = false;
         window.orbitBrowser.getAIConfig().then(function (aiConfig) {
           config = aiConfig || {};
-          el("ai-status").textContent = config.url && config.keyConfigured ? "BullsAI connected" : "Ready to explore";
+          el("ai-status").textContent = config.connected ? "AI configured" : "Ready to explore";
         });
       } else {
         el("browse-mode").hidden = true;
         document.querySelector(".browser-nav").hidden = true;
         config = data.bullsaiConfig || {};
-        el("ai-status").textContent = config.url ? "BullsAI connected" : "Ready to explore";
+        el("ai-status").textContent = config.url ? "AI configured" : "Ready to explore";
       }
       loadTabs();
     });
@@ -679,6 +702,10 @@
     el("zoom-out").addEventListener("click", function () { zoom = Math.max(70, zoom - 10); renderTabs(); });
     el("recenter").addEventListener("click", function () { positions = {}; storageSet({ positions: positions }); renderTabs(); showToast("Constellation recentered."); });
     el("settings-open").addEventListener("click", openSettings);
+    document.querySelectorAll("[data-ollama-preset]").forEach(function (button) {
+      if (!isDesktopApp) button.hidden = true;
+      button.addEventListener("click", function () { setOllamaPreset(button.dataset.ollamaPreset); });
+    });
     el("save-settings").addEventListener("click", saveSettings);
     el("clear-settings").addEventListener("click", function () {
       config = {};
@@ -689,7 +716,7 @@
         window.orbitBrowser.clearAIConfig().then(function () {
           el("settings-modal").hidden = true;
           el("ai-status").textContent = "Ready to explore";
-          showToast("BullsAI connection cleared.");
+          showToast("AI connection cleared.");
         });
       } else {
         storageRemove(["bullsaiConfig"]);
@@ -726,10 +753,10 @@
     el("add-space").addEventListener("click", addSpace);
     el("focus-action").addEventListener("click", function () { chooseSpace("Research"); el("omnibox").focus(); });
     el("help-open").addEventListener("click", function () {
-      appendMessage("Your tabs orbit around you. Drag one to arrange it, choose a space to filter the view, or search above to jump back to an open tab. Connect BullsAI in the gear menu for AI assistance.", "assistant");
+      appendMessage("Your tabs orbit around you. Drag one to arrange it, choose a space to filter the view, or search above to jump back to an open tab. Connect an AI model in the gear menu for AI assistance.", "assistant");
     });
     el("context-info").addEventListener("click", function () {
-      showToast("When you ask Orbit, it shares open tab titles and URLs with your configured BullsAI endpoint.");
+      showToast("When you ask Orbit, it shares open tab titles and URLs with your configured AI endpoint.");
     });
     el("assistant-menu").addEventListener("click", openSettings);
     el("go-back").addEventListener("click", function () { if (isDesktopApp) window.orbitBrowser.goBack(); });

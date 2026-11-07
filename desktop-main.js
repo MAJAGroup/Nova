@@ -249,8 +249,10 @@ async function writeSettings(settings) {
 }
 
 async function getStoredAPIKey(settings) {
-  if (process.env.BULLSAI_API_KEY) return process.env.BULLSAI_API_KEY;
+  const environmentKey = getEnvironmentAPIKey(settings.bullsaiUrl);
+  if (environmentKey) return environmentKey;
   if (!settings.apiKeyCiphertext || !await hasProtectedSecretStore()) return "";
+  if (settings.apiKeyOrigin && settings.apiKeyOrigin !== endpointOrigin(settings.bullsaiUrl)) return "";
   try {
     const decrypted = await safeStorage.decryptStringAsync(Buffer.from(settings.apiKeyCiphertext, "base64"));
     if (decrypted.shouldReEncrypt) {
@@ -272,6 +274,34 @@ function validateAPIEndpoint(value) {
   } catch (_) {
     return false;
   }
+}
+
+function isLocalOllamaEndpoint(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" && parsed.hostname === "localhost" && parsed.port === "11434";
+  } catch (_) {
+    return false;
+  }
+}
+
+function isOllamaCloudEndpoint(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && parsed.hostname === "ollama.com";
+  } catch (_) {
+    return false;
+  }
+}
+
+function endpointOrigin(value) {
+  try { return new URL(value).origin; } catch (_) { return ""; }
+}
+
+function getEnvironmentAPIKey(value) {
+  return isOllamaCloudEndpoint(value)
+    ? (process.env.OLLAMA_API_KEY || "")
+    : (process.env.BULLSAI_API_KEY || "");
 }
 
 function permissionOrigin(value) {
@@ -445,10 +475,12 @@ function registerIPC() {
   });
   ipcMain.handle("ai:get-config", async () => {
     const settings = await readSettings();
+    const keyConfigured = !isLocalOllamaEndpoint(settings.bullsaiUrl) && Boolean(await getStoredAPIKey(settings));
     return {
       url: settings.bullsaiUrl || "",
       model: settings.model || "",
-      keyConfigured: Boolean(await getStoredAPIKey(settings))
+      keyConfigured,
+      connected: Boolean(settings.bullsaiUrl) && (isLocalOllamaEndpoint(settings.bullsaiUrl) || keyConfigured)
     };
   });
   ipcMain.handle("ai:save-config", async (_event, config) => {
@@ -458,17 +490,25 @@ function registerIPC() {
     if (url && !validateAPIEndpoint(url)) return { ok: false, error: "Use an HTTPS endpoint or localhost for development." };
     const previous = await readSettings();
     const next = { bullsaiUrl: url, model };
+    const origin = endpointOrigin(url);
     if (apiKey) {
       if (!await hasProtectedSecretStore()) {
-        return { ok: false, error: "OS-backed secret storage is unavailable. Set BULLSAI_API_KEY before launching ORBIT." };
+        return { ok: false, error: "OS-backed secret storage is unavailable. Set OLLAMA_API_KEY or BULLSAI_API_KEY before launching ORBIT." };
       }
       const encrypted = await safeStorage.encryptStringAsync(apiKey);
       next.apiKeyCiphertext = encrypted.toString("base64");
-    } else if (previous.apiKeyCiphertext) {
+      next.apiKeyOrigin = origin;
+    } else if (previous.apiKeyCiphertext && !isLocalOllamaEndpoint(url) && endpointOrigin(previous.bullsaiUrl) === origin && (!previous.apiKeyOrigin || previous.apiKeyOrigin === origin)) {
       next.apiKeyCiphertext = previous.apiKeyCiphertext;
+      next.apiKeyOrigin = origin;
     }
     await writeSettings(next);
-    return { ok: true, keyConfigured: Boolean(apiKey || next.apiKeyCiphertext || process.env.BULLSAI_API_KEY) };
+    const keyConfigured = !isLocalOllamaEndpoint(url) && Boolean(apiKey || next.apiKeyCiphertext || getEnvironmentAPIKey(url));
+    return {
+      ok: true,
+      keyConfigured,
+      connected: Boolean(url) && (isLocalOllamaEndpoint(url) || keyConfigured)
+    };
   });
   ipcMain.handle("ai:clear-config", async () => {
     await writeSettings({});
@@ -476,9 +516,9 @@ function registerIPC() {
   });
   ipcMain.handle("ai:ask", async (_event, request) => {
     const settings = await readSettings();
-    if (!settings.bullsaiUrl) return { ok: false, error: "Connect your BullsAI endpoint in settings first." };
-    const apiKey = await getStoredAPIKey(settings);
-    if (!apiKey) return { ok: false, error: "Add a BullsAI API key or set BULLSAI_API_KEY before launching." };
+    if (!settings.bullsaiUrl) return { ok: false, error: "Connect an AI endpoint in settings first." };
+    const apiKey = isLocalOllamaEndpoint(settings.bullsaiUrl) ? "" : await getStoredAPIKey(settings);
+    if (!apiKey && !isLocalOllamaEndpoint(settings.bullsaiUrl)) return { ok: false, error: "Add the API key for this endpoint in settings first." };
     const prompt = String(request && request.prompt || "").trim().slice(0, 6000);
     if (!prompt) return { ok: false, error: "Type a question for Orbit." };
     const context = Array.isArray(request.context) ? request.context.slice(0, 80).map((tab) => ({
@@ -490,10 +530,11 @@ function registerIPC() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer " + apiKey
+          ...(apiKey ? { "Authorization": "Bearer " + apiKey } : {})
         },
         body: JSON.stringify({
           model: settings.model || undefined,
+          max_tokens: 1000,
           messages: [
             {
               role: "system",
@@ -504,14 +545,14 @@ function registerIPC() {
         }),
         signal: AbortSignal.timeout(60000)
       });
-      if (!response.ok) return { ok: false, error: "The BullsAI endpoint returned " + response.status + "." };
+      if (!response.ok) return { ok: false, error: "The AI endpoint returned " + response.status + "." };
       const data = await response.json();
       let answer = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       if (Array.isArray(answer)) answer = answer.map((part) => part.text || "").join("");
       if (!answer) return { ok: false, error: "The response did not include a chat completion." };
       return { ok: true, text: answer };
     } catch (error) {
-      return { ok: false, error: error.message || "Could not connect to BullsAI." };
+      return { ok: false, error: error.message || "Could not connect to the AI endpoint." };
     }
   });
 }
