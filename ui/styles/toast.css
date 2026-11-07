@@ -1,0 +1,3 @@
+/* Short status messages. The web page is drawn above this document, so they show while a popup (assistant, settings) covers it. */
+.toast{position:fixed;z-index:30;left:50%;bottom:28px;width:max-content;max-width:min(420px,calc(100% - 32px));transform:translate(-50%,10px);opacity:0;pointer-events:none;border:1px solid #3c5278;border-radius:7px;background:#172440;padding:10px 14px;color:#dce7ff;font-size:10px;box-shadow:0 8px 25px #0008;transition:.2s}
+.toast.visible{opacity:1;transform:translate(-50%,0)}

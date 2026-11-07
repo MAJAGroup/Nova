@@ -1,0 +1,175 @@
+import * as THREE from "three";
+import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { glowTexture } from "./textures.js";
+
+// Connects stars the way star charts do: the shortest set of lines that
+// links every star once (a minimum spanning tree), so it reads as a figure
+// rather than a web.
+function spanningTree(ids, positions) {
+  if (ids.length < 2) return [];
+  const inTree = new Set([ids[0]]);
+  const edges = [];
+  while (inTree.size < ids.length) {
+    let best = null;
+    for (const from of inTree) {
+      for (const to of ids) {
+        if (inTree.has(to)) continue;
+        const length = positions.get(from).distanceToSquared(positions.get(to));
+        if (!best || length < best.length) best = { from, to, length };
+      }
+    }
+    inTree.add(best.to);
+    edges.push([best.from, best.to]);
+  }
+  return edges;
+}
+
+// Draws each tab group as a constellation: lines between its stars, a faint
+// nebula behind them and its name above. The name can be clicked (focus the
+// camera) or double-clicked (rename).
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename }) {
+  const root = new THREE.Group();
+  scene.add(root);
+  const items = new Map();
+  let pendingEdit = null;
+
+  function createItem(group) {
+    const geometry = new THREE.BufferGeometry();
+    const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+      transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    const nebula = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture(), transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+
+    const element = document.createElement("div");
+    element.className = "constellation-label";
+    element.innerHTML = '<span class="constellation-name" role="button" tabindex="0" title="Click to focus · Double-click to rename"></span>';
+    const button = element.firstChild;
+    const label = new CSS2DObject(element);
+
+    root.add(lines, nebula, label);
+    const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
+
+    button.addEventListener("click", () => { if (!item.editing) onFocus(item.id); });
+    button.addEventListener("dblclick", () => editName(item.id));
+    button.addEventListener("keydown", (event) => {
+      if (!item.editing) return;
+      event.stopPropagation();
+      if (event.key === "Enter") { event.preventDefault(); finishEdit(item, true); }
+      if (event.key === "Escape") { event.preventDefault(); finishEdit(item, false); }
+    });
+    // Clicking elsewhere saves the name; switching to another window doesn't.
+    button.addEventListener("blur", () => {
+      if (item.editing && document.hasFocus()) finishEdit(item, true);
+    });
+    return item;
+  }
+
+  function removeItem(item) {
+    root.remove(item.lines, item.nebula, item.label);
+    item.geometry.dispose();
+    item.lines.material.dispose();
+    item.nebula.material.dispose();
+    items.delete(item.id);
+  }
+
+  function renderName(item) {
+    if (item.editing) return;
+    item.button.textContent = item.group.name;
+  }
+
+  function editName(groupId) {
+    const item = items.get(groupId);
+    if (!item) {
+      pendingEdit = groupId;
+      return;
+    }
+    pendingEdit = null;
+    item.editing = true;
+    item.element.classList.add("editing");
+    item.button.contentEditable = "plaintext-only";
+    // A just-created label isn't on the page until the next frame is drawn.
+    if (item.element.isConnected) focusName(item);
+    else item.focusPending = true;
+  }
+
+  function focusName(item) {
+    item.focusPending = false;
+    item.button.focus();
+    const range = document.createRange();
+    range.selectNodeContents(item.button);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function finishEdit(item, save) {
+    item.editing = false;
+    item.element.classList.remove("editing");
+    item.button.contentEditable = "false";
+    const name = item.button.textContent.replace(/\s+/g, " ").trim();
+    if (save && name && name !== item.group.name) onRename(item.id, name);
+    renderName(item);
+  }
+
+  return {
+    sync(layout) {
+      for (const item of Array.from(items.values())) {
+        if (!layout.constellations.has(item.id)) removeItem(item);
+      }
+      for (const group of tabs.groups) {
+        const shape = layout.constellations.get(group.id);
+        if (!shape) continue;
+        const item = items.get(group.id) || createItem(group);
+        items.set(group.id, item);
+        item.group = group;
+        item.radius = shape.radius;
+        item.memberIds = shape.memberIds;
+        item.edges = spanningTree(shape.memberIds, layout.stars);
+        item.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(item.edges.length * 6), 3));
+        const color = new THREE.Color(group.color);
+        item.lines.material.color.copy(color);
+        item.nebula.material.color.copy(color);
+        item.element.style.setProperty("--group-color", group.color);
+        renderName(item);
+      }
+      if (pendingEdit && items.has(pendingEdit)) editName(pendingEdit);
+    },
+
+    update(time) {
+      const screenUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+      for (const item of items.values()) {
+        if (item.focusPending && item.element.isConnected) focusName(item);
+        const buffer = item.geometry.getAttribute("position");
+        if (buffer) {
+          item.edges.forEach(([from, to], index) => {
+            const a = positionOf(from);
+            const b = positionOf(to);
+            if (a && b) buffer.array.set([a.x, a.y, a.z, b.x, b.y, b.z], index * 6);
+          });
+          buffer.needsUpdate = true;
+          item.geometry.computeBoundingSphere();
+        }
+        // Follow the stars as they glide into place.
+        item.center.set(0, 0, 0);
+        let count = 0;
+        for (const id of item.memberIds) {
+          const position = positionOf(id);
+          if (position) { item.center.add(position); count++; }
+        }
+        if (count) item.center.divideScalar(count);
+        item.nebula.position.copy(item.center);
+        item.nebula.scale.setScalar(item.radius * 3.2 + 8);
+        item.nebula.material.opacity = 0.09 + Math.sin(time * 0.6 + item.seed) * 0.025;
+        item.lines.material.opacity = 0.38 + Math.sin(time * 0.9 + item.seed) * 0.1;
+        // Just above the constellation on screen.
+        item.label.position.copy(item.center).addScaledVector(screenUp, item.radius * 0.75 + 2.5);
+      }
+    },
+
+    centerOf: (groupId) => (items.has(groupId) ? items.get(groupId).center.clone() : null),
+    radiusOf: (groupId) => (items.has(groupId) ? items.get(groupId).radius : 0),
+    editName
+  };
+}
