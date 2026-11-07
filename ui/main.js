@@ -35,8 +35,7 @@ function start() {
     }
   });
 
-  // Switching tabs (a star, the tab strip, the assistant, a new tab) brings
-  // the page back.
+  // Switching tabs while the cosmos is open brings the page back.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
@@ -48,14 +47,7 @@ function start() {
     tabs,
     aiConfig,
     onOpenSettings: settings.open,
-    onVisibilityChange: (open) => browserView.cover("assistant", open)
-  });
-  // Like Spotlight, the popup steps away once it has taken you to a tab.
-  let assistantTabId = tabs.activeId;
-  tabs.subscribe(() => {
-    if (tabs.activeId === assistantTabId) return;
-    assistantTabId = tabs.activeId;
-    assistant.close();
+    onVisibilityChange: (open) => browserView.setAssistantOpen(open)
   });
 
   // Commands from the application menu and its shortcuts.

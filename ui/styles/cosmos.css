@@ -1,10 +1,38 @@
-/* 3D tab cosmos: shown in place of the web page. */
+/* 3D tab cosmos: an atlas floats over the continuous star field. */
 .cosmos{position:absolute;inset:0;z-index:2;overflow:hidden;background:#050813}
 .cosmos[hidden]{display:none}
+.cosmos-sidebar{position:absolute;z-index:2;inset:0 auto 0 0;width:clamp(220px,28%,320px);display:flex;flex-direction:column;min-height:0;border:0;background:transparent;box-shadow:none}
+.cosmos-sidebar-heading{min-height:64px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid #ffffff10}
+.cosmos-sidebar-heading>div{display:flex;flex-direction:column;gap:5px}
+.cosmos-title{color:#8fe8ff;font:9px var(--mono);letter-spacing:1.6px}
+.cosmos-sidebar-caption{color:#c8d2e8;font-size:12px;font-weight:500}
+.cosmos-sidebar-heading #cosmos-count{color:#7789a8;font:8px var(--mono);white-space:nowrap}
+.cosmos-tab-list{flex:1;min-height:0;overflow:auto;padding:12px 9px 18px;scrollbar-width:thin;scrollbar-color:#31415d transparent}
+.cosmos-list-group+.cosmos-list-group{margin-top:15px}
+.cosmos-group-heading{width:100%;height:25px;display:flex;align-items:center;gap:7px;padding:0 6px;border:0;border-radius:5px;background:transparent;text-align:left;color:#aab8d2}
+.cosmos-group-heading:hover{background:#ffffff08}
+.cosmos-group-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--group-color);box-shadow:0 0 9px var(--group-color)}
+.cosmos-group-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:8px var(--mono);letter-spacing:1.2px;text-transform:uppercase;color:var(--group-color)}
+.cosmos-group-count{font:8px var(--mono);color:#7786a2}
+.cosmos-info-tab{width:100%;min-height:49px;display:flex;align-items:center;gap:9px;margin-top:3px;padding:6px 7px;border:1px solid transparent;border-radius:7px;background:transparent;text-align:left;color:#bdc9e0}
+.cosmos-info-tab:hover{background:#ffffff08;border-color:#ffffff0c}
+.cosmos-info-tab.active{border-color:#77cbe52e;background:linear-gradient(100deg,#1531498c,#111b2aab);color:#eef5ff}
+.cosmos-info-favicon{width:22px;height:22px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#17233d;color:#d6e0ff;font:9px var(--mono);box-shadow:0 0 0 1px color-mix(in srgb,var(--group-color) 50%,#33415e)}
+.cosmos-info-favicon img{width:14px;height:14px;object-fit:contain}
+.cosmos-info-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.cosmos-info-title,.cosmos-info-url{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cosmos-info-title{font-size:10px;line-height:1.25;color:inherit}
+.cosmos-info-url{font:8px var(--mono);color:#7887a4}
+.cosmos-info-active{width:5px;height:5px;flex:none;border-radius:50%;background:#74d8e7;box-shadow:0 0 8px #74d8e7;opacity:0}
+.cosmos-info-tab.active .cosmos-info-active{opacity:1}
+.cosmos-list-empty{height:100%;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;color:#9aa9c5;font-size:11px}
+.cosmos-list-empty small{max-width:170px;color:#697895;font-size:9px;line-height:1.5}
+.cosmos-empty-orbit{width:32px;height:32px;display:grid;place-items:center;border:1px solid #496583;border-radius:50%;color:#89def0;box-shadow:0 0 20px #7acde22b}
+.cosmos-stage{position:absolute;z-index:1;inset:0;overflow:hidden}
 .cosmos-canvas{position:absolute;inset:0;display:block;touch-action:none}
 .cosmos-labels{position:absolute;inset:0;pointer-events:none}
-.cosmos-header{position:absolute;z-index:1;top:12px;left:14px;display:flex;align-items:center;gap:10px;font:9px var(--mono);letter-spacing:1.2px;color:#7d8aaa;pointer-events:none}
-.cosmos-title{color:#8fe8ff}
+.cosmos-header{position:absolute;z-index:1;top:12px;left:calc(clamp(220px,28%,320px) + 16px);display:flex;align-items:center;gap:10px;font:8px var(--mono);letter-spacing:1.2px;color:#667795;pointer-events:none}
+.cosmos-header .cosmos-title{color:#8fe8ff}
 .cosmos-hint{position:absolute;z-index:1;bottom:12px;left:50%;transform:translateX(-50%);white-space:nowrap;font:9px var(--mono);letter-spacing:.6px;color:#5f6c8c;pointer-events:none}
 .cosmos-unavailable{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#8996b2;font-size:12px}
 /* A tab's icon sits on its star. Hovering slides the title out to the

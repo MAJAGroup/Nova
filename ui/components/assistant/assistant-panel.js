@@ -7,13 +7,9 @@ import { createVoice } from "./voice.js";
 
 const AVATAR = '<div class="message-avatar"><span class="mini-orbit">✦</span></div>';
 
-// The Ctrl+Space assistant: a Spotlight-style popup with the chat, composer
-// and AI status. The live page is a native view drawn above this document, so
-// while the popup is open the page is hidden (onVisibilityChange) and a still
-// snapshot of it sits blurred behind the popup instead.
+// A right-side dock for chat, with a narrow edge handle while minimized.
 export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onVisibilityChange }) {
   const root = el("assistant");
-  const snapshot = el("assistant-snapshot");
   const suggestions = el("assistant-suggestions");
   const scroll = el("chat-scroll");
   const input = el("chat-input");
@@ -25,37 +21,18 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   }
 
   let lastToggle = 0;
-  let opening = 0;
-
-  async function open() {
-    if (!root.hidden) return input.focus();
-    const attempt = ++opening;
-    let image = null;
-    try { image = browser.capturePage ? await browser.capturePage() : null; } catch (_) {}
-    if (attempt !== opening) return;
-    snapshot.hidden = !image;
-    if (image) {
-      const rect = el("browser-content").getBoundingClientRect();
-      Object.assign(snapshot.style, {
-        left: rect.left + "px", top: rect.top + "px", width: rect.width + "px", height: rect.height + "px"
-      });
-      snapshot.src = image;
-    }
-    root.hidden = false;
+  function open() {
+    if (root.classList.contains("expanded")) return input.focus();
+    root.classList.add("expanded");
     onVisibilityChange(true);
     requestAnimationFrame(() => {
-      root.classList.add("visible");
       input.focus();
-      input.select();
     });
   }
 
   function close() {
-    opening++;
-    if (root.hidden) return;
-    root.classList.remove("visible");
-    root.hidden = true;
-    snapshot.removeAttribute("src");
+    if (!root.classList.contains("expanded")) return;
+    root.classList.remove("expanded");
     onVisibilityChange(false);
   }
 
@@ -65,7 +42,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const now = Date.now();
     if (now - lastToggle < 200) return;
     lastToggle = now;
-    if (root.hidden) open();
+    if (!root.classList.contains("expanded")) open();
     else close();
   }
 
@@ -184,7 +161,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     showToast("When you ask Orbit, it shares open tab titles and URLs with your configured AI endpoint.");
   });
   el("assistant-menu").addEventListener("click", () => { close(); onOpenSettings(); });
-  root.addEventListener("mousedown", (event) => { if (event.target === root || event.target === snapshot) close(); });
+  el("assistant-reopen").addEventListener("click", open);
+  el("assistant-minimize").addEventListener("click", close);
 
-  return { open, close, toggle, isOpen: () => !root.hidden };
+  return { open, close, toggle, isOpen: () => root.classList.contains("expanded") };
 }

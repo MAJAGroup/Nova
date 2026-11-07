@@ -33,6 +33,7 @@ export function createTabStrip({ browser, tabs }) {
   }
 
   tabs.subscribe(() => {
+    strip.style.setProperty("--tab-count", Math.max(1, tabs.tabs.length));
     strip.replaceChildren(...tabs.tabs.map(renderTab));
     const current = strip.querySelector(".browser-tab.active");
     if (current) current.scrollIntoView({ block: "nearest", inline: "nearest" });

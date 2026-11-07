@@ -32,12 +32,17 @@
             <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
             <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
           </div>
-          <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
           <div class="address-bar">
             <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
           </div>
+          <div class="toolbar-actions">
+            <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
+            <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
+          </div>
+        </div>
+        <div class="tab-row" aria-label="Open tabs">
+          <button type="button" class="cosmos-tab" id="cosmos-tab" title="Open orbit view (Ctrl+Shift+O)" aria-pressed="false"><span>✦</span><span>Orbit view</span></button>
           <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
-          <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
         </div>
         <section id="browser-content" class="browser-content" aria-label="Current web page">
           <div class="browser-placeholder" id="browser-placeholder">
@@ -46,45 +51,51 @@
             <p>Enter a web address above to begin.</p>
           </div>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
-            <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span id="cosmos-count">0 tabs</span></div>
-            <div class="cosmos-hint">Click a star to open · Shift-click to select · Right-click to group · Drag to orbit · Esc to return</div>
-            <div class="cosmos-selection" id="cosmos-selection" hidden>
-              <span id="cosmos-selection-count">0 tabs selected</span>
-              <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
-              <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear</button>
+            <aside class="cosmos-sidebar" aria-label="Tab information">
+              <div class="cosmos-sidebar-heading"><div><span class="cosmos-title">STAR ATLAS</span><span class="cosmos-sidebar-caption">Your open tabs</span></div><span id="cosmos-count">0 tabs</span></div>
+              <div class="cosmos-tab-list" id="cosmos-tab-list"></div>
+            </aside>
+            <div class="cosmos-stage" id="cosmos-stage">
+              <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span>DRAG TO ORBIT</span></div>
+              <div class="cosmos-hint">Click a star to open · Shift-click to select · Right-click to group · Esc to return</div>
+              <div class="cosmos-selection" id="cosmos-selection" hidden>
+                <span id="cosmos-selection-count">0 tabs selected</span>
+                <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
+                <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear</button>
+              </div>
             </div>
           </section>
         </section>
+        <aside class="assistant-dock" id="assistant" aria-label="Orbit AI assistant">
+          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Orbit AI assistant (Ctrl+Space)" title="Ask Orbit · Ctrl+Space"><span class="assistant-handle-orb">✦</span><span>AI</span></button>
+          <section class="assistant-panel" role="complementary" aria-label="Ask Orbit">
+            <div class="assistant-heading"><div><span class="assistant-heading-kicker">ORBIT</span><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
+            <div class="spotlight-bar">
+              <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
+              <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" spellcheck="false"></textarea>
+              <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
+              <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
+            </div>
+            <div class="spotlight-body" id="chat-scroll">
+              <div class="spotlight-suggestions" id="assistant-suggestions">
+                <div class="suggestion-label">SUGGESTIONS</div>
+                <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
+                <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
+                <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
+                <button class="suggestion-chip" data-prompt="Group my tabs by topic."><span>✦</span> Group my tabs</button>
+              </div>
+            </div>
+            <div class="spotlight-footer">
+              <span class="assistant-status"></span><span id="ai-status">Ready to explore</span>
+              <span class="spotlight-dot">·</span>
+              <button class="spotlight-link" id="context-info" title="About tab context">Context from <b id="context-count">0 tabs</b></button>
+              <span class="spotlight-spacer"></span>
+              <span class="spotlight-keys"><kbd>↵</kbd> ask <kbd>esc</kbd> hide</span>
+              <button class="spotlight-link" id="assistant-menu" title="AI settings" aria-label="AI settings">⚙</button>
+            </div>
+          </section>
+        </aside>
       </main>
-    </div>
-
-    <div class="spotlight" id="assistant" hidden>
-      <img class="spotlight-snapshot" id="assistant-snapshot" alt="">
-      <section class="spotlight-panel" role="dialog" aria-modal="true" aria-label="Ask Orbit">
-        <div class="spotlight-bar">
-          <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
-          <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" spellcheck="false"></textarea>
-          <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
-          <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
-        </div>
-        <div class="spotlight-body" id="chat-scroll">
-          <div class="spotlight-suggestions" id="assistant-suggestions">
-            <div class="suggestion-label">SUGGESTIONS</div>
-            <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
-            <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
-            <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
-            <button class="suggestion-chip" data-prompt="Group my tabs by topic."><span>✦</span> Group my tabs</button>
-          </div>
-        </div>
-        <div class="spotlight-footer">
-          <span class="assistant-status"></span><span id="ai-status">Ready to explore</span>
-          <span class="spotlight-dot">·</span>
-          <button class="spotlight-link" id="context-info" title="About tab context">Context from <b id="context-count">0 tabs</b></button>
-          <span class="spotlight-spacer"></span>
-          <span class="spotlight-keys"><kbd>↵</kbd> ask <kbd>esc</kbd> close</span>
-          <button class="spotlight-link" id="assistant-menu" title="AI settings" aria-label="AI settings">⚙</button>
-        </div>
-      </section>
     </div>
 
     <div class="modal-backdrop" id="settings-modal" hidden>

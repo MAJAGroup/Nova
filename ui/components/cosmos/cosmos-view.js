@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
-import { el } from "../../lib/dom.js";
+import { el, escapeHTML } from "../../lib/dom.js";
+import { domainOf } from "../../lib/url.js";
 import { createBackdrop } from "./backdrop.js";
 import { createTabStars } from "./tab-stars.js";
 import { createConstellations } from "./constellations.js";
@@ -19,6 +20,8 @@ const CAMERA_GLIDE = 4;
 // double-click to rename it, double-click empty space to see everything.
 export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   const container = el("cosmos");
+  const stage = el("cosmos-stage");
+  const tabList = el("cosmos-tab-list");
   const selectionBar = el("cosmos-selection");
   let isOpen = false;
   let frame = 0;
@@ -29,7 +32,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true });
   } catch (_) {
-    container.insertAdjacentHTML("afterbegin", '<p class="cosmos-unavailable">3D graphics are unavailable on this system.</p>');
+    stage.insertAdjacentHTML("afterbegin", '<p class="cosmos-unavailable">3D graphics are unavailable on this system.</p>');
   }
 
   function select(tab, event) {
@@ -50,7 +53,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     renderer.domElement.className = "cosmos-canvas";
     labels = new CSS2DRenderer();
     labels.domElement.className = "cosmos-labels";
-    container.prepend(renderer.domElement, labels.domElement);
+    stage.prepend(renderer.domElement, labels.domElement);
     // Tab icons and constellation names sit in an HTML layer above the
     // canvas, so scrolling over them would never reach the camera controls.
     labels.domElement.addEventListener("wheel", (event) => {
@@ -91,7 +94,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       onLayout: (layout) => constellations.sync(layout)
     });
     bindPointer(renderer.domElement);
-    new ResizeObserver(resize).observe(container);
+    new ResizeObserver(resize).observe(stage);
   }
 
   tabs.subscribe(() => {
@@ -100,7 +103,64 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     el("cosmos-count").textContent = count + (count === 1 ? " tab" : " tabs") +
       (groups ? " · " + groups + (groups === 1 ? " constellation" : " constellations") : "");
     if (stars) updateSelectionBar();
+    renderTabList();
   });
+
+  function renderTabList() {
+    const grouped = new Map(tabs.groups.map((group) => [String(group.id), []]));
+    const loose = [];
+    for (const tab of tabs.tabs) {
+      const group = tabs.groupOf(tab);
+      if (group && grouped.has(String(group.id))) grouped.get(String(group.id)).push(tab);
+      else loose.push(tab);
+    }
+
+    const sections = [];
+    for (const group of tabs.groups) {
+      const members = grouped.get(String(group.id)) || [];
+      if (members.length) sections.push(renderSection(group.name, group.color, members, group.id));
+    }
+    if (loose.length) sections.push(renderSection("Unsorted", "#7786a8", loose));
+    if (!sections.length) {
+      const empty = document.createElement("div");
+      empty.className = "cosmos-list-empty";
+      empty.innerHTML = '<span class="cosmos-empty-orbit">✦</span><span>No tabs in orbit yet</span><small>Open a page to add its star to the atlas.</small>';
+      sections.push(empty);
+    }
+    tabList.replaceChildren(...sections);
+  }
+
+  function renderSection(name, color, members, groupId) {
+    const section = document.createElement("section");
+    section.className = "cosmos-list-group";
+    section.style.setProperty("--group-color", color);
+    const heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "cosmos-group-heading";
+    heading.innerHTML = '<span class="cosmos-group-dot"></span><span class="cosmos-group-name">' + escapeHTML(name) + '</span><span class="cosmos-group-count">' + members.length + '</span>';
+    heading.title = groupId ? "Focus this constellation" : "Tabs without a constellation";
+    if (groupId) heading.addEventListener("click", () => flyToGroup(groupId));
+    section.appendChild(heading);
+
+    for (const tab of members) {
+      const item = document.createElement("button");
+      const domain = domainOf(tab.url);
+      const mark = tab.favicon
+        ? '<img src="' + escapeHTML(tab.favicon) + '" alt="">'
+        : escapeHTML(domain.slice(0, 1).toUpperCase() || "✦");
+      item.type = "button";
+      item.className = "cosmos-info-tab" + (tabs.isActive(tab) ? " active" : "");
+      item.title = (tab.title || "New tab") + "\n" + (tab.url || "No address");
+      item.innerHTML = '<span class="cosmos-info-favicon">' + mark + '</span><span class="cosmos-info-copy"><span class="cosmos-info-title">' + escapeHTML(tab.title || "New tab") + '</span><span class="cosmos-info-url">' + escapeHTML(tab.url || domain || "New tab") + '</span></span><span class="cosmos-info-active"></span>';
+      item.addEventListener("click", () => browser.activateTab(tab.id));
+      item.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        browser.showTabMenu(tab.id);
+      });
+      section.appendChild(item);
+    }
+    return section;
+  }
 
   el("cosmos-group").addEventListener("click", async () => {
     const ids = stars.selectedIds();
@@ -159,7 +219,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   }
 
   function resize() {
-    const { width, height } = container.getBoundingClientRect();
+    const { width, height } = stage.getBoundingClientRect();
     if (!width || !height) return;
     renderer.setSize(width, height);
     labels.setSize(width, height);

@@ -1,5 +1,4 @@
 /* The area the web page is drawn into, and its empty state. */
-.main-panel{min-width:0;display:flex;flex-direction:column}
 .browser-content{position:relative;flex:1;min-height:0;overflow:hidden;background:#0a1121}
 .browser-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#111b37,#0a1121 76%);color:#e7edff;text-align:center}
 .browser-placeholder[hidden]{display:none}

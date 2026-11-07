@@ -2,11 +2,12 @@ import { el } from "../lib/dom.js";
 
 // The area where the web page appears. The page is a native view that the
 // main process draws on top of this document, so we report this element's
-// position to it, and hide the page while something else must be seen here
-// (the settings dialog, the tab cosmos).
+// position to it. Modal and cosmos views hide the page; the assistant reserves
+// a right-hand lane so both the page and chat stay visible.
 export function createBrowserView({ browser, tabs }) {
   const content = el("browser-content");
   const coveredBy = new Set();
+  let assistantOpen = false;
 
   function syncBounds() {
     if (coveredBy.size) {
@@ -14,7 +15,8 @@ export function createBrowserView({ browser, tabs }) {
       return;
     }
     const rect = content.getBoundingClientRect();
-    browser.setBrowserBounds({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+    const assistantWidth = assistantOpen ? Math.min(380, Math.max(300, window.innerWidth * 0.34)) : 0;
+    browser.setBrowserBounds({ x: rect.left, y: rect.top, width: Math.max(0, rect.width - assistantWidth), height: rect.height });
   }
 
   tabs.subscribe(() => {
@@ -31,6 +33,10 @@ export function createBrowserView({ browser, tabs }) {
     cover(reason, covered) {
       if (covered) coveredBy.add(reason);
       else coveredBy.delete(reason);
+      syncBounds();
+    },
+    setAssistantOpen(open) {
+      assistantOpen = open;
       syncBounds();
     }
   };

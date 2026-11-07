@@ -5,6 +5,7 @@ import { normalizeAddress } from "../lib/url.js";
 export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
   const omnibox = el("omnibox");
   const cosmosToggle = el("cosmos-toggle");
+  const cosmosTab = el("cosmos-tab");
 
   function showActiveUrl() {
     const active = tabs.activeTab();
@@ -32,6 +33,7 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
     }
   });
   omnibox.addEventListener("focus", () => omnibox.select());
+  omnibox.addEventListener("click", () => omnibox.select());
   omnibox.addEventListener("blur", () => {
     if (!omnibox.value.trim()) showActiveUrl();
   });
@@ -41,11 +43,14 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
   el("reload-page").addEventListener("click", () => browser.reload());
   el("new-tab").addEventListener("click", () => browser.newTab());
   cosmosToggle.addEventListener("click", onToggleCosmos);
+  cosmosTab.addEventListener("click", onToggleCosmos);
 
   return {
     setCosmosOpen(open) {
       cosmosToggle.classList.toggle("active", open);
       cosmosToggle.setAttribute("aria-pressed", String(open));
+      cosmosTab.classList.toggle("active", open);
+      cosmosTab.setAttribute("aria-pressed", String(open));
     },
     focusAddress() {
       omnibox.focus();

@@ -5,6 +5,7 @@ body{margin:0;height:100vh;overflow:hidden;background:#070b16}
 button,input,textarea{font:inherit}
 button{color:inherit;cursor:pointer}
 .app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+.main-panel{position:relative;min-width:0;display:flex;flex-direction:column}
 .icon-button{border:0;background:transparent;color:#929eb8;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;flex:none}
 .icon-button:hover{background:#ffffff0c;color:white}
 .icon-button:disabled{opacity:.35;cursor:default;background:transparent}
