@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080d1c">
+    <title>ORBIT — Your browser, in its element</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Orbit home">
+          <span class="brand-mark"><span></span></span>
+          <span class="brand-name">ORBIT<span class="brand-period">.</span></span>
+          <span class="brand-divider"></span>
+          <span class="brand-caption">SPATIAL BROWSER</span>
+        </a>
+        <div class="browser-nav" aria-label="Browser navigation" hidden>
+          <button class="icon-button" id="go-back" title="Back" aria-label="Go back">‹</button>
+          <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
+          <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
+        </div>
+        <div class="global-search">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input id="omnibox" type="text" autocomplete="off" placeholder="Search or enter a web address…" aria-label="Search the web, open tabs, or enter a web address">
+          <kbd>⌘ L</kbd>
+        </div>
+        <div class="top-actions">
+          <span class="live-indicator"><i></i> LOCAL SESSION</span>
+          <button class="icon-button settings-trigger" id="settings-open" aria-label="Open AI settings" title="AI settings">
+            <span class="gear-icon">⚙</span>
+          </button>
+          <div class="avatar" aria-label="Local profile">J</div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="side-label">YOUR WORKSPACE</div>
+          <button class="space-item selected" data-space="all">
+            <span class="space-symbol all-symbol"><i></i><i></i><i></i></span>
+            <span>All tabs</span><span class="space-count" id="all-count">0</span>
+          </button>
+          <div class="space-separator"></div>
+          <div class="side-label side-label-row">SPACES <button id="add-space" class="tiny-add" aria-label="Add a space">+</button></div>
+          <div id="space-list" class="space-list"></div>
+          <button class="new-space" id="new-space"><span>＋</span> New space</button>
+
+          <div class="sidebar-bottom">
+            <div class="focus-card">
+              <div class="focus-orbit"><span></span><i></i></div>
+              <div class="focus-title">Find your focus</div>
+              <p>Give every idea its own orbit. Drag tabs to rearrange them or drop one on a space.</p>
+              <button id="focus-action">Start exploring <span>↗</span></button>
+            </div>
+            <div class="privacy-note"><span class="lock-icon">⌑</span> Tab context sent only when you ask</div>
+            <div class="sidebar-meta">BUILT FOR THE HACKOSMOS <span>✦</span></div>
+          </div>
+        </aside>
+
+        <main class="main-panel">
+          <div class="main-heading">
+            <div>
+              <div class="eyebrow" id="page-eyebrow"><span class="eyebrow-dot"></span> SATURDAY, NOVEMBER 7 <span class="eyebrow-divider">/</span> MISSION CONTROL</div>
+              <h1 id="page-heading">Your orbit<span class="heading-period">.</span></h1>
+              <p class="subheading" id="page-subheading">A little space to think, explore, and get things done.</p>
+            </div>
+            <div class="heading-actions">
+              <button id="layout-toggle" class="quiet-button"><span class="layout-glyph">⠿</span> <span id="layout-label">Constellation</span></button>
+              <button id="new-tab" class="primary-button"><span>＋</span> New tab</button>
+            </div>
+          </div>
+
+          <div class="workspace-toolbar">
+            <div class="view-tabs">
+              <button class="view-tab active" data-view="all">Overview</button>
+              <button class="view-tab" data-view="recent">Recent</button>
+              <button class="view-tab browser-mode-button" id="browse-mode" type="button" hidden>Browse</button>
+            </div>
+            <div class="workspace-meta" id="workspace-meta"><span class="meta-pulse"></span><span id="workspace-count">0 ACTIVE TABS</span><span class="meta-divider">·</span><span id="workspace-space">ALL SPACES</span></div>
+            <div id="browser-tabs" class="browser-tabs" hidden aria-label="Browser tabs"></div>
+          </div>
+
+          <section class="workspace" id="workspace" aria-label="Spatial view of open browser tabs">
+            <div class="space-wash wash-one"></div><div class="space-wash wash-two"></div>
+            <div class="star-dust"></div>
+            <div class="orbit-line orbit-line-a"></div>
+            <div class="orbit-line orbit-line-b"></div>
+            <div class="orbit-line orbit-line-c"></div>
+            <div class="solar-core">
+              <span class="core-halo"></span><span class="core-point"></span><span class="core-label">YOU ARE HERE</span>
+            </div>
+            <div id="tab-field" class="tab-field"></div>
+            <div class="workspace-empty" id="empty-state" hidden>
+              <div class="empty-planet">✦</div>
+              <h2>Your orbit is open.</h2>
+              <p>Search for a destination or open a new tab to start your constellation.</p>
+              <button class="primary-button" id="empty-new-tab">＋ Open a new tab</button>
+            </div>
+            <div class="canvas-caption"><span class="caption-dot"></span> DRAG TO REARRANGE <span class="caption-divider">·</span> SELECT TO REVISIT</div>
+            <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-value">100%</span><button id="zoom-in" aria-label="Zoom in">＋</button><span class="zoom-divider"></span><button id="recenter" aria-label="Recenter workspace">◎</button></div>
+          </section>
+          <section id="browser-content" class="browser-content" hidden aria-label="Current web page">
+            <div class="browser-placeholder" id="browser-placeholder">
+              <span class="placeholder-orbit">✦</span>
+              <h2>Choose a page to open</h2>
+              <p>Pick a tab in the workspace, or enter a web address above.</p>
+            </div>
+          </section>
+
+          <div class="bottom-strip">
+            <div class="bottom-stat"><span class="stat-icon">✧</span><span id="tab-stat">0 tabs</span><span class="stat-separator">·</span><span id="space-stat">3 spaces</span></div>
+            <div class="bottom-hint"><span class="hint-key">⌘</span><span class="hint-key">K</span> to jump anywhere <span class="hint-separator">·</span> <span class="hint-key">⌘</span><span class="hint-key">J</span> ask Orbit</div>
+            <button class="help-button" id="help-open">How it works <span>↗</span></button>
+          </div>
+        </main>
+
+        <aside class="assistant-panel">
+          <div class="assistant-header">
+            <div class="assistant-title-wrap">
+              <div class="assistant-orb"><i></i><span></span></div>
+              <div><div class="assistant-title">Orbit assistant <span class="beta-tag">BETA</span></div><div class="assistant-subtitle"><span class="assistant-status"></span><span id="ai-status">Ready to explore</span></div></div>
+            </div>
+            <button class="icon-button more-button" id="assistant-menu" aria-label="Assistant options">···</button>
+          </div>
+          <div class="assistant-context">
+            <span class="context-icon">✧</span>
+            <span>Context from <b id="context-count">0 tabs</b></span>
+            <button id="context-info" aria-label="About tab context">ⓘ</button>
+          </div>
+          <div class="chat-scroll" id="chat-scroll">
+            <div class="day-divider"><span>TODAY</span></div>
+            <div class="message assistant-message">
+              <div class="message-avatar"><span class="mini-orbit">✦</span></div>
+              <div class="message-content">
+                <div class="message-name">ORBIT <span>10:42 AM</span></div>
+                <div class="message-bubble">Hey Jimin! I’m here to help you make sense of your tabs and keep your day moving. What are we working on?</div>
+              </div>
+            </div>
+            <div class="suggestion-label">TRY ASKING</div>
+            <div class="suggestions">
+              <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
+              <button class="suggestion-chip" data-prompt="Help me find the tab I need for my current task."><span>⌕</span> Find something</button>
+              <button class="suggestion-chip" data-prompt="Help me plan my next hour of work."><span>◷</span> Plan my next hour</button>
+            </div>
+          </div>
+          <div class="assistant-footer">
+            <div class="composer">
+              <textarea id="chat-input" rows="1" placeholder="Ask anything…" aria-label="Message Orbit assistant"></textarea>
+              <div class="composer-tools">
+                <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
+                <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
+                <div class="composer-tool-spacer"></div>
+                <span class="send-hint">↵</span>
+                <button class="send-button" id="send-message" aria-label="Send message">↑</button>
+              </div>
+            </div>
+            <div class="ai-footnote"><span class="footnote-spark">✦</span> Powered by <b>BullsAI</b> <span class="footnote-divider">·</span> Your choice of model</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="settings-modal" hidden>
+      <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <button class="modal-close" data-close-modal aria-label="Close">×</button>
+        <div class="modal-kicker">MISSION CONTROL <span>✦</span></div>
+        <h2 id="settings-title">Connect BullsAI</h2>
+        <p class="modal-intro">Connect your UB-hosted model to power Orbit’s assistant. Add the chat completions URL and credentials from your BullsAI developer access.</p>
+        <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
+        <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
+        <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
+        <input id="api-model" class="settings-input" type="text" placeholder="Model ID from BullsAI Model Hub">
+        <label class="field-label" for="api-key">API KEY <span>stored locally</span></label>
+        <input id="api-key" class="settings-input" type="password" placeholder="Paste your developer key">
+        <div class="settings-hint"><span>ⓘ</span> Orbit expects an OpenAI-compatible chat completions response. Confirm the exact endpoint, model ID, and auth format in your BullsAI developer docs.</div>
+        <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

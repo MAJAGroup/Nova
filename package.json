@@ -1,0 +1,39 @@
+{
+  "name": "orbit-spatial-browser",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A Chromium desktop browser with a spatial tab workspace and BullsAI assistant.",
+  "main": "desktop-main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "edu.buffalo.orbit",
+    "productName": "ORBIT",
+    "files": [
+      "desktop-main.js",
+      "desktop-preload.js",
+      "newtab.html",
+      "app.js",
+      "styles.css",
+      "manifest.json",
+      "README.md"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Network;WebBrowser;"
+    }
+  }
+}

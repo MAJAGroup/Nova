@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ORBIT — spatial browser workspace",
+  "version": "0.1.0",
+  "description": "See your browser tabs as a constellation and work with a BullsAI-powered assistant.",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "permissions": ["tabs", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*"]
+}
