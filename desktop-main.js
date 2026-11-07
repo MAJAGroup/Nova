@@ -8,6 +8,7 @@ const {
   Menu,
   dialog,
   safeStorage,
+  screen,
   shell,
   session
 } = require("electron");
@@ -390,11 +391,22 @@ function createApplicationMenu() {
 }
 
 function createWindow() {
+  // Fit the window to the display's usable area. On HiDPI screens (e.g. 2x
+  // scaling) a fixed minimum can exceed the work area, which makes window
+  // managers refuse to maximize or resize the window.
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const minWidth = Math.min(800, workArea.width);
+  const minHeight = Math.min(560, workArea.height);
+  const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.9)));
+  const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.9)));
   const win = new BrowserWindow({
-    width: 1500,
-    height: 940,
-    minWidth: 1080,
-    minHeight: 700,
+    width,
+    height,
+    minWidth,
+    minHeight,
+    center: true,
+    resizable: true,
+    maximizable: true,
     backgroundColor: "#080d1c",
     title: "ORBIT — Spatial Browser",
     webPreferences: {

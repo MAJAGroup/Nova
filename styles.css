@@ -1,6 +1,6 @@
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#070b16;font-synthesis:none;text-rendering:optimizeLegibility;--bg:#070b16;--panel:#0b1020;--panel-raised:#10182b;--line:rgba(174,193,255,.11);--muted:#8791ad;--soft:#b4bdd2;--cyan:#55d9e8;--blue:#738dff;--purple:#a68aff;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
 *{box-sizing:border-box}
-body{margin:0;min-width:1020px;min-height:700px;height:100vh;overflow:hidden;background:radial-gradient(ellipse at 45% 48%,#111936 0,#080d1b 48%,#070b16 80%)}
+body{margin:0;height:100vh;overflow:hidden;background:radial-gradient(ellipse at 45% 48%,#111936 0,#080d1b 48%,#070b16 80%)}
 button,input,textarea{font:inherit}
 button{color:inherit;cursor:pointer}
 .app{height:100%;display:flex;flex-direction:column}
@@ -248,4 +248,5 @@ body.desktop-app .browser-tab-favicon img{width:12px;height:12px;object-fit:cont
 .context-popover{position:fixed;z-index:14;right:355px;top:112px;width:220px;padding:10px 11px;border:1px solid #39496d;border-radius:7px;background:#141f35;box-shadow:0 12px 30px #0008;color:#aab6d0;font-size:9px;line-height:1.55}
 @media(max-width:1250px){.layout{grid-template-columns:180px minmax(420px,1fr) 300px}.main-panel{padding-left:18px;padding-right:18px}.tab-card{width:155px}.top-actions,.brand{min-width:230px}}
 @media(max-width:1250px){.browser-nav{margin-left:1px}.browser-nav .icon-button{width:24px}.global-search{width:min(360px,33vw)}}
+@media(max-width:1000px){.layout{grid-template-columns:150px minmax(360px,1fr) 260px}.main-panel{padding-left:12px;padding-right:12px}.topbar{padding:0 14px}.top-actions,.brand{min-width:0}.brand-divider,.brand-caption,.live-indicator{display:none}.global-search{width:min(320px,36vw)}}
 @media(max-height:780px){.sidebar{padding-top:17px}.main-panel{padding-top:17px}.focus-card{padding:10px}.focus-card p{margin:3px 0 6px}.workspace-toolbar{margin-top:10px}.bottom-strip{height:37px}.chat-scroll{padding-top:10px}.suggestion-label{margin-top:12px}.assistant-footer{padding-top:7px;padding-bottom:8px}}
