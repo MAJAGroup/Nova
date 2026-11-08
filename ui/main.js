@@ -14,7 +14,7 @@ const browser = window.orbitBrowser;
 function start() {
   const tabs = createTabStore(browser);
   const aiConfig = createAIConfig(browser);
-  let cosmos;
+  let cosmos, history;
   let preserveCosmosTabChanges = 0;
   const openNewTab = () => {
     const preserveOrbit = Boolean(cosmos && cosmos.isOpen() && cosmos.stayOnNewTab());
@@ -33,7 +33,11 @@ function start() {
     onNavigate: () => { cosmos.close(); history.close(); },
     onToggleCosmos: () => { history.close(); cosmos.toggle(); }
   });
-  createTabStrip({ browser, tabs });
+  createTabStrip({
+    browser,
+    tabs,
+    onActivateCurrent: () => { cosmos?.close(); history?.close(); }
+  });
   const browserView = createBrowserView({ browser, tabs });
   const settings = createSettingsModal({
     browser,
@@ -49,7 +53,7 @@ function start() {
     }
   });
 
-  const history = createHistoryView({ browser, onVisibilityChange: (open) => {
+  history = createHistoryView({ browser, onVisibilityChange: (open) => {
     if (open) cosmos.close();
     browserView.cover("history", open);
     const button = document.getElementById("history-tab");

@@ -232,7 +232,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       item.className = "cosmos-info-tab" + (tabs.isActive(tab) ? " active" : "");
       item.title = (tab.title || "New tab") + "\n" + (tab.url || "No address");
       item.innerHTML = '<span class="cosmos-info-favicon">' + mark + '</span><span class="cosmos-info-copy"><span class="cosmos-info-title">' + escapeHTML(tab.title || "New tab") + '</span><span class="cosmos-info-url">' + escapeHTML(tab.url || domain || "New tab") + '</span></span><span class="cosmos-info-active"></span>';
-      item.addEventListener("click", () => browser.activateTab(tab.id));
+      item.addEventListener("click", () => select(tab));
       item.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         browser.showTabMenu(tab.id);

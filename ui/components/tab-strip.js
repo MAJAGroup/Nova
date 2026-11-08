@@ -34,7 +34,7 @@ function swallow(button) {
   ], { duration: SWALLOW_MS, easing: "ease-in-out", fill: "forwards" }).finished.then(() => ghost.remove(), () => ghost.remove());
 }
 
-export function createTabStrip({ browser, tabs }) {
+export function createTabStrip({ browser, tabs, onActivateCurrent = () => {} }) {
   const strip = el("browser-tabs");
   let rendered = new Map();
 
@@ -55,6 +55,8 @@ export function createTabStrip({ browser, tabs }) {
       if (event.target.closest(".browser-tab-close")) {
         event.stopPropagation();
         browser.closeTab(tab.id);
+      } else if (tabs.isActive(tab)) {
+        onActivateCurrent(tab);
       } else {
         browser.activateTab(tab.id);
       }
