@@ -37,7 +37,7 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 
        npm start
 
-ORBIT opens with a local space start page filling the window. Its ringed planet and layered stars respond gently to mouse movement. Use its search box to search the web or enter a URL; GitHub, Wikipedia and YouTube shortcuts are included. The page works offline, respects reduced-motion preferences, offers a pause button, and suspends animation while hidden. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
+ORBIT opens with a local space start page filling the window. Its point-cloud galaxy reveals outward from the core, turns slowly around a dark dust lane, and responds gently to mouse movement. The galaxy uses the app’s cyan, blue and lavender palette; its visual reference is the public landing animation at https://odyssey.com/. Rendering and geometry are local, with a smaller Canvas fallback when WebGL is unavailable. Use its search box to search the web or enter a URL; GitHub, Wikipedia and YouTube shortcuts are included. The page works offline, respects reduced-motion preferences, offers a pause button, and suspends animation while hidden. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
 
 ## Use the browser
 
@@ -72,7 +72,7 @@ History records top-level HTTP(S) visits, including favicons, navigation branche
 
 **Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. History is not sent to the assistant's model.
 
-Run `npm run test:newtab` for the local start page and `npm run test:address` (with OpenSSL installed) for address and connection states. Run `npm run test:history` for normal-list behavior, live search, native navigation, persistence and geometric checks for crossing or overlapping links. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
+Run `npm run test:newtab` for the local start page, particle reveal, WebGL recovery, offline fallback and motion preferences, and `npm run test:address` (with OpenSSL installed) for address and connection states. Run `npm run test:history` for normal-list behavior, live search, native navigation, persistence and geometric checks for crossing or overlapping links. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
 
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 
@@ -254,7 +254,7 @@ This creates a distributable for the current platform. The project is configured
 - tab-groups.js — tab group (constellation) names and colours, used by the main process.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - connection-security.js — Chromium main-frame connection metadata, certificate validity, navigation resets, and insecure-content tracking.
-- ui/newtab/ — static local start page, procedural canvas space scene, mouse parallax and search.
+- ui/newtab/ — static local start page, procedural WebGL galaxy with Canvas fallback, mouse parallax and search.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
 - ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
 - ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.
