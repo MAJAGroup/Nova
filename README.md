@@ -46,6 +46,7 @@ Nova is an Electron and Three.js desktop browser prototype created for the UB Ha
 - A computer running macOS, Windows, or Linux.
 - Node.js with npm. Electron recommends the current Node.js LTS release for development. Install it from https://nodejs.org/en/download/.
 - An internet connection for installing Electron and for visiting websites.
+- Optional: an Ollama server or a compatible chat-completions endpoint for model-powered answers and tab grouping. Browsing, history, bookmarks and built-in assistant commands work without one.
 
 Check that Node.js and npm are installed by opening a terminal and running:
 
@@ -96,10 +97,12 @@ Run `npm run test:branding` to check the Nova identity, profile migration, prefe
   - Ask the assistant, for example “group github, mdn and node as Dev” or “ungroup Dev”.
   - Describe the grouping you want in your own words, for example “group my tabs by project”, “put everything about the trip to Japan together”, or “split my tabs into work and personal”. With an AI endpoint connected, the assistant sends your instruction and your open tab titles and URLs to the model, which plans the constellations; Nova then creates or updates them. Without an endpoint, “group my tabs by site” still works.
 
+  Drag a star onto another star or constellation to group it, or drag a constellation name onto another group to merge them. Dropping a star onto the black hole closes its tab. The cosmos sidebar supports selecting multiple tabs to group or close together and can be collapsed.
+
   Grouped tabs have a coloured line under them in the tab strip. Links opened from a grouped tab join its group. To rename a constellation, double-click its name in the cosmos or use the right-click menu. Groups last until Nova closes.
 - **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS). Each blank tab opens the local space start page with an empty address bar; explicit website links still open their destination.
 - **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh space start page.
-- **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
+- **Navigate:** Use the back, forward, reload and Home buttons. Home returns to the local space start page.
 - **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Nova assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
 Nova uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new Nova tab. Sites that request camera, microphone, location, or notification access show a Nova permission prompt.
@@ -135,161 +138,72 @@ The Universe scene shares Nova's backdrop, black hole, favicon stars and collaps
 
 History records top-level HTTP(S) visits, including favicons, navigation branches and closed-tab trails, and retains up to 3,000 visits locally in `nova-history.json` under Electron's user-data directory. The Universe scene visualizes five connected journeys; Timeline shows twenty visits at a time. Search scans all retained visits, including entries not yet shown in the sidebar. Date filters can reach older matches. Back/forward returns to existing visit nodes; new navigation preserves earlier branches. Reopening loads the page's current contents. Visits from before recording was introduced cannot be reconstructed.
 
-**Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. History is not sent to the assistant's model.
+**Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. The assistant can search matching history when you explicitly ask it to find or remove entries; those matching records may be sent to the configured model.
 
-Run `npm run test:newtab` for the local start page, particle reveal, WebGL recovery, offline fallback and motion preferences, and `npm run test:address` (with OpenSSL installed) for address and connection states. Run `npm run test:history` for normal-list behavior, live search, native navigation, persistence and geometric checks for crossing or overlapping links. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
+Run `npm run test:newtab` for the local start page, particle reveal, WebGL recovery, offline fallback and motion preferences, and `npm run test:address` (with OpenSSL installed) for address and connection states. The `npm run test:history` suite covers history models, persistence, search, native navigation and layout geometry; some desktop assertions still target the earlier List-first interface. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
 
 Run `npm run test:suggestions` for autocomplete filtering, local ranking, stale-response handling, keyboard selection, tab switching, offline history and suggestions on the new-tab page. Preview images are saved to `artifacts/address-suggestions.png` and `artifacts/newtab-suggestions.png`.
 
 Run `npm run test:resources` for real CPU load, memory allocation, audible/muted/silent audio, renderer sharing, keyboard access, hover cleanup and closed tabs. The card preview is saved to `artifacts/tab-resources.png`.
 
-## Run Ollama Qwen3.8:27b
+## Assistant and voice controls
 
-This setup runs Ollama and Qwen3.8 on a GPU node, then uses an SSH tunnel so the Nova desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using Nova.
+Press **Ctrl+Space** to open the assistant. Type a request and press Enter to send it; Shift+Enter adds a new line. The following commands work without connecting a model:
 
-The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, with a maximum context window of 256K. A single Alpha GPU is a reasonable starting point; the scheduler routes single-GPU jobs to the RTX PRO 6000 Blackwell pool (about 96 GB VRAM). The model weights and context cache both use memory, so begin with a moderate context if you encounter memory errors. See the [Ollama model details](https://ollama.com/library/qwen3.8:27b).
+| Try saying or typing | What Nova does |
+| --- | --- |
+| `open github.com` | Opens the website in a new tab. |
+| `search for meteor showers` | Opens a web search. |
+| `switch to the GitHub tab` | Activates an open tab matching that name. |
+| `close the tab called Wikipedia` | Closes the matching tab. |
+| `back`, `forward`, or `reload` | Navigates the active tab. |
+| `group github and mdn as Dev` | Creates or updates a constellation using matching open tabs. |
+| `group my tabs by site` | Groups websites with multiple open tabs into constellations. |
+| `ungroup Dev` | Removes the group while keeping its tabs open. |
 
-#### If your terminal shows the NVL72 Beta banner
+With an AI endpoint configured, you can ask questions using your open-tab context or describe a grouping such as “organize my tabs by project.” Nova validates the model's grouping plan before applying it to existing tabs. When you explicitly request websites, the assistant can open up to three new tabs per model response.
 
-The `pulling ... success` lines mean Ollama downloaded the model, and the `>>>` prompt means `ollama run` opened its chat prompt. It is not an error. Type `/bye` to leave Ollama, then `exit` to leave the management/login shell. Do not use the management node for inference; run Ollama inside a Slurm GPU allocation.
+Voice activation uses ElevenLabs and an optional on-device Porcupine wake-word engine. See [Talk to Nova](#talk-to-nova-and-let-it-look-things-up) above for setup, hands-free commands and audio-sharing details.
 
-The banner's `aarch64` means this Beta management node uses ARM64. Alpha uses x86_64, so use Alpha's x86_64 Ollama binary in Step 2. Beta and Alpha have separate login and Slurm environments, and your Beta home cache may not be visible from Alpha. For the `jshin` account used in this walkthrough, the Qwen model is already staged in `$HOME/ollama-models` on Alpha. If it is not present in your Alpha home, pull it during an Alpha CPU job in Step 3. Do not run inference on a management/login node.
+### Connect an AI endpoint
 
-### 1. Connect to Alpha and check your project account
+Open **Settings** from the application menu, press **Ctrl+, / Command+,**, or select the assistant's gear button. Supply a full chat-completions URL, a model ID supported by your server, and any required API key, then save.
 
-From Terminal on your Mac, connect with the SSH key registered with the AI model. The current Alpha login host is on a VRAM. 
+| Connection | Endpoint | Authentication |
+| --- | --- | --- |
+| Local Ollama API | `http://localhost:11434/v1/chat/completions` | No API key in Nova. Start Ollama separately and select an available model. |
+| Ollama Cloud API | `https://ollama.com/v1/chat/completions` | Your Ollama API key. |
+| Other compatible provider | Your provider's HTTPS chat-completions URL | An API key sent as a Bearer token. |
 
-On Alpha, confirm the account and QoS available to your user:
+The settings dialog includes **Local Ollama API** and **Ollama Cloud API** presets. Both currently prefill a Kimi cloud model; change the model field to one your server supports. Using a cloud model through a local Ollama server still requires Ollama sign-in and a network connection. To run inference on your own computer, choose a model installed on that server.
 
-    sacctmgr show assoc user="$USER" format=Account%20,QOS%60
-
-Use an account shown in that output. The examples below use `su_cwang1_worlds` and the `test` QoS, which is intended for interactive GPU sessions and supports a one-hour run. If that account or QoS is not listed for you, replace it with one that is.
-
-### 2. Install Ollama in your home directory (no root access required)
-
-On this Alpha account, the complete x86_64 Ollama package is installed at `~/.local/ollama-alpha`. Use its binary first in your shell's `PATH`. The `~/.local/ollama/bin/ollama` path contains the ARM64 Beta binary and will fail with “Exec format error” on Alpha. The standalone `~/.local/bin/ollama` CLI does not include the required `llama-server` runtime, so do not put it ahead of the complete package:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    ollama --version
-
-If the complete package or its `lib/ollama/llama-server` runtime is missing, install the x86_64 Linux archive into the separate Alpha directory:
-
-    mkdir -p "$HOME/.local/ollama-alpha"
-    curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -xf - -C "$HOME/.local/ollama-alpha"
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-
-The examples use `$HOME/ollama-models`, which already contains the downloaded Qwen model for this account. The model cache is about 17 GB. Loal home directories have a 100 GB quota, so keep an eye on space; project storage is preferable when your account has a project path that is readable and writable.
-
-### 3. Check or download the model before reserving a GPU
-
-For this account, the existing Qwen model cache is at `$HOME/ollama-models`. Set `OLLAMA_MODELS` to that directory. If `ollama list` does not show `qwen3.8:27b`, pull it during a one-hour CPU job rather than using GPU time for the download:
-
-    srun --partition=cpu --account=su_cwang1_worlds --cpus-per-task=4 --mem=16G --time=01:00:00 --pty bash -l
-
-Inside the CPU job, start Ollama with the Alpha binary and the home cache:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    export OLLAMA_MODELS="$HOME/ollama-models"
-    export OLLAMA_HOST=127.0.0.1:11434
-    ollama serve > "$HOME/ollama-pull.log" 2>&1 &
-    OLLAMA_SERVER_PID=$!
-    sleep 3
-    ollama list
-    ollama pull qwen3.8:27b
-    kill "$OLLAMA_SERVER_PID"
-    exit
-
-`ollama pull` is safe to repeat: Ollama reuses the cache and fetches only missing layers. If you downloaded the model only into Beta's home cache and it is absent from `$HOME/ollama-models` on Alpha, transfer it through a storage path available to both environments or let this Alpha CPU job download it. Keep the CPU job active until the pull finishes.
-
-### 4. Request one GPU for one hour
-
-From the Alpha login shell, request the interactive GPU job. `test` permits up to two hours; the one-hour request below is enough for a short Nova session:
-
-    srun --partition=alpha --qos=test --account=su_cwang1_worlds --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=01:00:00 --pty bash -l
-
-Once Slurm starts the job, you are on the allocated GPU node. Confirm the device and record the node name for the tunnel:
-
-    nvidia-smi
-    hostname -f
-
-This routes a one-GPU request to its RTX PRO 6000 pool. Interactive `test` jobs are billed at half the standard service-unit rate; one GPU for one hour is nominally 0.5 SU. The project is charged for the allocated GPU time. See the current.
-
-### 5. Start Ollama on the GPU node
-
-Inside the allocated GPU shell, start the API on loopback so it is reachable through SSH but not exposed as a public service:
-
-    export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
-    export OLLAMA_MODELS="$HOME/ollama-models"
-    export OLLAMA_HOST=127.0.0.1:11434
-    ollama serve > "$HOME/ollama-${SLURM_JOB_ID}.log" 2>&1 &
-    OLLAMA_SERVER_PID=$!
-    sleep 3
-    curl -fsS http://127.0.0.1:11434/api/tags
-
-Leave this allocated shell open for the duration of the session. Verify the model uses the GPU after you send a prompt with `ollama ps` and `nvidia-smi`. If the tag is missing, run `ollama pull qwen3.8:27b` inside the job and wait for it to finish.
-
-### 6. Open an SSH tunnel from your Mac
-
-Keep the Empire AI shell and Ollama server running. The commands below use local port `11435` so they do not conflict with an Ollama service that may already be running on your Mac at `11434`. The tunnel must connect through the Alpha login host to the compute node where Ollama is listening. Replace `<COMPUTE_NODE_HOSTNAME>` with the node printed in the job log or by `hostname -f` in the allocated job:
-
-    ssh -N -L 127.0.0.1:11435:<COMPUTE_NODE_HOSTNAME>:11434 \
-      -i ~/.ssh/id_empireai \
-      -o IdentitiesOnly=yes \
-      jshin@alpha.empire-ai.org
-
-This forwards your Mac’s `localhost:11435` through Alpha to Ollama on the allocated compute node’s `localhost:11434`. It uses the login node only as an SSH tunnel; inference remains on the GPU node.
-
-Keep this SSH command running in the second Terminal window. Confirm the tunnel from your Mac:
-
-    curl http://localhost:11435/api/tags
-
-The response should list `qwen3.8:27b`.
-
-### 7. Point Nova at the tunneled API
-
-In the Nova desktop app, click **⚙** in the assistant popup (or press Ctrl+, / Command+,) and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
-
-    URL:      http://localhost:11435/v1/chat/completions
-    Model:    qwen3.8:27b
-    API key:  leave blank
-
-Save the settings and send a prompt. Ollama provides the OpenAI-compatible chat-completions route that Nova uses. You can also check it from your Mac with:
-
-    curl http://localhost:11435/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{"model":"qwen3.8:27b","messages":[{"role":"user","content":"Reply that Nova is connected."}]}'
-
-Nova sends the prompt and open tab titles and URLs through the tunnel to the Empire AI server. It does not automatically send page text. The API is available only while the Slurm job, Ollama server, and SSH tunnel are all active. When you finish, stop the tunnel with Ctrl+C. In the allocated shell, run `kill "$OLLAMA_SERVER_PID"` and then `exit`; Slurm releases the GPU. Slurm also ends the job when its one-hour limit expires.
-
-For current cluster guidance, see [Empire AI Alpha Interactive Slurm Quickstart](https://empireai.freshdesk.com/support/solutions/articles/157000374475-empire-ai-alpha-%E2%80%94-interactive-slurm-quickstart) and [Empire AI Alpha Jupyter, SSH & Tunnels](https://empireai.freshdesk.com/support/solutions/articles/157000374476-empire-ai-alpha-%E2%80%94-jupyter-ssh-tunnels).
-
-### Use another compatible provider
-
-Enter an HTTPS chat-completions URL, model ID, and API key from that provider. For BullsAI, request developer access and use the endpoint, model ID, and authentication details from its developer documentation: https://www.buffalo.edu/ubit/services/BullsAI.html. The public UBIT page identifies Model Hub but does not publish those connection details.
+Nova accepts HTTPS and HTTP endpoints. API keys are optional for HTTP servers; environment keys are used only for HTTPS providers. HTTP connections send requests without transport encryption. Other providers must expose the compatible chat-completions format; a provider's ordinary website URL is not an API endpoint. Saving settings stores the configuration; the first request checks whether the server, model and credentials work.
 
 ### API key storage
 
-In the desktop app, Nova stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s Nova user-data folder. The renderer does not store desktop API keys in browser local storage.
+Nova encrypts saved API keys with Electron `safeStorage` when a protected operating-system credential store is available. Encrypted keys are kept in the application profile, scoped to the endpoint's origin, and are not exposed to website tabs or stored in the interface's local storage. Leaving the key field blank keeps a saved key when the endpoint's origin stays the same.
 
-On Linux, Nova requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting Nova. `OLLAMA_API_KEY` is only needed for Ollama’s direct cloud API; it is not used for the tunneled Empire AI endpoint. `BULLSAI_API_KEY` remains supported for BullsAI and compatible endpoints. Environment variables take precedence over a saved key.
+When a protected credential store is unavailable, Nova refuses to save a new API key. You can supply `OLLAMA_API_KEY` for the direct Ollama Cloud endpoint or `BULLSAI_API_KEY` for other compatible endpoints in the environment used to launch Nova. Environment values take precedence over saved keys. **Clear connection** in the AI settings removes the saved connection configuration.
 
-macOS or Linux:
+### Data shared with the assistant
 
-    export OLLAMA_API_KEY="your-ollama-api-key"
-    npm start
+Model requests include your instruction and open tab titles, URLs and group names. Live lookups also send visible text from pages Nova opens or reads for the request. When you explicitly ask to find or remove history, matching history records can be sent to the model; unrelated requests do not search history. Built-in browser commands run locally. Voice audio and spoken replies use ElevenLabs as described above.
 
-Windows PowerShell:
+## Keyboard shortcuts
 
-    $env:OLLAMA_API_KEY = "your-ollama-api-key"
-    npm start
+Use Command instead of Ctrl on macOS, except **Ctrl+Space** for the assistant.
 
-Do not commit a real API key to this project or put it in README.md.
-
-### What the assistant sends
-
-For a regular question, Nova sends the prompt and open tab titles and URLs to the configured endpoint. With the Empire AI setup above, this information travels through SSH to the Alpha compute node. With another cloud provider, it is sent to that provider. Nova does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
-
-The microphone button starts voice input and sends the recognized transcript as the prompt. The adjacent voice-reply button toggles spoken assistant responses. If voice recognition is unavailable or microphone access is denied, you can continue by typing.
+| Shortcut | Action |
+| --- | --- |
+| Ctrl+T / Ctrl+W | Open / close a tab |
+| Ctrl+L | Focus and select the full address |
+| Ctrl+R | Reload the current page |
+| Ctrl+D | Save or edit the current bookmark |
+| Ctrl+H | Open History |
+| Ctrl+Shift+B | Open Bookmarks |
+| Ctrl+Shift+O | Toggle the tab cosmos |
+| Ctrl+Space | Toggle the assistant |
+| Ctrl+, | Open Settings |
 
 ## Build a distributable app
 
@@ -303,7 +217,7 @@ You can also use `npm run appimage`. The script works from any directory, instal
 
 You can also open that AppImage from your file manager after the build finishes. The first build may download packaging tools and requires internet access.
 
-The app window and Linux AppImage use Nova's cyan and lavender ringed-planet icon. Its editable SVG and 512px PNG are in `assets/`. On Linux, launching the app registers its icon and an Nova application entry in your user data directory (`$XDG_DATA_HOME`, or `~/.local/share`). The entry shares the app's window identity so Wayland and X11 desktops can associate its taskbar icon correctly; registration needs no administrator access.
+The app window and Linux AppImage use Nova's cyan and lavender ringed-planet icon. Its editable SVG and 512px PNG are in `assets/`. On Linux, launching the app registers its icon and a Nova application entry in your user data directory (`$XDG_DATA_HOME`, or `~/.local/share`). The entry shares the app's window identity so Wayland and X11 desktops can associate its taskbar icon correctly; registration needs no administrator access.
 
 When `/dev/fuse` is unavailable, the script prints a launch command with `--appimage-extract-and-run`, which runs the AppImage without mounting it. You can also add that flag manually if you encounter a FUSE error; see the [AppImage fallback instructions](https://docs.appimage.org/user-guide/troubleshooting/fuse.html#extract-and-run-type-2-appimages).
 
@@ -322,24 +236,32 @@ This creates a distributable for the current platform. The project is configured
 - **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
 - **npm start says Electron is missing:** Run npm install from the project folder and check for installation errors.
 - **A website does not load:** Check your internet connection, then try entering the full address, such as https://example.com.
-- **Nova cannot reach Ollama on Alpha:** Confirm the Slurm job is still running, `ollama serve` is active on the allocated compute node, and the SSH tunnel is still open. On your Mac, `curl http://localhost:11435/api/tags` should return the model list.
-- **Ollama runs on CPU or reports an out-of-memory error:** Run Ollama inside the GPU allocation, check `nvidia-smi` and `ollama ps`, and retry with a shorter context. Make sure the model pull completed before starting the GPU job.
-- **The Slurm request is rejected:** Check `sacctmgr show assoc user="$USER" format=Account%20,QOS%60` and use an account/QoS permitted for your user. Alpha requires an explicit project account; Beta is a separate system and requires at least four GPUs per job.
-- **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
+- **The AI endpoint cannot be reached:** Confirm the configured server is running and the URL points to its chat-completions API. For local Ollama, use `localhost:11434` and check that the selected model is available.
+- **The AI endpoint returns an error:** Check the model ID, API key, account access and compatibility with Bearer-token authentication and the chat-completions format. Saving settings alone does not test the connection.
+- **An API key cannot be saved:** Make sure the operating system's protected credential store is available, or use the endpoint's supported environment variable described above.
 - **Voice input is unavailable:** Check that your operating system allows Nova to use the microphone, and that an ElevenLabs API key is saved in AI settings. A toast reports the ElevenLabs error, for example a rejected key or used-up quota. Typing remains available.
 - **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.
 
-## Project files
+## Project structure
 
-- desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
-- vendor/porcupine/ — the English model for the Porcupine wake word engine (Apache 2.0, from Picovoice's porcupine repository, v4.0).
-- ai-agent.js — the assistant's action loop: open a page in the side tab, read it, answer.
-- tab-groups.js — tab group (constellation) names and colours, used by the main process.
-- desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
-- connection-security.js — Chromium main-frame connection metadata, certificate validity, navigation resets, and insecure-content tracking.
-- ui/newtab/ — static local start page, procedural WebGL galaxy with Canvas fallback, mouse parallax and search.
-- ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
-- ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
-- ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.
-- ui/styles/ — one stylesheet per component, plus base.css for the page layout.
-- package.json — start and packaging scripts.
+Nova uses Electron's native `WebContentsView` for website tabs and Three.js for its space scenes. The interface runs separately from website content through context-isolated preload bridges.
+
+| Code | Responsibility |
+| --- | --- |
+| [desktop-main.js](desktop-main.js) | Tab lifecycle, navigation, permissions, native views, menus and model requests. |
+| [desktop-preload.js](desktop-preload.js) | The interface's bridge to browser actions. |
+| [ui/main.js](ui/main.js) and [ui/components/](ui/components/) | Toolbar, tab strip, settings and interface coordination. |
+| [ui/components/cosmos/](ui/components/cosmos/) | Live tab stars, constellations, black hole and scene interactions. |
+| [tab-groups.js](tab-groups.js) and [ai-grouping.js](ai-grouping.js) | Group state and validation of model-generated grouping plans. |
+| [ui/components/assistant/](ui/components/assistant/) | Chat, built-in browser commands, wake-word listening and ElevenLabs voice controls. |
+| [ai-agent.js](ai-agent.js) | Model action loop for side-tab lookups, page reading and requested history actions. |
+| [vendor/porcupine/](vendor/porcupine/) | Bundled Porcupine English wake-word model and its license. |
+| [history-store.js](history-store.js) and [ui/components/history/](ui/components/history/) | Visit persistence, navigation relationships, search and history views. |
+| [bookmark-store.js](bookmark-store.js) and [ui/components/bookmarks/](ui/components/bookmarks/) | Saved pages, editing and bookmark constellations. |
+| [search-suggestions.cjs](search-suggestions.cjs) | Local ranking, autocomplete requests and input filtering. |
+| [connection-security.js](connection-security.js) | Main-frame certificate checks and connection indicators. |
+| [tab-resources.js](tab-resources.js) and [tab-resources-view.js](tab-resources-view.js) | Renderer-process sampling and the native tab-hover resource card. |
+| [ui/newtab/](ui/newtab/) | Local galaxy start page, search, motion preferences and Canvas fallback. |
+| [profile-migration.js](profile-migration.js) and [linux-desktop.js](linux-desktop.js) | Profile migration and Linux desktop/icon registration. |
+| [build-appimage.sh](build-appimage.sh) and [package.json](package.json) | Development commands and application packaging. |
+| [scripts/capture-readme.cjs](scripts/capture-readme.cjs) | Product screenshot capture using isolated sample browsing data. |
