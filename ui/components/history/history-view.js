@@ -127,6 +127,13 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   let openState = false, openVersion = 0, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop, timelineArt;
   let constellations, explorer, arrows = [], flight = null, lastTime = null;
   let explorationPhase = "idle", explorationBusy = false, draggedHistoryGroupId = null;
+  let bookmarkPress = null, suppressBookmarkClick = false;
+  const bookmarkDragRay = new THREE.Raycaster();
+  const bookmarkDragPointer = new THREE.Vector2();
+  const bookmarkDragPlane = new THREE.Plane();
+  const bookmarkDragHit = new THREE.Vector3();
+  const bookmarkDragScratch = new THREE.Vector3();
+  const blackHoleScreenCenter = new THREE.Vector3();
   const listeners = new Set();
   const store = {
     get tabs() { return sceneVisits.map(v => ({ ...v, groupId: sceneShape?.groupOf.get(v.id) })); },
@@ -136,6 +143,80 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     subscribe(callback) { listeners.add(callback); callback(); return () => listeners.delete(callback); }
   };
   let scene;
+  function bookmarkRayFrom(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    bookmarkDragPointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
+    bookmarkDragRay.setFromCamera(bookmarkDragPointer, camera);
+    return bookmarkDragRay.ray;
+  }
+  function overBlackHole(event) {
+    if (!renderer || !blackHole) return false;
+    const center = blackHoleScreenCenter.set(0, 0, 0).project(camera);
+    if (!Number.isFinite(center.x) || center.z > 1) return false;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = rect.left + (center.x + 1) * .5 * rect.width;
+    const y = rect.top + (1 - center.y) * .5 * rect.height;
+    const reach = Math.max(42, blackHole.diskRadius * rect.height / Math.max(1, camera.position.length()));
+    return Math.hypot(event.clientX - x, event.clientY - y) <= reach;
+  }
+  function startBookmarkPress(star, event) {
+    if (!saved || !openState || root.dataset.view !== "stars" || mode !== "universe" || event.button !== 0 || bookmarkPress) return;
+    bookmarkPress = { star, x: event.clientX, y: event.clientY, dragging: false, over: false, offset: new THREE.Vector3(), autoRotate: controls.autoRotate, controlsEnabled: controls.enabled };
+    controls.enabled = false;
+    setOrbit(false);
+    window.addEventListener("pointermove", moveBookmarkPress);
+    window.addEventListener("pointerup", endBookmarkPress);
+    window.addEventListener("pointercancel", endBookmarkPress);
+  }
+  function moveBookmarkPress(event) {
+    if (!bookmarkPress) return;
+    const press = bookmarkPress, { star } = press;
+    if (!press.dragging) {
+      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6) return;
+      press.dragging = true;
+      stars.grab(star);
+      root.classList.add("dragging-star");
+      bookmarkDragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(bookmarkDragScratch).clone(), star.root.position);
+      if (bookmarkRayFrom(event).intersectPlane(bookmarkDragPlane, bookmarkDragHit)) press.offset.copy(star.root.position).sub(bookmarkDragHit);
+    }
+    const over = overBlackHole(event);
+    if (bookmarkRayFrom(event).intersectPlane(bookmarkDragPlane, bookmarkDragHit)) {
+      star.root.position.copy(bookmarkDragHit).add(press.offset);
+      if (over) star.root.position.multiplyScalar(.65);
+    }
+    if (over !== press.over) {
+      press.over = over;
+      stars.setDoomed(star, over);
+      blackHole.lure(over);
+      root.classList.toggle("history-bookmark-doom", over);
+    }
+  }
+  async function endBookmarkPress(event) {
+    if (!bookmarkPress) return;
+    window.removeEventListener("pointermove", moveBookmarkPress);
+    window.removeEventListener("pointerup", endBookmarkPress);
+    window.removeEventListener("pointercancel", endBookmarkPress);
+    const press = bookmarkPress;
+    bookmarkPress = null;
+    controls.enabled = press.controlsEnabled;
+    setOrbit(press.dragging ? false : press.autoRotate);
+    blackHole.lure(false);
+    root.classList.remove("history-bookmark-doom", "dragging-star");
+    if (!press.dragging) return;
+    suppressBookmarkClick = true;
+    setTimeout(() => { suppressBookmarkClick = false; }, 0);
+    const over = event.type !== "pointercancel" && overBookmarkBlackHole(event);
+    stars.setDoomed(press.star, false);
+    stars.release(press.star, { stay: over });
+    if (!over) return;
+    const bookmark = visits.find(visit => String(visit.id) === String(press.star.id));
+    if (!bookmark) return;
+    const removed = await onRemove?.(bookmark);
+    if (removed) {
+      selected = null; pinnedGroup = null; focusGroupId = null; day = "all"; detailsDismissed = false;
+      refresh(true);
+    }
+  }
   function initializeScene() {
     if (scene) return;
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x050813);
@@ -174,7 +255,12 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       emphasisFor: group => focusIds === null || group.memberIds.some(id => focusIds.has(id)) ? 1 : .3 });
     stars = createTabStars({ scene, camera, tabs: store,
       sink: blackHole, isVisible: () => openState && root.dataset.view === "stars",
-      onSelect: visit => selectHistoryStar(visit.id), onContextMenu: visit => {
+      onSelect: visit => {
+        if (suppressBookmarkClick) { suppressBookmarkClick = false; return; }
+        selectHistoryStar(visit.id);
+      },
+      onPress: saved ? startBookmarkPress : undefined,
+      onContextMenu: visit => {
         select(visit.id);
         if (!saved) browser.showHistoryMenu?.(visit.id);
       },
@@ -208,6 +294,11 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       pointer.set((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1);
       ray.setFromCamera(pointer, camera); return stars.pick(ray);
     }
+    renderer.domElement.addEventListener("pointerdown", event => {
+      if (!saved || mode !== "universe") return;
+      const star = hit(event);
+      if (star) startBookmarkPress(star, event);
+    }, { capture: true });
     const surfaces = [renderer.domElement, labels.domElement];
     for (const surface of surfaces) {
       surface.addEventListener("pointerdown", event => {
@@ -226,6 +317,10 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         } else if (!down && surface === renderer.domElement) stars.setHovered(hit(event));
       });
       surface.addEventListener("pointerup", event => {
+        // The global bookmark drag handler finishes on window after this
+        // event bubbles from the canvas. Do not turn a completed drag back
+        // into a click if the pointer happened to return near its start.
+        if (saved && bookmarkPress?.dragging) { down = null; return; }
         if (down && surface === renderer.domElement && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 5) {
           const star = hit(event);
           if (star) selectHistoryStar(star.id);
@@ -244,19 +339,9 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       if (mode !== "timeline") return;
       event.preventDefault(); sidebar.scrollTop += event.deltaY || event.deltaX; syncTimelineWindowFromSidebar();
     }, { passive: false });
-    const canvas = renderer.domElement;
-    function overHistoryBlackHole(event) {
-      const center = new THREE.Vector3(0, 0, 0).project(camera);
-      if (!Number.isFinite(center.x) || center.z > 1) return false;
-      const rect = canvas.getBoundingClientRect();
-      const x = rect.left + (center.x + 1) * .5 * rect.width;
-      const y = rect.top + (1 - center.y) * .5 * rect.height;
-      const reach = Math.max(42, blackHole.diskRadius * rect.height / Math.max(1, camera.position.distanceTo(new THREE.Vector3())));
-      return Math.hypot(event.clientX - x, event.clientY - y) <= reach;
-    }
     stage.addEventListener("dragover", event => {
       if (saved || !draggedHistoryGroupId || mode !== "universe") return;
-      const over = overHistoryBlackHole(event);
+      const over = overBlackHole(event);
       blackHole.lure(over);
       root.classList.toggle("history-group-doom", over);
       if (over) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
@@ -265,7 +350,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       if (saved || !draggedHistoryGroupId || mode !== "universe") return;
       const id = draggedHistoryGroupId;
       draggedHistoryGroupId = null; blackHole.lure(false); root.classList.remove("history-group-doom");
-      if (!overHistoryBlackHole(event)) return;
+      if (!overBlackHole(event)) return;
       event.preventDefault();
       const group = groups.find(item => String(item.id) === String(id));
       if (!group?.memberIds?.length) return;
@@ -276,7 +361,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       }
     });
     stage.addEventListener("dragleave", event => {
-      if (!stage.contains(event.relatedTarget)) { blackHole.lure(false); root.classList.remove("history-group-doom"); }
+      if (!stage.contains(event.relatedTarget)) { blackHole.lure(false); root.classList.remove("history-group-doom", "history-bookmark-doom"); }
     });
   }
   }
@@ -663,7 +748,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         if (visit.favicon) {
           const image = document.createElement("img"); image.src = visit.favicon; image.alt = ""; mark.append(image);
         } else mark.textContent = host(visit.url).slice(0, 1).toUpperCase();
-        button.append(mark, copy); button.onclick = () => select(visit.id, true); button.ondblclick = () => openVisit(visit.id);
+        button.append(mark, copy); button.onclick = () => mode === "universe" ? selectHistoryStar(visit.id) : select(visit.id, true); button.ondblclick = () => openVisit(visit.id);
         if (!saved) button.oncontextmenu = event => { event.preventDefault(); browser.showHistoryMenu?.(visit.id); };
         section.append(button);
       }
@@ -729,7 +814,9 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     root.querySelector(".cosmos-sidebar").setAttribute("aria-label", timeline ? (saved ? "Bookmarks by date saved" : "Chronological browsing history") : saved ? "Bookmarks by website" : "Navigation journeys");
     root.querySelector(".cosmos-hint").textContent = timeline
       ? "Scroll either side to move through time · Click a star to open · Click a sidebar row to inspect"
-      : "Click a star to open · Click a sidebar row to inspect · Drag to rotate · Scroll to zoom";
+      : saved
+        ? "Drag a bookmark to the black hole to remove it · Click to open · Drag to rotate · Scroll to zoom"
+        : "Click a star or group name to focus a journey · Click a focused tab to open · Drag to rotate · Scroll to zoom";
     refresh(true);
     restartExploration();
   }

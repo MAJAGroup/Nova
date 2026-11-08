@@ -23,7 +23,9 @@
 .history-era-big-bang{color:#fff1e6;text-shadow:0 0 12px #ffd7c6,0 0 25px #a38aff}
 .history-era-modern{color:#d6fbff;text-shadow:0 0 12px #71e7ff,0 0 22px #679eff}
 .history-era-date{padding:5px 8px;border-color:#55bfde55;background:rgba(7,18,32,.88);color:#aeeeff;font:8px var(--font);letter-spacing:.65px;box-shadow:0 0 15px #44bbdb25}
-.history-page.history-group-doom .history-stage:after{content:"RELEASE TO ABSORB JOURNEY";position:absolute;z-index:6;left:50%;top:calc(50% + 68px);transform:translateX(-50%);color:#ffc79e;text-shadow:0 0 12px #ff792e;font:8px var(--font);letter-spacing:1.5px;pointer-events:none}
+.history-page.history-group-doom .history-stage:after,.history-page.history-bookmark-doom .history-stage:after{position:absolute;z-index:6;left:50%;top:calc(50% + 68px);transform:translateX(-50%);color:#ffc79e;text-shadow:0 0 12px #ff792e;font:8px var(--font);letter-spacing:1.5px;pointer-events:none}
+.history-page.history-group-doom .history-stage:after{content:"RELEASE TO ABSORB JOURNEY"}
+.history-page.history-bookmark-doom .history-stage:after{content:"RELEASE TO ABSORB BOOKMARK"}
 .history-page.history-exploring .history-details{opacity:.68}
 .history-mode-switch{display:flex;gap:2px;padding:3px;border:1px solid #293b55;border-radius:7px;background:#0b1424d9;backdrop-filter:blur(12px)}
 .history-mode{border:0;border-radius:5px;background:transparent;color:#8194b2;font:10px var(--font);padding:6px 10px;cursor:pointer}
