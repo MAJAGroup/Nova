@@ -33,6 +33,9 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
   const items = new Map();
   let pendingEdit = null;
   let highlighted = null;
+  let draggedGroupId = null;
+  let suppressGroupClick = false;
+  const GROUP_DRAG_TYPE = "application/x-orbit-constellation";
 
   function createItem(group) {
     const geometry = new THREE.BufferGeometry();
@@ -54,7 +57,7 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
 
     button.addEventListener("click", () => {
-      if (item.suppressClick) { item.suppressClick = false; return; }
+      if (suppressGroupClick) { suppressGroupClick = false; return; }
       if (!item.editing) onFocus(item.id);
     });
     button.title = [
@@ -63,62 +66,38 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     ].filter(Boolean).join(" · ");
     if (onMerge) {
       button.classList.add("merge-handle");
-      button.addEventListener("pointerdown", event => {
-        if (event.button !== 0 || item.editing) return;
-        item.mergeGesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, targetId: null };
-        try { button.setPointerCapture(event.pointerId); } catch { /* optional pointer capture */ }
-        window.addEventListener("pointermove", item.mergeMove);
-        window.addEventListener("pointerup", item.mergeEnd);
-        window.addEventListener("pointercancel", item.mergeCancel);
+      button.draggable = true;
+      button.addEventListener("pointerdown", () => { suppressGroupClick = false; });
+      button.addEventListener("dragstart", event => {
+        if (item.editing || !event.dataTransfer) { event.preventDefault(); return; }
+        draggedGroupId = String(item.id);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(GROUP_DRAG_TYPE, draggedGroupId);
+        event.dataTransfer.setData("text/plain", draggedGroupId);
+        item.element.classList.add("dragging");
       });
-      item.mergeMove = event => {
-        const gesture = item.mergeGesture;
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-        if (!gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >= 5) {
-          gesture.dragging = true;
-          item.element.classList.add("dragging");
-        }
-        if (!gesture.dragging) return;
+      button.addEventListener("dragover", event => {
+        if (!draggedGroupId || String(item.id) === draggedGroupId) return;
         event.preventDefault();
-        const hovered = document.elementFromPoint(event.clientX, event.clientY)?.closest(".constellation-name");
-        const targetId = hovered?.dataset.groupId || null;
-        const targetItem = targetId && String(targetId) !== String(item.id)
-          ? Array.from(items.values()).find(candidate => String(candidate.id) === String(targetId))
-          : null;
-        const nextId = targetItem ? String(targetItem.id) : null;
-        if (nextId === gesture.targetId) return;
-        if (gesture.targetId) {
-          const previous = Array.from(items.values()).find(candidate => String(candidate.id) === gesture.targetId);
-          previous?.element.classList.remove("merge-target");
-        }
-        gesture.targetId = nextId;
-        targetItem?.element.classList.add("merge-target");
-      };
-      item.mergeEnd = event => {
-        const gesture = item.mergeGesture;
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-        item.mergeCleanup();
-        if (!gesture.dragging) return;
-        item.suppressClick = true;
-        setTimeout(() => { item.suppressClick = false; }, 0);
-        if (gesture.targetId) onMerge(item.id, gesture.targetId);
-      };
-      item.mergeCancel = event => {
-        if (!item.mergeGesture || event.pointerId !== item.mergeGesture.pointerId) return;
-        item.mergeCleanup();
-      };
-      item.mergeCleanup = () => {
-        const gesture = item.mergeGesture;
-        window.removeEventListener("pointermove", item.mergeMove);
-        window.removeEventListener("pointerup", item.mergeEnd);
-        window.removeEventListener("pointercancel", item.mergeCancel);
+        event.dataTransfer.dropEffect = "move";
+        item.element.classList.add("merge-target");
+      });
+      button.addEventListener("dragleave", event => {
+        if (!button.contains(event.relatedTarget)) item.element.classList.remove("merge-target");
+      });
+      button.addEventListener("drop", event => {
+        event.preventDefault();
+        const sourceId = event.dataTransfer?.getData(GROUP_DRAG_TYPE) || draggedGroupId;
+        item.element.classList.remove("merge-target");
+        if (sourceId && String(sourceId) !== String(item.id)) onMerge(sourceId, item.id);
+      });
+      button.addEventListener("dragend", () => {
         item.element.classList.remove("dragging");
-        if (gesture?.targetId) {
-          const targetItem = Array.from(items.values()).find(candidate => String(candidate.id) === gesture.targetId);
-          targetItem?.element.classList.remove("merge-target");
-        }
-        item.mergeGesture = null;
-      };
+        for (const candidate of items.values()) candidate.element.classList.remove("merge-target");
+        draggedGroupId = null;
+        suppressGroupClick = true;
+        setTimeout(() => { suppressGroupClick = false; }, 500);
+      });
     }
     button.addEventListener("dblclick", () => { if (onRename) editName(item.id); });
     button.addEventListener("keydown", (event) => {
