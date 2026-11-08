@@ -151,15 +151,17 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   try { stayOnNewTab = localStorage.getItem(STAY_ON_NEW_TAB_KEY) === "1"; } catch (_) { /* storage unavailable */ }
   function setStayOnNewTab(enabled) {
     stayOnNewTab = Boolean(enabled);
-    stayToggle.setAttribute("aria-checked", String(stayOnNewTab));
-    stayToggle.classList.toggle("active", stayOnNewTab);
-    stayToggle.title = stayOnNewTab
-      ? "New tabs opened with + keep Orbit visible"
-      : "New tabs opened with + switch to the web page";
+    if (stayToggle) {
+      stayToggle.setAttribute("aria-checked", String(stayOnNewTab));
+      stayToggle.classList.toggle("active", stayOnNewTab);
+      stayToggle.title = stayOnNewTab
+        ? "New tabs opened with + keep Orbit visible"
+        : "New tabs opened with + switch to the web page";
+    }
     try { localStorage.setItem(STAY_ON_NEW_TAB_KEY, stayOnNewTab ? "1" : "0"); } catch (_) { /* storage unavailable */ }
   }
   setStayOnNewTab(stayOnNewTab);
-  stayToggle.addEventListener("click", () => setStayOnNewTab(!stayOnNewTab));
+  stayToggle?.addEventListener("click", () => setStayOnNewTab(!stayOnNewTab));
 
   el("cosmos-reset").addEventListener("click", () => {
     if (renderer) flyHome();
