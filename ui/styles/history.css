@@ -35,3 +35,57 @@
 .history-page button:focus-visible{outline:2px solid #9dddf5;outline-offset:2px}
 @media(max-width:1000px){.history-summary,.history-sidebar-label span{display:none}.history-period{max-width:140px}}
 @media(prefers-reduced-motion:reduce){.history-page *{transition:none!important}}
+/* A focused date changes emphasis, while the chronological context stays in place. */
+.history-date-label{pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px;white-space:nowrap;opacity:.5}
+.history-date-label.in-focus{opacity:1}
+.history-date-label button{pointer-events:auto;border:0;border-bottom:1px solid #8ccbdd40;border-radius:0;background:#050b17b3;padding:5px 9px 8px;color:#98b7d3;font-size:10px;letter-spacing:1px;cursor:pointer}
+.history-date-label.in-focus button{color:#c1edf5;border-bottom-color:#9adee2a3}
+.history-date-label small{color:#69809b;font-size:8px;letter-spacing:.8px}
+.history-date-label:hover{opacity:1}
+.history-context-row{opacity:.48}.history-context-row:hover,.history-context-row:focus-visible{opacity:1}
+.history-page .star-label.subdued.hovered,.history-page .star-label.subdued:focus-visible{opacity:1!important}
+.history-page .star-label.active .star-label-title{max-width:230px;opacity:1;transform:none}
+.history-page .star-label.active .star-label-pill{gap:7px;padding-right:11px;border-color:#a7e9ec66;background:#0a1629ed}
+.history-page .constellation-label:hover{opacity:1!important}
+.history-page .cosmos-header{max-width:calc(100% - clamp(220px,28%,320px) - 230px)}
+.history-page.sidebar-hidden .cosmos-header{max-width:calc(100% - 240px)}
+.history-period{max-width:190px}
+/* The search field stays fixed while a normal history list becomes a star map. */
+.history-page [hidden]{display:none!important}
+.history-page{background:#080e1b}
+.history-topbar{position:absolute;inset:0 0 auto;z-index:5;height:91px;display:flex;align-items:center;gap:18px;padding:20px 30px;border-bottom:1px solid #ffffff0b;background:#0a1120}
+.history-page-heading{display:flex;flex-direction:column;gap:7px;min-width:150px}
+.history-page-heading h1{margin:0;color:#e9f0fc;font-size:23px;font-weight:500;letter-spacing:-.6px}
+.history-view-caption{color:#7486a3;font-size:10px;letter-spacing:.2px}
+.history-page .history-topbar .history-search-wrap{position:relative;flex:1;max-width:530px;margin:0 auto;padding:0}
+.history-search-wrap>svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:17px;height:17px;fill:none;stroke:#8dabc7;stroke-width:1.4;pointer-events:none}
+.history-page .history-search{height:42px;padding:0 39px 0 41px;border-radius:9px;background:#101b2e;font-size:12px;border-color:#263b56}
+.history-search::-webkit-search-cancel-button{-webkit-appearance:none}
+.history-search-clear{position:absolute;right:9px;top:8px;width:26px;height:26px;display:grid;place-items:center;border:0;border-radius:5px;background:transparent;color:#91a9c6;font-size:19px}
+.history-search-clear:hover{background:#ffffff0b;color:#e5f6ff}
+.history-page .history-topbar .history-clear{align-self:auto;flex:none;margin:0;padding:9px 11px;font-size:10px;color:#93a8c3}
+.history-topbar .history-close{flex:none}
+.history-list-view{position:absolute;inset:91px 0 0;overflow:auto;padding:34px max(35px,calc((100% - 1000px)/2)) 65px;scrollbar-width:thin;scrollbar-color:#2c3e59 transparent}
+.history-list-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:0 0 22px;color:#92a8c3;font-size:9px;letter-spacing:1.6px}
+.history-list-count{font-size:10px;letter-spacing:0;color:#657c9c}
+.history-entry-day{margin-bottom:30px}
+.history-entry-day h2{margin:0 0 10px;padding:12px 0;color:#c7d6e9;font-size:13px;font-weight:500;border-bottom:1px solid #ffffff0c}
+.history-entry{width:100%;min-height:68px;display:flex;align-items:center;gap:18px;padding:12px 13px;margin:3px 0;border:1px solid transparent;border-radius:9px;text-decoration:none;color:#cddbf1;transition:background .15s,border-color .15s}
+.history-entry:hover,.history-entry:focus-visible{background:#132139;border-color:#2a3f5c}
+.history-entry-time{flex:none;width:69px;color:#7f94af;font-size:11px;font-variant-numeric:tabular-nums}
+.history-entry-icon{width:30px;height:30px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:8px;background:#16243b;color:#91bdce;font-size:11px;border:1px solid #ffffff0a}
+.history-entry-icon img{width:18px;height:18px;object-fit:contain}
+.history-entry-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:7px}
+.history-entry-title{color:#dce8f8;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-entry-url{color:#7188a8;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-entry-live{flex:none;border:1px solid #75bcc32d;border-radius:5px;padding:4px 7px;color:#8dc4cb;font-size:9px;background:#16343c33}
+.history-entry-arrow{color:#58718f;font-size:15px;opacity:0;flex:none}.history-entry:hover .history-entry-arrow,.history-entry:focus-visible .history-entry-arrow{opacity:1}
+.history-load-more{margin:12px 0;font-size:11px;padding:10px 15px}
+.history-list-empty{padding:70px 15px;text-align:center;font-size:13px;color:#8299b7}
+.history-page .history-stage{top:91px}
+.history-page>.cosmos-sidebar{top:91px}
+.history-page[data-view="stars"]{background:#050813}
+.history-page .history-dates{max-height:24%}
+.history-page .history-sidebar-heading{padding-top:20px;padding-bottom:12px}
+@media(max-width:1050px){.history-topbar{gap:12px;padding:18px 20px}.history-page-heading{min-width:110px}.history-view-caption{max-width:110px;font-size:9px}.history-topbar .history-clear{max-width:95px}.history-entry{gap:12px}.history-entry-live{display:none}}
+@media(max-width:650px){.history-topbar{padding:16px 12px;gap:10px}.history-page-heading{min-width:64px}.history-page-heading h1{font-size:18px}.history-view-caption{display:none}.history-page .history-topbar .history-clear{max-width:65px;padding:6px;font-size:9px}.history-list-view{padding:22px 14px 50px}.history-entry{padding:10px 6px;gap:10px}.history-entry-time{width:57px;font-size:10px}.history-entry-icon{width:25px;height:25px}.history-entry-title{font-size:12px}.history-entry-arrow{display:none}}

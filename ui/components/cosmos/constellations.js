@@ -27,7 +27,7 @@ function spanningTree(ids, positions) {
 // Draws each tab group as a constellation: lines between its stars, a faint
 // nebula behind them and its name above. The name can be clicked (focus the
 // camera) or double-clicked (rename).
-export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename }) {
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
   scene.add(root);
   const items = new Map();
@@ -133,6 +133,8 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         item.group = group;
         item.radius = shape.radius;
         item.memberIds = shape.memberIds;
+        item.labelPosition = shape.labelPosition;
+        item.nebulaSize = shape.nebulaSize;
         item.edges = shape.edges ?? spanningTree(shape.memberIds, layout.stars);
         item.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(item.edges.length * 6), 3));
         const color = new THREE.Color(group.color);
@@ -167,13 +169,17 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         }
         if (count) item.center.divideScalar(count);
         item.nebula.position.copy(item.center);
-        item.nebula.scale.setScalar(item.radius * 3.2 + 8);
+        if (item.nebulaSize) item.nebula.scale.set(item.nebulaSize.x, item.nebulaSize.y, 1);
+        else item.nebula.scale.setScalar(item.radius * 3.2 + 8);
         // A star being dragged over it lights the constellation up.
         const lit = item.id === highlighted;
-        item.nebula.material.opacity = lit ? 0.24 + Math.sin(time * 6) * 0.05 : 0.09 + Math.sin(time * 0.6 + item.seed) * 0.025;
-        item.lines.material.opacity = lit ? 0.85 : 0.38 + Math.sin(time * 0.9 + item.seed) * 0.1;
+        const emphasis = emphasisFor(item.group);
+        item.element.style.opacity = String(emphasis);
+        item.nebula.material.opacity = (lit ? 0.24 + Math.sin(time * 6) * 0.05 : 0.09 + Math.sin(time * 0.6 + item.seed) * 0.025) * emphasis;
+        item.lines.material.opacity = (lit ? 0.85 : 0.38 + Math.sin(time * 0.9 + item.seed) * 0.1) * emphasis;
         // Just above the constellation on screen.
-        item.label.position.copy(item.center).addScaledVector(screenUp, item.radius * 0.75 + 2.5);
+        if (item.labelPosition) item.label.position.set(item.labelPosition.x, item.labelPosition.y, item.labelPosition.z);
+        else item.label.position.copy(item.center).addScaledVector(screenUp, item.radius * 0.75 + 2.5);
       }
     },
 

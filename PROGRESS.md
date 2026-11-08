@@ -25,3 +25,11 @@ History now shares Orbit's constellation renderer, inline hover labels, backgrou
 Constellations follow the retained parent-visit graph across dates and child tabs, named for their first page. Only genuine navigation edges are rendered, with directional arrows and violet new-tab links; selecting a visit highlights its ancestry. Date/search filters retain constellation identity and colors without drawing invented shortcuts across hidden visits. All dates opens by default.
 
 Validation: model coverage for branching, child tabs, cross-date membership, filtered paths, independent roots and malformed retained fragments; actual Electron coverage for native visits, toolbar position, shared constellation labels, sidebar collapse, filtering, assistant bounds, reopening, persistence, clearing and Orbit switching. Preview: artifacts/navigation-history-atlas.png.
+
+## List-first history with live search constellations
+
+History now opens as a regular, date-grouped list with newest visits first and 100-entry pagination. The search field remains in the same header position across modes. Nonempty input creates the Three.js scene lazily and arranges only matching visits; clearing the query restores the list and stops the scene loop. Reopening resets to the list. Search covers all retained history, including entries beyond the loaded list.
+
+Search constellations now use chronological columns and ordered branching shapes, with sibling links fanning out before their destination subtrees. Only actual parent links between matches are drawn. The geometry stays planar, with disjoint journey bands. Shared Orbit renderers support optional emphasis, label placement and immediate layout for history, retaining their default Orbit behavior.
+
+Validation covers native branching and child tabs, list/search transitions, no results, clear and Escape, result changes, reopening, pagination, older unrendered matches, assistant bounds, persistence, and clear history. Model checks sample interleaved branching graphs for crossed or overlapping path segments. Visuals: artifacts/history-list.png and artifacts/history-search-constellations.png.

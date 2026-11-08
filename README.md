@@ -60,23 +60,19 @@ ORBIT opens with a local space start page filling the window. Its ringed planet 
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
-## History atlas
+## History
 
-Select the **History** clock icon in the upper-right toolbar, or press **Ctrl+H / Command+H**. History shares Orbit's 3D star and constellation renderers, dark sky, icon labels, and collapsible atlas sidebar.
+Select the **History** clock icon in the upper-right toolbar, or press **Ctrl+H / Command+H**. History opens as a normal list of page visits, grouped by date and ordered newest first. Each entry shows its title, full address, favicon and visit time. Click an entry to reopen it or return to its open tab. **Show older history** loads more entries.
 
-Each navigation journey forms a constellation named after its first retained page. Actual page transitions, branches after going back, and links opened in new tabs connect its stars; independent journeys stay separate, even when they visit the same site or date. History initially shows **All dates**, preserving journeys across days. Dates and search in the sidebar filter visits without inventing connections across hidden pages. Click a constellation name or sidebar heading to focus it, or use the sidebar toggle for the full canvas.
+Start typing in **Search history** to turn matching visits into stars and navigation constellations. Results update on each edit. Clearing the query, using the clear button, or pressing Escape in the search box returns to the normal list. Reopening History always starts with the list and an empty search box.
 
-Select a star or a sidebar row to inspect the page title, full address, date/time, and linked visits. Arrows represent actual navigation; violet trails represent opening a new tab. Select a connected visit to jump to its date. Double-click a star, or use **Reopen this page**, to revisit it. The camera gently orbits like Orbit view; use Pause orbit to stop it. Dragging also pauses rotation. Reduced-motion preferences disable automatic rotation. Drag to orbit, right-drag to pan, scroll to zoom, and press **F / Fit journeys** to frame the visible history. The sidebar also works when 3D graphics are unavailable.
+The search view shares Orbit's backdrop, favicon stars and collapsible results sidebar. Journeys form branching shapes across chronological date columns. Only actual navigation links and new-tab relationships connect matching visits; hidden intermediate visits never produce invented shortcuts. Sibling links fan out into separate paths rather than crossing through a spiral. Choose a date to emphasize matching visits from that day while keeping the other results visible. Select a star or sidebar entry for visit details, double-click a star to reopen it, and use **F / Fit journeys** to fit the results. Drag to orbit, right-drag to pan, and scroll to zoom. Reduced-motion preferences are respected. The WebGL scene is created only when searching and stops animating when the list is shown or History is closed. A results list remains available without 3D graphics.
 
-Each star uses the page’s favicon as its nucleus, with a domain initial when no icon is available. Favicons are retained with visit metadata. History records top-level HTTP(S) visits and preserves navigation branches and closed-tab trails across restarts. It retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The scene shows the latest 300 matching visits; use a date filter or search to reach older entries. Back/forward returns to existing visit nodes; new navigation keeps the earlier branch. Reopening a historical page loads its current contents rather than an archived copy. Browsing from before recording was introduced cannot be reconstructed.
+History records top-level HTTP(S) visits, including favicons, navigation branches and closed-tab trails, and retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The regular list can display all retained entries; the interactive scene displays up to 300 matching visits. Search scans all retained visits, including entries not yet loaded into the regular list. Date focus can reach older matches. Back/forward returns to existing visit nodes; new navigation preserves earlier branches. Reopening loads the page's current contents. Visits from before recording was introduced cannot be reconstructed.
 
-**Clear history…** asks for confirmation and deletes saved visit metadata without closing current tabs or clearing website cookies. Website titles and addresses are displayed as text. History is not sent to the assistant's model.
+**Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. History is not sent to the assistant's model.
 
-Run `npm run test:newtab` to check startup, new tabs, search, local-page history handling, animation controls, reduced motion and the narrow layout.
-
-Run `npm run test:address` (with OpenSSL installed) to check address display and connection states using local HTTP/TLS fixtures, a disposable profile, and a temporary certificate authority trusted only by the test session.
-
-Run `npm run test:history` to verify date layout and actual desktop navigation with temporary profiles and local fixture pages. Tests save a preview to `artifacts/navigation-history-atlas.png`.
+Run `npm run test:newtab` for the local start page and `npm run test:address` (with OpenSSL installed) for address and connection states. Run `npm run test:history` for normal-list behavior, live search, native navigation, persistence and geometric checks for crossing or overlapping links. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
 
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 

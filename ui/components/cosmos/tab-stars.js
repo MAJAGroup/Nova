@@ -59,7 +59,7 @@ function labelHTML(tab) {
 // constellations can follow.
 //
 // A closed tab spirals into the black hole while the cosmos is visible.
-export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect, onPress, onContextMenu, onLayout, layout = createStarLayout(), reducedMotion = () => REDUCED_MOTION.matches }) {
+export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect, onPress, onContextMenu, onLayout, layout = createStarLayout(), reducedMotion = () => REDUCED_MOTION.matches, emphasisFor = () => 1, animateLayout = true }) {
   const group = new THREE.Group();
   scene.add(group);
   const stars = new Map();
@@ -281,7 +281,7 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
     update(time) {
       const delta = lastTime === null ? 0 : Math.min(0.1, time - lastTime);
       lastTime = time;
-      const glide = reducedMotion() ? 1 : 1 - Math.exp(-delta * GLIDE_RATE);
+      const glide = !animateLayout || reducedMotion() ? 1 : 1 - Math.exp(-delta * GLIDE_RATE);
       let active = null;
       for (const star of Array.from(falling)) updateFalling(star, time);
       for (const star of stars.values()) {
@@ -305,8 +305,11 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
           star.element.style.setProperty("--label-scale", labelScale.toFixed(3));
         }
         star.core.scale.setScalar(size * 0.35 * eased);
-        star.halo.material.opacity = eased;
-        star.core.material.opacity = eased;
+        const emphasis = emphasisFor(star.tab);
+        star.halo.material.opacity = eased * emphasis;
+        star.core.material.opacity = eased * emphasis;
+        star.element.style.opacity = String(emphasis);
+        star.element.classList.toggle("subdued", emphasis < .99);
       }
       activeRing.visible = Boolean(active);
       if (active) {
