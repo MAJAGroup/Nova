@@ -1689,6 +1689,74 @@ function registerIPC() {
     contents.findInPage(query.trim(), { forward: options.forward !== false, findNext: options.findNext === true, matchCase: options.matchCase === true });
     return true;
   });
+  ipcMain.handle("browser:scroll-page", async (event, direction) => {
+    if (!fromShell(event) || !["up", "down", "page-up", "page-down", "top", "bottom"].includes(direction)) return false;
+    const contents = activeContents();
+    if (!contents || contents.isDestroyed()) return false;
+    const script = `(() => {
+      const direction = ${JSON.stringify(direction)};
+      const scrollable = element => {
+        if (!element || element === document.body || element === document.documentElement) return false;
+        const style = getComputedStyle(element);
+        return /(auto|scroll|overlay)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 2;
+      };
+      let target = null;
+      for (let element = document.activeElement; element && element !== document.body; element = element.parentElement) {
+        if (scrollable(element)) { target = element; break; }
+      }
+      target ||= document.scrollingElement || document.documentElement;
+      if (direction === "top") target.scrollTo({ top: 0, behavior: "smooth" });
+      else if (direction === "bottom") target.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
+      else {
+        const amount = Math.max(160, (target.clientHeight || innerHeight) * (direction.startsWith("page-") ? 0.82 : 0.48));
+        target.scrollBy({ top: (direction === "up" || direction === "page-up" ? -1 : 1) * amount, behavior: "smooth" });
+      }
+      return true;
+    })()`;
+    try { return await contents.executeJavaScript(script, false); }
+    catch (_) { return false; }
+  });
+  ipcMain.handle("browser:read-current-page", async event => {
+    if (!fromShell(event)) return { ok: false };
+    const contents = activeContents();
+    if (!contents || contents.isDestroyed()) return { ok: false };
+    try {
+      const page = await contents.executeJavaScript(`({
+        title: document.title || "",
+        url: location.href,
+        text: document.body ? document.body.innerText : ""
+      })`, false);
+      return { ok: true, title: String(page.title || "").slice(0, 300), url: String(page.url || "").slice(0, 2048), text: String(page.text || "").slice(0, 24000) };
+    } catch (_) { return { ok: false }; }
+  });
+  ipcMain.handle("browser:read-selection", async event => {
+    if (!fromShell(event)) return "";
+    const contents = activeContents();
+    if (!contents || contents.isDestroyed()) return "";
+    try {
+      const selection = await contents.executeJavaScript("String(window.getSelection ? window.getSelection() : '')", false);
+      return String(selection || "").slice(0, 4000);
+    } catch (_) { return ""; }
+  });
+  ipcMain.handle("browser:activate-link-by-text", async (event, label) => {
+    if (!fromShell(event) || typeof label !== "string" || !label.trim() || label.length > 200) return { ok: false, reason: "not-found" };
+    const contents = activeContents();
+    if (!contents || contents.isDestroyed()) return { ok: false, reason: "not-found" };
+    const script = `(() => {
+      const wanted = ${JSON.stringify(label.trim().toLowerCase())};
+      const links = [...document.querySelectorAll('a[href], [role="link"]')].filter(link =>
+        link.getClientRects().length > 0 && getComputedStyle(link).visibility !== "hidden" && link.getAttribute("aria-hidden") !== "true"
+      ).map(link => ({ element: link, label: String(link.innerText || link.getAttribute("aria-label") || link.title || "").replace(/\\s+/g, " ").trim() })).filter(link => link.label);
+      const exact = links.filter(link => link.label.toLowerCase() === wanted);
+      const matches = exact.length ? exact : links.filter(link => link.label.toLowerCase().includes(wanted));
+      if (!matches.length) return { ok: false, reason: "not-found" };
+      if (matches.length > 1) return { ok: false, reason: "ambiguous", options: matches.slice(0, 5).map(link => link.label.slice(0, 100)) };
+      matches[0].element.click();
+      return { ok: true, label: matches[0].label.slice(0, 100) };
+    })()`;
+    try { return await contents.executeJavaScript(script, false); }
+    catch (_) { return { ok: false, reason: "not-found" }; }
+  });
   ipcMain.handle("browser:stop-find", event => {
     if (!fromShell(event)) return false;
     activeContents()?.stopFindInPage("clearSelection");
@@ -1856,6 +1924,29 @@ function registerIPC() {
     const sender = event.sender;
     let assistantTargetTabId = null;
     const historySearchIds = new Set();
+    const historyStopWords = new Set(["a", "an", "the", "my", "this", "that", "from", "about", "history", "histories", "visit", "visits", "page", "pages", "site", "website", "entry", "entries", "delete", "remove", "clear", "matching", "browsing", "last", "past", "today", "yesterday", "recent", "recently", "most", "visited", "top", "all", "days", "day", "weeks", "week", "months", "month", "years", "year", "during", "between", "since", "until", "through", "to", "by"]);
+    const historyTerms = query => String(query || "").trim().toLowerCase().slice(0, 240)
+      .split(/[^\p{L}\p{N}.-]+/u).filter(term => term.length > 1 && !historyStopWords.has(term));
+    const explicitlyRequestsHistory = /\b(?:browsing|browser|web|website)\s+histories?\b|\b(?:my|the)\s+(?:browsing\s+)?histories?\b|\b(?:histories|history)\s+(?:section|tab|timeline|entries|visits)\b|\b(?:find|search|show|summarize|review|clear|delete|remove|erase|count|list)\b[\s\S]{0,120}\b(?:history|histories|visits|visited sites|visited pages)\b|\b(?:visits|visited sites|visited pages)\b[\s\S]{0,120}\b(?:history|histories|site|sites|page|pages)\b|\b(?:most|frequently|recently|recent|top)\s+visited\s+(?:sites|pages|websites)\b|\b(?:recent|latest|most)\s+(?:browsing\s+)?visits?\b|\bwhat\s+(?:sites|pages|websites)\s+did\s+(?:i|we)\s+visit\b/i.test(prompt);
+    const historyDate = value => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+      if (!match) return null;
+      const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return date.getFullYear() === Number(match[1]) && date.getMonth() === Number(match[2]) - 1 && date.getDate() === Number(match[3]) ? date : null;
+    };
+    const historyRange = (from, to) => {
+      const fromDate = from ? historyDate(from) : null;
+      const toDate = to ? historyDate(to) : null;
+      if ((from && !fromDate) || (to && !toDate)) return { error: "I couldn't read those history dates. Please use valid calendar dates." };
+      const start = fromDate ? new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate()).getTime() : -Infinity;
+      const end = toDate ? new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1).getTime() : Infinity;
+      if (start >= end) return { error: "The history date range is reversed. Please check the start and end dates." };
+      return { start, end };
+    };
+    const historyDayKey = value => {
+      const date = new Date(value);
+      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    };
     return runAgent({
       prompt,
       tabs: context,
@@ -1871,9 +1962,9 @@ function registerIPC() {
       readSideTab: async () => (assistantTargetTabId ? readTabText(assistantTargetTabId, { settle: 1500 }) : null),
       openTabs: (requested, reply) => openRequestedTabs(prompt, requested, reply),
       searchHistory: async (query) => {
+        if (!explicitlyRequestsHistory) return { query: "", total: 0, entries: [] };
         const normalized = String(query || "").trim().toLowerCase().slice(0, 240);
-        const ignored = new Set(["a", "an", "the", "my", "this", "that", "from", "about", "history", "page", "pages", "site", "website", "entry", "entries", "delete", "remove", "clear", "matching"]);
-        const terms = normalized.split(/[^\p{L}\p{N}.-]+/u).filter(term => term.length > 1 && !ignored.has(term));
+        const terms = historyTerms(normalized);
         if (!terms.length) return { query: normalized, total: 0, entries: [] };
         const matches = visitHistory.snapshot(tabs).filter(visit => {
           const text = `${visit.title || ""} ${visit.url || ""}`.toLowerCase();
@@ -1884,10 +1975,63 @@ function registerIPC() {
         for (const entry of entries) historySearchIds.add(entry.id);
         return { query: normalized, total: matches.length, entries };
       },
+      historyReport: async ({ mode = "summary", query = "", from = "", to = "", limit = 20 } = {}) => {
+        if (!explicitlyRequestsHistory) return { ok: false, error: "I only review browsing history when you ask me to." };
+        const range = historyRange(from, to);
+        if (range.error) return { ok: false, error: range.error };
+        const terms = historyTerms(query);
+        const matches = visitHistory.snapshot(tabs).filter(visit => {
+          const at = Number(visit.at) || 0;
+          if (at < range.start || at >= range.end) return false;
+          const text = `${visit.title || ""} ${visit.url || ""}`.toLowerCase();
+          return terms.every(term => text.includes(term));
+        }).sort((a, b) => b.at - a.at);
+        const sites = new Map(), pages = new Map(), days = new Map();
+        for (const visit of matches) {
+          let site = "Unknown site";
+          try { site = new URL(visit.url).hostname.replace(/^www\./i, ""); } catch { /* Keep malformed legacy records out of domain parsing. */ }
+          const siteRow = sites.get(site) || { site, count: 0, lastVisited: visit.at };
+          siteRow.count++;
+          if (visit.at > siteRow.lastVisited) siteRow.lastVisited = visit.at;
+          sites.set(site, siteRow);
+          const pageKey = String(visit.url || "");
+          const pageRow = pages.get(pageKey) || { title: String(visit.title || pageKey).slice(0, 180), url: pageKey.slice(0, 500), count: 0, lastVisited: visit.at };
+          pageRow.count++;
+          if (visit.at > pageRow.lastVisited) pageRow.lastVisited = visit.at;
+          pages.set(pageKey, pageRow);
+          const day = historyDayKey(visit.at);
+          days.set(day, (days.get(day) || 0) + 1);
+        }
+        const topSites = [...sites.values()].sort((a, b) => b.count - a.count || b.lastVisited - a.lastVisited).slice(0, 12);
+        const topPages = [...pages.values()].sort((a, b) => b.count - a.count || b.lastVisited - a.lastVisited).slice(0, 12);
+        const dailyCounts = [...days].sort(([a], [b]) => b.localeCompare(a)).slice(0, 30).map(([date, count]) => ({ date, count }));
+        const entryLimit = mode === "recent" ? Math.min(50, Math.max(1, Number(limit) || 20)) : mode === "search" ? 50 : mode === "summary" ? 45 : 15;
+        const entries = matches.slice(0, entryLimit).map(({ id, title, url, at }) => ({ id, title: String(title || "Untitled").slice(0, 180), url: String(url || "").slice(0, 500), at }));
+        const firstAt = matches.length ? matches.at(-1).at : null;
+        const lastAt = matches.length ? matches[0].at : null;
+        const topSiteText = topSites.slice(0, 5).map(row => `${row.site} (${row.count})`).join(", ");
+        const topPageText = topPages.slice(0, 3).map(row => `${row.title} (${row.count})`).join(", ");
+        const dailyText = dailyCounts.slice(0, 7).map(row => `${row.date}: ${row.count}`).join(", ");
+        const periodText = from || to ? ` in ${from || "the beginning"} through ${to || "today"}` : "";
+        const fallbackText = !matches.length
+          ? `I didn't find browsing history${periodText}${query ? ` matching “${query}”` : ""}.`
+          : mode === "recent"
+            ? `Here are the ${Math.min(entryLimit, matches.length)} most recent visits${periodText}.`
+            : mode === "search"
+              ? `I found ${matches.length} matching history ${matches.length === 1 ? "entry" : "entries"}${periodText}${query ? ` for “${query}”` : ""}.`
+            : mode === "top-sites"
+              ? `Most visited sites${periodText}: ${topSiteText || "none recorded"}.`
+              : mode === "by-day"
+                ? `Daily history counts${periodText}: ${dailyText || "none recorded"}.`
+                : `I found ${matches.length} matching visits${periodText}${query ? ` for “${query}”` : ""}. Most visited sites: ${topSiteText || "none recorded"}. Frequently visited pages: ${topPageText || "none recorded"}.`;
+        return { ok: true, mode, query: String(query || "").slice(0, 240), from, to, total: matches.length, siteCount: sites.size, pageCount: pages.size, firstAt, lastAt, topSites, topPages, dailyCounts, entries, fallbackText };
+      },
       deleteHistory: async ({ ids = [], all = false } = {}) => {
         if (all) {
-          const explicitAll = /\b(?:clear|delete|remove|erase)\b[\s\S]*\b(?:all|entire|whole|everything|every)\b[\s\S]*\b(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*$/i.test(prompt) ||
-            /^\s*(?:(?:please|can you|could you)\s+)*(?:clear|delete|remove|erase)\s+(?:(?:my|the)\s+)?(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*\s*$/i.test(prompt);
+          const hasDateRange = /\bbetween\b[\s\S]{1,160}\band\b|\bfrom\b[\s\S]{1,160}\b(?:to|through|until)\b/i.test(prompt);
+          const explicitAll = !hasDateRange && (/\b(?:clear|delete|remove|erase)\b[\s\S]*\b(?:all|entire|whole|everything|every)\b[\s\S]*\b(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*$/i.test(prompt) ||
+            /^\s*(?:(?:please|can you|could you)\s+)*(?:clear|delete|remove|erase)\s+(?:(?:my|the)\s+)?(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*\s*$/i.test(prompt)
+          );
           if (!explicitAll) return { ok: false, error: "The request didn't explicitly ask to clear all browsing history, so I left it unchanged." };
           const removed = visitHistory.snapshot(tabs).length;
           visitHistory.clear(tabs);
@@ -1897,6 +2041,16 @@ function registerIPC() {
         const safeIds = [...new Set(ids.filter(id => typeof id === "string" && historySearchIds.has(id)))].slice(0, 100);
         if (!safeIds.length) return { ok: true, removed: 0 };
         const removed = visitHistory.removeMany(safeIds, tabs);
+        if (removed) sendTabs();
+        return { ok: true, removed };
+      },
+      deleteHistoryRange: async ({ from, to } = {}) => {
+        const explicitRange = /\b(?:delete|remove|erase|clear)\b/i.test(prompt) && /\b(?:history|histories|visits|entries|pages)\b/i.test(prompt) && (/\bbetween\b[\s\S]{1,160}\band\b|\bfrom\b[\s\S]{1,160}\b(?:to|through|until)\b/i.test(prompt));
+        if (!explicitRange) return { ok: false, error: "I left history unchanged because the request didn't clearly ask to delete a date range." };
+        const range = historyRange(from, to);
+        if (range.error) return { ok: false, error: range.error };
+        const ids = visitHistory.snapshot(tabs).filter(visit => visit.at >= range.start && visit.at < range.end).map(visit => visit.id);
+        const removed = visitHistory.removeMany(ids, tabs);
         if (removed) sendTabs();
         return { ok: true, removed };
       },
@@ -2182,10 +2336,11 @@ async function openRequestedTabs(prompt, requested, reply) {
 
 function explicitlyRequestsTabs(prompt) {
   const text = String(prompt || "").trim();
-  if (/\b(?:don't|do not|never|without)\b[^.!?]{0,60}\b(?:open|visit|browse|search|create|make)\b/i.test(text)) return false;
+  if (/\b(?:don't|do not|never|without)\b[^.!?]{0,60}\b(?:open|visit|browse|search|find|look\s+up|lookup|create|make)\b/i.test(text)) return false;
   const comparison = explicitlyRequestsComparison(text);
-  if (!comparison && (/^(?:how|what|why|when|where)\b/i.test(text) || /\bhow (?:do|can|would) I\b/i.test(text))) return false;
-  return /\b(?:open|visit|browse to|search(?: the web)? for|navigate to|go to|create|make)\b/i.test(text) ||
+  const findRequest = /\b(?:find|look\s+up|lookup)\b/i.test(text) && !/\bfind\s+(?:my\s+)?(?:open\s+)?tabs?\b/i.test(text);
+  if (!comparison && !findRequest && (/^(?:how|what|why|when|where)\b/i.test(text) || /\bhow (?:do|can|would) I\b/i.test(text))) return false;
+  return findRequest || /\b(?:open|visit|browse to|search(?: the web)? for|navigate to|go to|create|make)\b/i.test(text) ||
     /\b(?:new|another|multiple|\d+)\s+(?:browser\s+)?tabs?\b/i.test(text) || comparison;
 }
 

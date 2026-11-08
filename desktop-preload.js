@@ -77,6 +77,10 @@ contextBridge.exposeInMainWorld("novaBrowser", {
     return () => ipcRenderer.removeListener("browser:downloads-updated", listener);
   },
   findPage: (query, options) => ipcRenderer.invoke("browser:find-page", query, options),
+  scrollPage: direction => ipcRenderer.invoke("browser:scroll-page", direction),
+  readCurrentPage: () => ipcRenderer.invoke("browser:read-current-page"),
+  readSelection: () => ipcRenderer.invoke("browser:read-selection"),
+  activateLinkByText: label => ipcRenderer.invoke("browser:activate-link-by-text", label),
   stopFind: () => ipcRenderer.invoke("browser:stop-find"),
   focusPage: () => ipcRenderer.invoke("browser:focus-page"),
   onFindResult: callback => {

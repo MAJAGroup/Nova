@@ -186,7 +186,13 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     });
     explorer = createExplorerFlight(scene, camera, {
       getArrivalStar: () => {
-        const target = sceneVisits.find(visit => visit.id === selected) || sceneVisits[0];
+        let target;
+        if (mode === "timeline") {
+          camera.updateMatrixWorld(true);
+          target = sceneVisits.map(visit => ({ visit, position: stars?.positionOf(visit.id) }))
+            .filter(item => item.position)
+            .sort((a, b) => a.position.clone().project(camera).x - b.position.clone().project(camera).x)[0]?.visit;
+        } else target = sceneVisits.find(visit => visit.id === selected) || sceneVisits[0];
         const position = target && stars?.positionOf(target.id);
         return position ? { id: String(target.id), position } : null;
       },
@@ -338,8 +344,6 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     ring.rotation.y = Math.PI / 2;
     burst.add(ring);
     group.add(burst);
-    addTimelineLabel(group, "BIG BANG", "history-era-title history-era-big-bang", new THREE.Vector3(x, 5.1, 0));
-    addTimelineLabel(group, "Rapid expansion · first particles · first light", "history-era-caption", new THREE.Vector3(x, 4.1, 0));
   }
   function addModernUniverseArt(group, x) {
     const system = new THREE.Group();

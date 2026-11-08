@@ -6,11 +6,12 @@ import {
   handleBrowserIntent, localAssistantReply, isGroupingRequest, groupBySiteLocally, describeGroupingResult
 } from "./intents.js";
 import { createVoice } from "./voice.js";
+import { handleVoiceBrowserCommand } from "./voice-browser-commands.js";
 
 const AVATAR = '<div class="message-avatar"><span class="mini-nova">✦</span></div>';
 
 // A right-side dock for chat, with a narrow edge handle while minimized.
-export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onVisibilityChange, onExplorationChange = () => {} }) {
+export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onFindPage = () => {}, onFindNext = () => {}, onVisibilityChange, onExplorationChange = () => {} }) {
   const root = el("assistant");
   const suggestions = el("assistant-suggestions");
   const scroll = el("chat-scroll");
@@ -55,6 +56,36 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     voice.fill(note, { spoken: currentSpoken });
   });
   let currentSpoken = false;
+  let lastVoiceReply = "";
+  let voicePageText = "";
+  let voicePageOffset = 0;
+
+  async function readPageForVoice() {
+    const page = await browser.readCurrentPage();
+    if (!page?.ok) return "I couldn't read the current page. It may still be loading.";
+    voicePageText = String(page.text || "").replace(/\s+/g, " ").trim();
+    voicePageOffset = 0;
+    if (!voicePageText) return `This page is titled ${page.title || "Untitled"}, but it has no readable text.`;
+    const chunk = voicePageText.slice(0, 720);
+    voicePageOffset = chunk.length;
+    const more = voicePageOffset < voicePageText.length ? " Say “read more” to continue." : " That's the end of the readable page text.";
+    return `${page.title ? `${page.title}. ` : ""}${chunk}${more}`;
+  }
+
+  function readMoreForVoice() {
+    if (!voicePageText) return "There isn't a page reading in progress. Say “read this page” to start.";
+    if (voicePageOffset >= voicePageText.length) return "You've reached the end of the readable page text.";
+    const chunk = voicePageText.slice(voicePageOffset, voicePageOffset + 720);
+    voicePageOffset += chunk.length;
+    const more = voicePageOffset < voicePageText.length ? " Say “read more” to continue." : " That's the end of the readable page text.";
+    return chunk + more;
+  }
+
+  async function readSelectionForVoice() {
+    const selectedText = await browser.readSelection();
+    const selected = String(selectedText || "").replace(/\s+/g, " ").trim();
+    return selected ? `The selected text says: ${selected.slice(0, 1400)}` : "I don't see any selected text. Select text on the page, then ask me to read the selection.";
+  }
 
   function showConfigStatus(config) {
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
@@ -378,14 +409,28 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     input.value = "";
     input.style.height = "";
     syncSendButton();
+    // Requests often start by addressing the assistant ("Nova, open github").
+    const command = trimmed.replace(/^(?:(?:hey|hi|ok(?:ay)?)[\s,]+)?(?:nova|orbit)[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
     const reply = (text) => {
+      if (spoken && typeof text === "string" && !/^(?:repeat|say) (?:that|(?:your|my) last (?:reply|answer)|that again)$|^repeat that please$/i.test(command)) lastVoiceReply = text;
       if (activeChatId === responseChatId) appendMessage(text, "assistant", { spoken });
       else storeMessage(responseChatId, "assistant", text);
     };
 
     const aiAvailable = Boolean(aiConfig.get().url);
-    // Requests often start by addressing the assistant ("Nova, open github").
-    const command = trimmed.replace(/^(?:(?:hey|hi|ok(?:ay)?)[\s,]+)?(?:nova|orbit)[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
+    if (spoken) {
+      const voiceReply = await handleVoiceBrowserCommand(command, {
+        browser,
+        tabs,
+        onFindPage,
+        onFindNext,
+        readPage: readPageForVoice,
+        readMore: readMoreForVoice,
+        readSelection: readSelectionForVoice,
+        repeatLast: () => lastVoiceReply ? `I'll repeat my last reply. ${lastVoiceReply}` : "I don't have a previous reply to repeat yet."
+      });
+      if (voiceReply) return reply(voiceReply);
+    }
     const intentReply = await handleBrowserIntent(command, { browser, tabs, aiAvailable });
     if (intentReply) return reply(intentReply);
     if (isGroupingRequest(command)) return organize(command, aiAvailable, reply);

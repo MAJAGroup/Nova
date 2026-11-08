@@ -144,6 +144,8 @@ function start() {
     tabs,
     aiConfig,
     onOpenSettings: settings.open,
+    onFindPage: (query) => query == null ? findBar.close({ restoreFocus: false }) : findBar.open(query),
+    onFindNext: (forward) => findBar.next(forward),
     onVisibilityChange: (open) => browserView.setAssistantOpen(open),
     onExplorationChange: (busy) => {
       aiTaskBusy = Boolean(busy);

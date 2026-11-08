@@ -438,29 +438,55 @@ function makeTimeVortex(root) {
   const group = new THREE.Group();
   group.visible = false;
   group.renderOrder = 52;
-  for (const [index, radius] of [0.76, 1.02, 1.3].entries()) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, index === 1 ? .014 : .009, 6, 72), new THREE.MeshBasicMaterial({
-      color: index === 1 ? 0x9cf4ff : index === 0 ? 0x71d7ff : 0xa98cff,
-      transparent: true, opacity: index === 1 ? .72 : .42, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending
+  const rings = [];
+  for (const [index, radius] of [0.76, 1.02, 1.3, 1.48].entries()) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, index === 1 ? .018 : index === 3 ? .012 : .01, 6, 96), new THREE.MeshBasicMaterial({
+      color: index === 1 ? 0xb2f7ff : index === 0 ? 0x71d7ff : index === 2 ? 0xa98cff : 0x77e5ff,
+      transparent: true, opacity: index === 1 ? .88 : index === 3 ? .7 : .52, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending
     }));
     ring.renderOrder = 52 + index;
     group.add(ring);
+    rings.push(ring);
   }
   const ticks = [];
-  for (let index = 0; index < 48; index++) {
-    const angle = index / 48 * Math.PI * 2;
-    const inner = index % 4 === 0 ? 1.13 : 1.19;
-    const outer = 1.36;
+  for (let index = 0; index < 60; index++) {
+    const angle = index / 60 * Math.PI * 2;
+    const major = index % 5 === 0;
+    const inner = major ? 1.08 : 1.17;
+    const outer = major ? 1.39 : 1.34;
     ticks.push(Math.cos(angle) * inner, Math.sin(angle) * inner, .01,
       Math.cos(angle) * outer, Math.sin(angle) * outer, .01);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(ticks, 3));
-  const marks = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x94e9ff, transparent: true, opacity: .5, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const marks = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0xb4f5ff, transparent: true, opacity: .78, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
   marks.renderOrder = 55;
   group.add(marks);
+
+  // Clock hands and a luminous hub make the time tunnel read as an actual
+  // instrument face while its tick marks rotate around the ship.
+  const makeHand = (length, width, color, z) => {
+    const pivot = new THREE.Group();
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(width, length, .012), new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: .9, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    hand.position.set(0, length / 2, z);
+    hand.renderOrder = 57;
+    pivot.add(hand);
+    group.add(pivot);
+    return pivot;
+  };
+  const hourHand = makeHand(.46, .045, 0xe1faff, .035);
+  const minuteHand = makeHand(.76, .024, 0x9cf4ff, .045);
+  const secondHand = makeHand(.96, .012, 0x70dfff, .055);
+  const hub = new THREE.Mesh(new THREE.CircleGeometry(.075, 20), new THREE.MeshBasicMaterial({
+    color: 0xe8fcff, transparent: true, opacity: .95, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending
+  }));
+  hub.position.z = .07;
+  hub.renderOrder = 58;
+  group.add(hub);
   root.add(group);
-  return group;
+  return { group, rings, hourHand, minuteHand, secondHand };
 }
 
 // A camera-facing white wormhole and explorer ship. Its animation never
@@ -496,6 +522,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
   let tourTargetIndex = 0;
   let orbitPhaseOffset = 0;
   const BLACK_HOLE_TARGET = "__black-hole__";
+  const TIMELINE_END_TARGET = "__timeline-end__";
 
   function localFromNdc(point, depth = DEPTH, target = new THREE.Vector3()) {
     const halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -532,12 +559,16 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
       byId.set(arrivalStarId, { id: arrivalStarId, kind: "star", position: arrivalWorldPoint });
     }
     const targets = [...byId.values()];
-    if (targets.length <= 1) targets.push({ id: BLACK_HOLE_TARGET, kind: "black-hole" });
+    if (timelineStyle) {
+      targets.sort((a, b) => targetPointOnScreen(a).x - targetPointOnScreen(b).x);
+      if (targets.length <= 1) targets.push({ id: TIMELINE_END_TARGET, kind: "timeline-end" });
+    } else if (targets.length <= 1) targets.push({ id: BLACK_HOLE_TARGET, kind: "black-hole" });
     return targets;
   }
 
   function targetPointOnScreen(target) {
     if (!target) return { x: 0, y: 0 };
+    if (target.kind === "timeline-end") return { x: 0.82, y: 0 };
     const world = target.kind === "black-hole"
       ? new THREE.Vector3()
       : (positionOf && positionOf(target.id)) || target.position;
@@ -593,7 +624,8 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     ship.setDepthTest(false);
     phase = "hold";
     elapsed = 0;
-    current = arrivalPointOnScreen();
+    const timelineTarget = timelineStyle && tourTargets[tourTargetIndex];
+    current = timelineTarget ? targetPointOnScreen(timelineTarget) : arrivalPointOnScreen();
     orbitPhaseOffset = Math.random() * Math.PI * 2;
     ship.group.visible = true;
     showShip(current, DEPTH - 0.8, 1, heading);
@@ -604,7 +636,9 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
   function beginExit() {
     phase = "exit";
     elapsed = 0;
-    exitPoint = makeDifferentPortalPoint(current);
+    exitPoint = timelineStyle
+      ? { x: 0.98, y: THREE.MathUtils.clamp(current.y, -0.48, 0.48) }
+      : makeDifferentPortalPoint(current);
     portal.setForeground(true);
     openPortal(exitPoint);
     exitBend = Math.random() < 0.5 ? -1 : 1;
@@ -619,6 +653,11 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     const currentIndex = currentTarget ? targets.findIndex(target => target.id === currentTarget.id) : -1;
     tourTargets = targets;
     tourTargetIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % targets.length;
+    if (timelineStyle && currentIndex >= targets.length - 1) {
+      tourTargetIndex = Math.max(0, currentIndex);
+      beginExit();
+      return;
+    }
     phase = "transit";
     elapsed = 0;
     travel = curvedPath(current, targetPointOnScreen(tourTargets[tourTargetIndex]), Math.random() < 0.5 ? -1 : 1);
@@ -707,11 +746,14 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     if (arrivalIndex > 0) tourTargets = [...tourTargets.slice(arrivalIndex), ...tourTargets.slice(0, arrivalIndex)];
     tourTargetIndex = 0;
     entryPoint = timelineStyle
-      ? { x: -.94, y: -.5 + Math.random() }
+      ? { x: -1.02, y: -.5 + Math.random() }
       : randomPortalPoint();
     entryBend = Math.random() < 0.5 ? -1 : 1;
     current = { ...entryPoint };
-    entryPath = curvedPath(entryPoint, arrivalPointOnScreen(), entryBend);
+    const entryTarget = timelineStyle && tourTargets[tourTargetIndex]
+      ? targetPointOnScreen(tourTargets[tourTargetIndex])
+      : arrivalPointOnScreen();
+    entryPath = curvedPath(entryPoint, entryTarget, entryBend);
     portal.setForeground(false);
     portal.setEntryMask(true);
     ship.setDepthTest(true);
@@ -736,7 +778,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     ship.setDepthTest(false);
     portal.group.visible = false;
     ship.group.visible = false;
-    timeVortex.visible = false;
+    timeVortex.group.visible = false;
     arrivalStarId = null;
     arrivalWorldPoint = null;
     entryPath = null;
@@ -755,7 +797,10 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
       const closing = 1 - smooth((elapsed - 0.95) / 0.36);
       portal.show(opening * closing, time);
       const emergence = clamp01((elapsed - 0.22) / 0.82);
-      entryPath = curvedPath(entryPoint, arrivalPointOnScreen(), entryBend);
+      const entryTarget = timelineStyle && tourTargets[tourTargetIndex]
+        ? targetPointOnScreen(tourTargets[tourTargetIndex])
+        : arrivalPointOnScreen();
+      entryPath = curvedPath(entryPoint, entryTarget, entryBend);
       if (emergence > 0) {
         setShipAlongTravel(entryPath, emergence, DEPTH + (1 - emergence) * 2.5 - emergence * 3);
         updateTrails(current, delta);
@@ -788,19 +833,30 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
       if (elapsed >= 1.48) {
         portal.show(0, time);
         ship.group.visible = false;
-        timeVortex.visible = false;
+        timeVortex.group.visible = false;
         for (const trail of trails) trail.line.visible = false;
+        if (timelineStyle && !exitRequested) {
+          start({ timeline: true });
+          return false;
+        }
         phase = "idle";
         return true;
       }
     }
-    if (timelineStyle && ship.group.visible && (phase === "entry" || phase === "transit" || phase === "exit")) {
-      timeVortex.visible = true;
-      timeVortex.position.copy(ship.group.position);
-      timeVortex.rotation.z = time * (phase === "exit" ? -1.5 : 1.1);
-      const pulse = .92 + Math.sin(time * 12) * .06;
-      timeVortex.scale.setScalar(pulse);
-    } else timeVortex.visible = false;
+    if (timelineStyle && ship.group.visible) {
+      timeVortex.group.visible = true;
+      timeVortex.group.position.copy(ship.group.position);
+      const clockSpeed = phase === "hold" ? .42 : phase === "exit" ? -1.65 : 1.25;
+      timeVortex.group.rotation.z = time * clockSpeed;
+      const pulse = .94 + Math.sin(time * (phase === "hold" ? 9 : 16)) * .075;
+      timeVortex.group.scale.setScalar(pulse);
+      timeVortex.hourHand.rotation.z = -time * .12;
+      timeVortex.minuteHand.rotation.z = time * .8;
+      timeVortex.secondHand.rotation.z = -time * 5.2;
+      for (const [index, ring] of timeVortex.rings.entries()) {
+        ring.material.opacity = (index === 1 ? .88 : index === 3 ? .7 : .52) * (.86 + Math.sin(time * (5 + index * 1.7) + index) * .14);
+      }
+    } else timeVortex.group.visible = false;
     return false;
   }
 

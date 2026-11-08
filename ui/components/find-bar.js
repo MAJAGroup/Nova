@@ -12,11 +12,14 @@ export function createFindBar({ browser, tabs }) {
     if (!term.trim()) { void browser.stopFind(); return; }
     void browser.findPage(term, options);
   }
-  function open() {
+  function open(query) {
     bar.hidden = false;
+    if (query !== undefined && query !== null) {
+      input.value = String(query);
+      update(input.value, { findNext: true });
+    } else if (input.value.trim()) update(input.value, { findNext: true });
     input.focus();
     input.select();
-    if (input.value.trim()) update(input.value, { findNext: true });
   }
   function close({ restoreFocus = true } = {}) {
     if (bar.hidden) return;
