@@ -70,7 +70,7 @@
 .star-label.star-born{opacity:0;pointer-events:none}
 .star-label-pill{position:absolute;left:0;top:0;transform:scale(var(--label-scale));transform-origin:0 0;height:24px;display:flex;align-items:center;gap:0;padding:3px;border:1px solid transparent;border-radius:999px;background:rgba(8,13,28,0);color:#fff;font-size:11px;white-space:nowrap;transition:background .22s ease,border-color .22s ease,gap .22s ease,padding .22s ease,box-shadow .22s ease}
 .star-label-mark{width:18px;height:18px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#1b2547;color:#d6e0ff;font-size:9px;font-weight:700;box-shadow:0 0 0 1px color-mix(in srgb,var(--star-color,#8fe8ff) 70%,transparent),0 0 12px 2px color-mix(in srgb,var(--star-color,#8fe8ff) 55%,transparent);transition:transform .22s ease}
-.star-label-mark img{width:13px;height:13px;object-fit:contain}
+.star-label-mark img{width:13px;height:13px;object-fit:contain;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .star-label-title{display:block;max-width:0;overflow:hidden;text-overflow:ellipsis;opacity:0;transform:translateX(-6px);transition:max-width .28s cubic-bezier(.2,.8,.2,1),opacity .2s ease,transform .28s cubic-bezier(.2,.8,.2,1)}
 .star-label.hovered,.star-label:focus-visible{z-index:1000!important}
 .star-label.hovered .star-label-pill,.star-label:focus-visible .star-label-pill{gap:7px;padding-right:11px;border-color:color-mix(in srgb,var(--star-color,#8fe8ff) 55%,transparent);background:rgba(10,16,34,.92);box-shadow:0 6px 20px #0008}
