@@ -7,6 +7,16 @@
 .address-bar:focus-within{border-color:#5e75dc;box-shadow:0 0 0 3px #6d87ff16}
 .address-bar input{background:transparent;border:0;outline:0;color:#e8edff;font-size:12px;flex:1;min-width:0}
 .address-bar input::placeholder{color:#73809e}
+.address-bar input:not(:focus){text-overflow:ellipsis}
+.connection-status{display:flex;align-items:center;gap:5px;flex:none;margin-right:7px;color:#8b9bb9;cursor:help}
+.connection-status svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.connection-status .connection-lock,.connection-label{display:none}
+.connection-status[data-state="secure"]{color:#8dd9c4}
+.connection-status[data-state="secure"] .connection-lock{display:block}
+.connection-status[data-state="secure"] .connection-info{display:none}
+.connection-status[data-state="insecure"],.connection-status[data-state="error"]{color:#e5b483}
+.connection-status[data-state="insecure"] .connection-label,.connection-status[data-state="error"] .connection-label{display:inline;font-size:10px;white-space:nowrap}
+.connection-status[data-state="checking"]{opacity:.65}
 .toolbar-actions{grid-column:3;justify-self:end;display:flex;align-items:center;gap:5px}
 #new-tab{font-size:17px}
 .history-toggle svg{width:19px;height:19px}

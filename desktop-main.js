@@ -18,6 +18,7 @@ const { createTabGroups } = require("./tab-groups");
 const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
 const { HistoryStore } = require("./history-store");
+const { trackConnectionSecurity } = require("./connection-security");
 if (process.env.ORBIT_USER_DATA) app.setPath("userData", process.env.ORBIT_USER_DATA);
 let visitHistory;
 
@@ -71,6 +72,7 @@ function tabSnapshot(tab) {
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
     currentVisit: tab.currentVisit,
+    connection: tab.connection?.snapshot(tab.url),
     groupId: tab.groupId || null
   };
 }
@@ -275,13 +277,16 @@ function createTab(url, { groupId = null, openerVisit = null } = {}) {
     groupId: groupId && groups.get(groupId) ? String(groupId) : null
   };
   visitHistory.attach(tab, openerVisit);
+  tab.connection = trackConnectionSecurity(view.webContents, sendTabs, {
+    verificationDisabled: app.commandLine.hasSwitch("ignore-certificate-errors") || app.commandLine.hasSwitch("ignore-certificate-errors-spki-list")
+  });
   tabs.set(id, tab);
   mainWindow.contentView.addChildView(view);
   view.setVisible(false);
   view.setBounds(hiddenBounds);
   attachWebContentsHandlers(tab);
   setActiveTab(id);
-  view.webContents.loadURL(normalizeDestination(url));
+  view.webContents.loadURL(normalizeDestination(url)).catch(() => {});
   return id;
 }
 
@@ -579,7 +584,7 @@ function registerIPC() {
     if (!activeTabId || !tabs.has(activeTabId)) return createTab(input);
     const target = normalizeDestination(input);
     tabs.get(activeTabId).freshNavigation = true;
-    tabs.get(activeTabId).view.webContents.loadURL(target);
+    tabs.get(activeTabId).view.webContents.loadURL(target).catch(() => {});
     return target;
   });
   ipcMain.handle("browser:back", () => {

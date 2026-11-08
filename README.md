@@ -42,6 +42,8 @@ ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to brin
 ## Use the browser
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
+- **Read or edit an address:** While browsing, HTTPS addresses omit `https://`, a leading `www.`, and an empty trailing slash. Other subdomains, ports, paths, query parameters and fragments remain visible. HTTP keeps its scheme and a **Not secure** indicator. Click the address bar or press Ctrl+L / Command+L to reveal and select the full address for editing or copying; Escape restores the current page address. Trimming changes only the display.
+- **Check connection security:** A lock appears only when Chromium reports a secure main-page HTTPS response with a currently valid certificate. Hover over it for the issuing authority and expiry. Navigation clears the previous lock; certificate failures and loaded insecure content never receive a lock. If verification is unavailable, ORBIT shows a neutral information icon. Electron continues to reject invalid certificates by default.
 - **Switch tabs:** Use the tab strip next to the address bar.
 - **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to orbit, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page. Zoomed out, the cosmos shows constellation names; zoom in or select a constellation's name to see its tab titles. Double-click empty space to see everything again.
 - **Group tabs into constellations:** Each group of tabs becomes its own constellation, with its stars joined by lines. To make one:
@@ -69,6 +71,8 @@ Select a star or a sidebar row to inspect the page title, full address, date/tim
 Each star uses the page’s favicon as its nucleus, with a domain initial when no icon is available. Favicons are retained with visit metadata. History records top-level HTTP(S) visits and preserves navigation branches and closed-tab trails across restarts. It retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The scene shows the latest 300 matching visits; use a date filter or search to reach older entries. Back/forward returns to existing visit nodes; new navigation keeps the earlier branch. Reopening a historical page loads its current contents rather than an archived copy. Browsing from before recording was introduced cannot be reconstructed.
 
 **Clear history…** asks for confirmation and deletes saved visit metadata without closing current tabs or clearing website cookies. Website titles and addresses are displayed as text. History is not sent to the assistant's model.
+
+Run `npm run test:address` (with OpenSSL installed) to check address display and connection states using local HTTP/TLS fixtures, a disposable profile, and a temporary certificate authority trusted only by the test session.
 
 Run `npm run test:history` to verify date layout and actual desktop navigation with temporary profiles and local fixture pages. Tests save a preview to `artifacts/navigation-history-atlas.png`.
 
@@ -251,6 +255,7 @@ This creates a distributable for the current platform. The project is configured
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
 - tab-groups.js — tab group (constellation) names and colours, used by the main process.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
+- connection-security.js — Chromium main-frame connection metadata, certificate validity, navigation resets, and insecure-content tracking.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
 - ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
 - ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.

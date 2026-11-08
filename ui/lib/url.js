@@ -1,5 +1,18 @@
 export const HOME_URL = "https://www.google.com";
 
+// Display-only elision. Preserve paths, queries, fragments, ports and every
+// other subdomain; never rewrite the URL that is loaded, edited or copied.
+export function simplifyAddress(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return value || "";
+    const scheme = url.protocol === "http:" ? "http://" : "";
+    const host = url.host.replace(/^www\./i, "");
+    const path = url.pathname === "/" && !url.search && !url.hash ? "" : url.pathname;
+    return scheme + host + path + url.search + url.hash;
+  } catch { return value || ""; }
+}
+
 export function domainOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_) { return "New tab"; }
 }

@@ -8,7 +8,8 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
-    "test:history": "node --test tests/history*.test.cjs"
+    "test:history": "node --test tests/history*.test.cjs",
+    "test:address": "node --test tests/address*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -26,6 +27,7 @@
       "ui/**/*",
       "README.md",
       "history-store.js",
+      "connection-security.js",
       {
         "from": "node_modules/three/examples/jsm",
         "to": "node_modules/three/examples/jsm",

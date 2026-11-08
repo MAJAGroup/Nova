@@ -1,5 +1,5 @@
 import { el } from "../lib/dom.js";
-import { normalizeAddress } from "../lib/url.js";
+import { normalizeAddress, simplifyAddress } from "../lib/url.js";
 
 // Back / forward / reload, the address bar and the new-tab button.
 export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
@@ -7,16 +7,31 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
   const cosmosToggle = el("cosmos-toggle");
   const cosmosTab = el("cosmos-tab");
 
-  function showActiveUrl() {
-    const active = tabs.activeTab();
-    omnibox.value = active ? active.url || "" : "";
+  const connection = el("connection-status");
+  let shownTabId = null;
+  function activeUrl() { return tabs.activeTab()?.url || ""; }
+  function showActiveUrl(editing = false) {
+    omnibox.value = editing ? activeUrl() : simplifyAddress(activeUrl());
+    omnibox.title = activeUrl();
+  }
+  function showConnection() {
+    const editing = document.activeElement === omnibox && omnibox.value !== activeUrl();
+    const status = editing ? { state: "unknown", message: "Editing address — connection information applies to the current page" }
+      : tabs.activeTab()?.connection || { state: "unknown", message: "Connection security has not been verified" };
+    connection.dataset.state = status.state;
+    connection.title = status.message;
+    connection.setAttribute("aria-label", status.message);
   }
 
   tabs.subscribe(() => {
     const active = tabs.activeTab();
     el("go-back").disabled = !active || !active.canGoBack;
     el("go-forward").disabled = !active || !active.canGoForward;
+    const switched = shownTabId !== tabs.activeId;
+    shownTabId = tabs.activeId;
     if (document.activeElement !== omnibox) showActiveUrl();
+    else if (switched) { showActiveUrl(true); omnibox.select(); }
+    showConnection();
   });
 
   omnibox.addEventListener("keydown", (event) => {
@@ -32,11 +47,14 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
       omnibox.blur();
     }
   });
-  omnibox.addEventListener("focus", () => omnibox.select());
-  omnibox.addEventListener("click", () => omnibox.select());
-  omnibox.addEventListener("blur", () => {
-    if (!omnibox.value.trim()) showActiveUrl();
+  omnibox.addEventListener("focus", () => { showActiveUrl(true); omnibox.select(); showConnection(); });
+  omnibox.addEventListener("pointerdown", event => {
+    if (event.button === 0 && document.activeElement !== omnibox) {
+      event.preventDefault(); omnibox.focus(); omnibox.select();
+    }
   });
+  omnibox.addEventListener("input", showConnection);
+  omnibox.addEventListener("blur", () => { showActiveUrl(); showConnection(); });
 
   el("go-back").addEventListener("click", () => browser.goBack());
   el("go-forward").addEventListener("click", () => browser.goForward());
