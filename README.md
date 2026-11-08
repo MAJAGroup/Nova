@@ -242,6 +242,12 @@ This creates an unpacked application build for the current platform.
 
     npm run dist
 
+To build and launch the Linux AppImage in one step:
+
+    npm run build:run:appimage
+
+The script reads the version from `package.json`, builds the AppImage in `dist/`, and launches it with extraction mode so FUSE is optional. Dependencies must already be installed with `npm install`.
+
 This creates a distributable for the current platform. The project is configured for macOS, Windows (NSIS), and Linux (AppImage). Build each platform’s installer on that operating system. Code signing and notarization are not configured in this prototype.
 
 ## Troubleshooting

@@ -25,7 +25,7 @@ test('native history constellation: traversal, branches, popup, canvas, persiste
     shell = await app.firstWindow();
     shell.setDefaultTimeout(12000);
     shell.on("pageerror", error => console.error("Shell error:", error.message));
-    await until(() => shell.evaluate(() => Boolean(window.orbitBrowser && document.getElementById('history-toggle')?.onclick)));
+    await until(() => shell.evaluate(() => document.documentElement.dataset.orbitReady === 'true'));
     await until(() => shell.evaluate(() => window.orbitBrowser.getHistory().then(nodes => nodes.some(n => n.title === 'A · Journey'))));
   };
   const history = () => shell.evaluate(() => window.orbitBrowser.getHistory());
@@ -38,6 +38,13 @@ test('native history constellation: traversal, branches, popup, canvas, persiste
   };
   try {
     await launch(); await waitPage('A');
+    assert.equal(await shell.locator('.tab-row #cosmos-tab').count(), 1);
+    assert.equal(await shell.locator('#cosmos-stage').count(), 1);
+    assert.equal(await shell.locator('#cosmos-tab-list').count(), 1);
+    await shell.locator('#assistant-reopen').click();
+    assert.equal(await shell.locator('#assistant').evaluate(n => n.classList.contains('expanded')), true);
+    await shell.locator('#assistant-minimize').click();
+    assert.equal(await shell.locator('#assistant').evaluate(n => n.classList.contains('expanded')), false);
     const a = (await history())[0];
     await nativeClick({ from: 'A', label: 'To B' }); await waitPage('B');
     const b = (await history()).find(n => n.title === 'B · Journey'); assert.equal(b.parent, a.id);
@@ -55,6 +62,11 @@ test('native history constellation: traversal, branches, popup, canvas, persiste
     await shell.evaluate(() => window.orbitBrowser.getTabs().then(p => window.orbitBrowser.closeTab(p.activeId))); await waitPage('C');
     assert.equal((await history()).length, 4); assert.equal((await history()).find(n => n.id === d.id).liveTabId, null);
     await shell.locator('#history-toggle').click();
+    await shell.locator('#assistant-reopen').click();
+    const historyBox = await shell.locator('#history').boundingBox();
+    const assistantBox = await shell.locator('.assistant-panel').boundingBox();
+    assert.ok(historyBox.x + historyBox.width <= assistantBox.x + 1);
+    await shell.locator('#assistant-minimize').click();
     await shell.locator('[data-history="fit"]').click();
     assert.equal(await shell.locator('.history-star').count(), 4);
     assert.equal(await shell.locator('.history-edges > path').count(), 3);
@@ -94,10 +106,18 @@ test('native history constellation: traversal, branches, popup, canvas, persiste
     await until(() => shell.evaluate(() => window.orbitBrowser.getHistory().then(n => n.length === 0)));
     assert.equal(await shell.locator('.history-star').count(), 0);
     await shell.locator('[data-history="close"]').click();
-    await shell.locator('#cosmos-toggle').click();
+    await shell.locator('#cosmos-tab').click();
     assert.equal(await shell.locator('#cosmos').isVisible(), true);
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await shell.locator('.star-label').first().waitFor({ state: 'attached' });
+    assert.ok(await shell.locator('#cosmos-tab-list button').count() > 0);
+    await shell.locator('#history-toggle').click();
+    assert.equal(await shell.locator('#cosmos').isVisible(), false);
+    assert.equal(await shell.locator('#history').isVisible(), true);
+    await shell.locator('#cosmos-tab').click();
+    assert.equal(await shell.locator('#history').isVisible(), false);
+    assert.equal(await shell.locator('#cosmos').isVisible(), true);
+    await shell.screenshot({ path: 'artifacts/jimin-cosmos-restored.png', timeout: 5000 });
   } catch (error) {
     if (shell && !shell.isClosed()) {
       console.error('History at failure:', await history());

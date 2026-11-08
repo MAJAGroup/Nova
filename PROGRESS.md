@@ -19,3 +19,11 @@
 
 
 - Packaged AppImage end-to-end verification also passed (33.2 seconds), including its bundled 3D cosmos. The completed app is `dist/ORBIT-0.3.0.AppImage`.
+
+## Restore Jimin's workspace and integrate History (0.3.1)
+
+The previous merge retained old markup and startup wiring while newer components expected Jimin's UI. Restored the layout from `d1d2adb` (newjimin, “Polish browser workspace UI and orbit view”), then added History to that layout. Preserved the tab row, Orbit view button, Star Atlas sidebar, docked assistant, current styles and component code. History reserves space for the expanded assistant.
+
+Replaced the obsolete test readiness check (`onclick`) with an explicit completed-initialization marker. Expanded desktop checks to exercise the restored UI, assistant expansion/minimization, History/Orbit switching, and the assistant beside History. Added `npm run build:run:appimage` and its executable script. Version 0.3.1 distinguishes this corrected build from earlier artifacts.
+
+Final 0.3.1 verification: all 4 history unit tests passed; the expanded desktop test passed against source (39.1s) and the actual AppImage (41.2s). Screenshots of restored Jimin Orbit view and integrated History were visually inspected. `git diff --check` passed. Artifact: `dist/ORBIT-0.3.1.AppImage`. An older 0.3.0 instance was still open on the user's regular profile; the tests used temporary profiles and left that window intact.

@@ -1,5 +1,5 @@
 /* History is a separate visit canvas; the live 3D tab cosmos remains unchanged. */
-.history{position:absolute;inset:0;z-index:3;background:#050913;color:#dce6f5;display:flex;flex-direction:column;overflow:hidden}
+.history{position:absolute;inset:0;right:var(--assistant-width,0px);z-index:3;background:#050913;color:#dce6f5;display:flex;flex-direction:column;overflow:hidden}
 .history[hidden],.history [hidden]{display:none!important}
 .history button{border:1px solid #35415a;background:#121c30;border-radius:8px;padding:8px 11px;color:#c5d4e9;font-size:12px}
 .history button:hover{border-color:#80bfe3;background:#1a2941}

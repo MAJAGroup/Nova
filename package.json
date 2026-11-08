@@ -1,6 +1,6 @@
 {
   "name": "orbit-spatial-browser",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "A Chromium desktop browser with a built-in AI assistant.",
   "main": "desktop-main.js",
@@ -8,6 +8,7 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
+    "build:run:appimage": "bash scripts/build-and-run-appimage.sh",
     "test": "node --test tests/history.test.cjs",
     "test:desktop": "node --test tests/history-desktop.test.cjs"
   },

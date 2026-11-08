@@ -6,7 +6,6 @@ import { createBrowserView } from "./components/browser-view.js";
 import { createSettingsModal } from "./components/settings-modal.js";
 import { createAssistantPanel } from "./components/assistant/assistant-panel.js";
 import { createCosmosView } from "./components/cosmos/cosmos-view.js";
-
 import { createHistoryView } from "./components/history/history-view.js";
 
 const browser = window.orbitBrowser;
@@ -37,18 +36,14 @@ function start() {
     }
   });
 
-  const history = createHistoryView({
-    browser,
-    onVisibilityChange: (open) => {
-      if (open) cosmos.close();
-      browserView.cover("history", open);
-      document.getElementById("history-toggle").setAttribute("aria-pressed", String(open));
-    }
-  });
-  document.getElementById("history-toggle").onclick = () => history.toggle();
+  const history = createHistoryView({ browser, onVisibilityChange: (open) => {
+    if (open) cosmos.close();
+    browserView.cover("history", open);
+    document.getElementById("history-toggle").setAttribute("aria-pressed", String(open));
+  }});
+  document.getElementById("history-toggle").addEventListener("click", () => { cosmos.close(); history.toggle(); });
 
-  // Switching tabs (a star, the tab strip, the assistant, a new tab) brings
-  // the page back.
+  // Switching tabs while a navigation view is open brings the page back.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
@@ -61,14 +56,7 @@ function start() {
     tabs,
     aiConfig,
     onOpenSettings: settings.open,
-    onVisibilityChange: (open) => browserView.cover("assistant", open)
-  });
-  // Like Spotlight, the popup steps away once it has taken you to a tab.
-  let assistantTabId = tabs.activeId;
-  tabs.subscribe(() => {
-    if (tabs.activeId === assistantTabId) return;
-    assistantTabId = tabs.activeId;
-    assistant.close();
+    onVisibilityChange: (open) => browserView.setAssistantOpen(open)
   });
 
   // Commands from the application menu and its shortcuts.
@@ -80,7 +68,7 @@ function start() {
     "assistant": () => { if (!settings.isOpen()) assistant.toggle(); },
     "settings": () => settings.open(),
     "cosmos": () => { history.close(); cosmos.toggle(); },
-    "history": () => history.toggle(),
+    "history": () => { cosmos.close(); history.toggle(); },
     "rename-group": (groupId) => cosmos.renameGroup(groupId)
   };
   browser.onCommand((command, arg) => { if (commands[command]) commands[command](arg); });
@@ -96,6 +84,7 @@ function start() {
       else if (!cosmos.clearSelection()) cosmos.close();
     }
   });
+  document.documentElement.dataset.orbitReady = "true";
 }
 
 if (browser && browser.getTabs) start();
