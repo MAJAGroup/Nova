@@ -175,9 +175,20 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (renderer) flyHome();
   });
 
+  let previousTabIds = null;
+  let previousGroupByTab = null;
   tabs.subscribe(() => {
+    const groupByTab = new Map(tabs.tabs.map(tab => [String(tab.id), String(tab.groupId || "")]));
+    const tabIds = new Set(groupByTab.keys());
+    const tabAdded = previousTabIds !== null && Array.from(tabIds).some(id => !previousTabIds.has(id));
+    const groupFormed = previousGroupByTab !== null && Array.from(groupByTab).some(([id, groupId]) =>
+      groupId && previousGroupByTab.has(id) && previousGroupByTab.get(id) !== groupId
+    );
+    previousTabIds = tabIds;
+    previousGroupByTab = groupByTab;
     renderTabList();
     if (stars) updateSelectionBar();
+    if (isOpen && (tabAdded || groupFormed)) flyHome();
   });
 
   function renderTabList() {
