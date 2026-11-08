@@ -13,7 +13,6 @@
     <link rel="stylesheet" href="styles/settings-modal.css">
     <link rel="stylesheet" href="styles/toast.css">
     <link rel="stylesheet" href="styles/cosmos.css">
-    <link rel="stylesheet" href="styles/history.css">
     <script type="importmap">
       {
         "imports": {
@@ -38,7 +37,6 @@
           </div>
           <div class="toolbar-actions">
             <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
-            <button class="icon-button" id="history-toggle" title="History constellation (Ctrl+H)" aria-label="Show history constellation" aria-pressed="false">◷</button>
             <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
           </div>
         </div>
@@ -52,12 +50,6 @@
             <h2>No page open</h2>
             <p>Enter a web address above to begin.</p>
           </div>
-          <section id="history" class="history" hidden aria-label="History constellation">
-            <header class="history-header"><div><span class="history-eyebrow">✦ HISTORY CONSTELLATION</span><p class="history-count" role="status"></p></div><input type="search" placeholder="Find a page in your journey…" aria-label="Search browsing history"><button data-history="list" aria-pressed="false">List</button><button data-history="clear">Clear history</button><button data-history="close" aria-label="Close history">×</button></header>
-            <div class="history-workspace"><div class="history-viewport" tabindex="0" aria-label="History canvas. Drag to pan, scroll to zoom, F to fit."><div class="history-scene"><svg class="history-edges" aria-hidden="true"></svg><div class="history-nodes" role="group" aria-label="Visited pages"></div></div><p class="history-empty"></p></div><div class="history-list" role="group" aria-label="Visited pages list"></div><aside class="history-inspector" aria-label="Selected visit details"></aside></div>
-            <div class="history-map"><svg class="history-minimap" aria-label="History overview" role="img"></svg></div><footer class="history-footer"><span>Drag to explore · Scroll to zoom · Double-click a star to open<br><i>Solid trail: navigation · Dashed trail: opened in a new tab</i></span><div><button data-history="minus" aria-label="Zoom out">−</button><span class="history-zoom">100%</span><button data-history="plus" aria-label="Zoom in">+</button><button data-history="fit">Fit journey</button></div></footer>
-            <div class="history-clear-confirm" hidden role="alertdialog" aria-modal="true" aria-label="Clear browsing history"><p>Delete all saved visits and constellation trails? Your open tabs stay open.</p><button data-history="cancel-clear">Cancel</button><button data-history="confirm-clear">Delete history</button></div>
-          </section>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
             <aside class="cosmos-sidebar" aria-label="Tab information">
               <div class="cosmos-sidebar-heading"><div><span class="cosmos-title">STAR ATLAS</span><span class="cosmos-sidebar-caption">Your open tabs</span></div><span id="cosmos-count">0 tabs</span></div>

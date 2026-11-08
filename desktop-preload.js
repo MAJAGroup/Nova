@@ -3,14 +3,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("orbitBrowser", {
-  getHistory: () => ipcRenderer.invoke("browser:get-history"),
-  openHistory: (id) => ipcRenderer.invoke("browser:open-history", id),
-  clearHistory: () => ipcRenderer.invoke("browser:clear-history"),
-  onHistoryUpdated: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on("browser:history-updated", listener);
-    return () => ipcRenderer.removeListener("browser:history-updated", listener);
-  },
   getTabs: () => ipcRenderer.invoke("browser:get-tabs"),
   newTab: (url) => ipcRenderer.invoke("browser:new-tab", url),
   activateTab: (id) => ipcRenderer.invoke("browser:activate-tab", id),

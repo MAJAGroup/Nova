@@ -10,13 +10,12 @@ export function createBrowserView({ browser, tabs }) {
   let assistantOpen = false;
 
   function syncBounds() {
-    const assistantWidth = assistantOpen ? Math.min(380, Math.max(300, window.innerWidth * 0.34)) : 0;
-    content.style.setProperty("--assistant-width", assistantWidth + "px");
     if (coveredBy.size) {
       browser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0 });
       return;
     }
     const rect = content.getBoundingClientRect();
+    const assistantWidth = assistantOpen ? Math.min(380, Math.max(300, window.innerWidth * 0.34)) : 0;
     browser.setBrowserBounds({ x: rect.left, y: rect.top, width: Math.max(0, rect.width - assistantWidth), height: rect.height });
   }
 

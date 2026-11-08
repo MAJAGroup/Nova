@@ -17,10 +17,6 @@ const path = require("node:path");
 const { createTabGroups } = require("./tab-groups");
 const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
-const { HistoryStore } = require("./history-store");
-if (process.env.ORBIT_USER_DATA) app.setPath("userData", process.env.ORBIT_USER_DATA);
-let visitHistory;
-
 const tabs = new Map();
 const groups = createTabGroups();
 const permissionGrants = new Map();
@@ -70,7 +66,6 @@ function tabSnapshot(tab) {
     lastAccessed: tab.lastAccessed,
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
-    currentVisit: tab.currentVisit,
     groupId: tab.groupId || null
   };
 }
@@ -87,7 +82,6 @@ function tabsPayload() {
 function sendTabs() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send("browser:tabs-updated", tabsPayload());
-  mainWindow.webContents.send("browser:history-updated", visitHistory.snapshot(tabs));
 }
 
 // Puts tabs into a group: an existing one (groupId) or a new one (optional
@@ -163,13 +157,10 @@ function setActiveTab(id) {
 
 function attachWebContentsHandlers(tab) {
   const contents = tab.view.webContents;
-  const updateUrl = (_event, url, isMainFrame = true) => {
-    if (isMainFrame === false) return;
+  const updateUrl = (_event, url) => {
     tab.url = url || contents.getURL();
     tab.title = contents.getTitle() || tab.title;
     tab.loading = contents.isLoading();
-    visitHistory.commit(tab, { url: tab.url, title: tab.title, index: contents.navigationHistory.getActiveIndex(), fresh: tab.freshNavigation });
-    tab.freshNavigation = false;
     sendTabs();
   };
 
@@ -181,14 +172,12 @@ function attachWebContentsHandlers(tab) {
     tab.loading = false;
     tab.url = contents.getURL();
     tab.title = contents.getTitle() || tab.title;
-    visitHistory.title(tab, tab.title);
     sendTabs();
   });
-  contents.on("did-navigate", (event, url) => updateUrl(event, url));
+  contents.on("did-navigate", updateUrl);
   contents.on("did-navigate-in-page", updateUrl);
   contents.on("page-title-updated", (_event, title) => {
     tab.title = title || tab.title;
-    visitHistory.title(tab, tab.title);
     sendTabs();
   });
   contents.on("page-favicon-updated", (_event, favicons) => {
@@ -204,7 +193,7 @@ function attachWebContentsHandlers(tab) {
     }
   });
   contents.on("will-navigate", (event, url) => {
-    if (isWebUrl(url)) { tab.freshNavigation = true; return; }
+    if (isWebUrl(url)) return;
     event.preventDefault();
     if (/^mailto:/i.test(url)) shell.openExternal(url);
   });
@@ -213,7 +202,7 @@ function attachWebContentsHandlers(tab) {
   });
   contents.setWindowOpenHandler(({ url }) => {
     // Links opened from a grouped tab join its group.
-    if (isWebUrl(url)) createTab(url, { groupId: tab.groupId, openerVisit: tab.currentVisit });
+    if (isWebUrl(url)) createTab(url, { groupId: tab.groupId });
     else if (/^mailto:/i.test(url)) shell.openExternal(url);
     return { action: "deny" };
   });
@@ -247,7 +236,7 @@ function attachWebContentsHandlers(tab) {
   });
 }
 
-function createTab(url, { groupId = null, openerVisit = null } = {}) {
+function createTab(url, { groupId = null } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
   const id = String(nextTabId++);
   const view = new WebContentsView({
@@ -269,7 +258,6 @@ function createTab(url, { groupId = null, openerVisit = null } = {}) {
     lastAccessed: Date.now(),
     groupId: groupId && groups.get(groupId) ? String(groupId) : null
   };
-  visitHistory.attach(tab, openerVisit);
   tabs.set(id, tab);
   mainWindow.contentView.addChildView(view);
   view.setVisible(false);
@@ -284,7 +272,6 @@ function closeTab(id) {
   const tab = tabs.get(String(id));
   if (!tab) return false;
   if (tabs.size === 1) {
-    visitHistory.attach(tab);
     tab.view.webContents.navigationHistory.clear();
     tab.view.webContents.loadURL("https://www.google.com").catch(() => {});
     tab.title = "Loading…";
@@ -473,7 +460,6 @@ function createApplicationMenu() {
       submenu: [
         { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
         { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
-        { label: "History constellation", accelerator: "CommandOrControl+H", click: () => sendCommand("history", { focusUI: true }) },
         { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
         { label: "Ask Orbit", accelerator: "Control+Space", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
@@ -494,7 +480,6 @@ function createWindow() {
   const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.75)));
   const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.75)));
   const win = new BrowserWindow({
-    show: process.env.ORBIT_TEST_HIDDEN !== "1",
     width,
     height,
     minWidth,
@@ -506,7 +491,6 @@ function createWindow() {
     title: "ORBIT",
     webPreferences: {
       preload: path.join(__dirname, "desktop-preload.js"),
-      backgroundThrottling: process.env.ORBIT_TEST_HIDDEN !== "1",
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -522,7 +506,7 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
-    if (mainWindow === win && tabs.size === 0) createTab(process.env.ORBIT_START_URL || "https://www.google.com");
+    if (mainWindow === win && tabs.size === 0) createTab("https://www.google.com");
   });
   win.on("closed", () => {
     if (mainWindow === win) {
@@ -538,22 +522,6 @@ function createWindow() {
 }
 
 function registerIPC() {
-  const fromShell = event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
-  ipcMain.handle("browser:get-history", event => fromShell(event) ? visitHistory.snapshot(tabs) : []);
-  ipcMain.handle("browser:open-history", (event, id) => {
-    if (!fromShell(event)) return false;
-    const node = visitHistory.nodes.find(n => n.id === id);
-    if (!node) return false;
-    const live = Array.from(tabs.values()).find(t => t.currentVisit === id);
-    if (live) return setActiveTab(live.id);
-    return createTab(node.url, { openerVisit: node.id });
-  });
-  ipcMain.handle("browser:clear-history", event => {
-    if (!fromShell(event)) return false;
-    visitHistory.clear(tabs);
-    sendTabs();
-    return true;
-  });
   ipcMain.handle("browser:get-tabs", () => tabsPayload());
   ipcMain.handle("browser:group-tabs", (_event, tabIds, options) => groupTabs(tabIds, {
     groupId: options && options.groupId,
@@ -573,7 +541,6 @@ function registerIPC() {
   ipcMain.handle("browser:navigate", (_event, input) => {
     if (!activeTabId || !tabs.has(activeTabId)) return createTab(input);
     const target = normalizeDestination(input);
-    tabs.get(activeTabId).freshNavigation = true;
     tabs.get(activeTabId).view.webContents.loadURL(target);
     return target;
   });
@@ -761,13 +728,6 @@ function applyGroupingPlan(plan, ordered) {
 }
 
 app.whenReady().then(() => {
-  try { visitHistory = new HistoryStore(path.join(app.getPath("userData"), "orbit-history.json")); }
-  catch (error) {
-    // Preserve an unreadable file instead of overwriting the user's history.
-    console.error("History could not be loaded:", error.message);
-    visitHistory = new HistoryStore(null);
-    dialog.showErrorBox("History unavailable", "Your existing history file could not be read. It has been left untouched; new history will only last for this session.");
-  }
   installPermissionPrompts();
   registerIPC();
   createApplicationMenu();
@@ -782,7 +742,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  visitHistory?.flush();
   for (const tab of tabs.values()) {
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
   }

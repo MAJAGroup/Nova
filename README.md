@@ -58,30 +58,6 @@ ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to brin
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
-## Explore your history as a constellation
-
-Select **◷** in the toolbar, or press **Ctrl+H / Command+H**, to open History. Inspired by the connected exploration canvas at [WikiBoard](https://wikiboard.org/) and [r/WikiBoard](https://www.reddit.com/r/WikiBoard/), this is a separate view from the existing 3D tab cosmos.
-
-Every star represents a recorded page visit. A solid arrow follows navigation in a tab; a dashed arrow connects a page to a new tab opened from it. Back/forward returns to the original visit, while navigating somewhere new keeps the earlier branch. Repeated visits to an address remain distinct. Closed tabs leave their trails behind.
-
-- Select a star to inspect its address, visit time, previous page, and onward branches. The route to that star lights up.
-- Double-click a star, or press Enter on it, to open it. Current pages return to their existing tab; past visits reopen in a new tab connected to the original star.
-- Drag empty space to pan; drag a star to arrange it. Scroll or use **+ / −** to zoom. **F / Fit journey** fits the visible graph. Click the minimap to jump to an area.
-- Search titles and addresses. Matching visits retain their ancestor paths for context. Collapse/expand branches in the inspector.
-- Use **List** for a conventional keyboard-accessible view. Tab moves between controls and stars; Left/Right on a star follows its parent/first child. Arrow keys on the canvas pan it. Esc closes History.
-- Layout positions and camera state are saved locally. Reduced-motion preferences disable star pulsing.
-
-The latest **3,000 visits** are retained in `orbit-history.json` in Electron's user-data directory, using atomic writes and private file permissions. History survives app restarts; open tab/session recovery is unchanged. **Clear history** deletes this visit log and its saved layout after confirmation, without deleting website cookies or closing tabs. This records titles, URLs, timestamps, and navigation relationships, not archived page contents: reopening loads the current website. Older browsing performed before this feature was installed cannot be reconstructed. Very long journeys are easier to navigate using search, collapsed branches, and List.
-
-### Verify the history feature
-
-```sh
-npm test
-npm run test:desktop
-```
-
-The desktop test uses a temporary profile and a local fixture server. It exercises real Chromium navigation, branching, popup links, history retention, canvas interactions, reopening pages, restart persistence, clearing, and the existing tab cosmos. A screenshot is written to `artifacts/history-constellation.png`. The fixture window is briefly shown to capture the rendered UI; your regular browsing profile is not used.
-
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 
 This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the ORBIT desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using ORBIT.
@@ -242,12 +218,6 @@ This creates an unpacked application build for the current platform.
 
     npm run dist
 
-To build and launch the Linux AppImage in one step:
-
-    npm run build:run:appimage
-
-The script reads the version from `package.json`, builds the AppImage in `dist/`, and launches it with extraction mode so FUSE is optional. Dependencies must already be installed with `npm install`.
-
 This creates a distributable for the current platform. The project is configured for macOS, Windows (NSIS), and Linux (AppImage). Build each platform’s installer on that operating system. Code signing and notarization are not configured in this prototype.
 
 ## Troubleshooting
@@ -266,8 +236,6 @@ This creates a distributable for the current platform. The project is configured
 
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
 - tab-groups.js — tab group (constellation) names and colours, used by the main process.
-- history-store.js — persistent visit graph and native history-slot tracking.
-- ui/components/history/ — constellation layout, navigation and inspector.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
 - ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.

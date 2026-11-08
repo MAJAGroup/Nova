@@ -6,7 +6,6 @@ import { createBrowserView } from "./components/browser-view.js";
 import { createSettingsModal } from "./components/settings-modal.js";
 import { createAssistantPanel } from "./components/assistant/assistant-panel.js";
 import { createCosmosView } from "./components/cosmos/cosmos-view.js";
-import { createHistoryView } from "./components/history/history-view.js";
 
 const browser = window.orbitBrowser;
 
@@ -17,8 +16,8 @@ function start() {
   const toolbar = createToolbar({
     browser,
     tabs,
-    onNavigate: () => { cosmos.close(); history.close(); },
-    onToggleCosmos: () => { history.close(); cosmos.toggle(); }
+    onNavigate: () => cosmos.close(),
+    onToggleCosmos: () => cosmos.toggle()
   });
   createTabStrip({ browser, tabs });
   const browserView = createBrowserView({ browser, tabs });
@@ -36,20 +35,12 @@ function start() {
     }
   });
 
-  const history = createHistoryView({ browser, onVisibilityChange: (open) => {
-    if (open) cosmos.close();
-    browserView.cover("history", open);
-    document.getElementById("history-toggle").setAttribute("aria-pressed", String(open));
-  }});
-  document.getElementById("history-toggle").addEventListener("click", () => { cosmos.close(); history.toggle(); });
-
-  // Switching tabs while a navigation view is open brings the page back.
+  // Switching tabs while the cosmos is open brings the page back.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
     shownTabId = tabs.activeId;
     cosmos.close();
-    history.close();
   });
   const assistant = createAssistantPanel({
     browser,
@@ -67,8 +58,7 @@ function start() {
     "reload": () => browser.reload(),
     "assistant": () => { if (!settings.isOpen()) assistant.toggle(); },
     "settings": () => settings.open(),
-    "cosmos": () => { history.close(); cosmos.toggle(); },
-    "history": () => { cosmos.close(); history.toggle(); },
+    "cosmos": () => cosmos.toggle(),
     "rename-group": (groupId) => cosmos.renameGroup(groupId)
   };
   browser.onCommand((command, arg) => { if (commands[command]) commands[command](arg); });
@@ -80,11 +70,9 @@ function start() {
     if (event.key === "Escape") {
       if (settings.isOpen()) settings.close();
       else if (assistant.isOpen()) assistant.close();
-      else if (history.isOpen()) history.close();
       else if (!cosmos.clearSelection()) cosmos.close();
     }
   });
-  document.documentElement.dataset.orbitReady = "true";
 }
 
 if (browser && browser.getTabs) start();

@@ -2,8 +2,3 @@ node_modules/
 dist/
 release/
 .DS_Store
-
-# Local build, screenshots and retained development data
-.desktop-build/
-artifacts/
-data/
