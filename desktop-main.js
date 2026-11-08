@@ -31,9 +31,11 @@ const groups = createTabGroups();
 const permissionGrants = new Map();
 const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
 let mainWindow = null;
+let assistantHandleView = null;
 let activeTabId = null;
 let nextTabId = 1;
 let browserBounds = { ...hiddenBounds };
+let assistantExpanded = false;
 let settingsCache = null;
 
 function normalizeDestination(input) {
@@ -156,6 +158,21 @@ function updateWebViewVisibility() {
       tab.id === activeTabId;
     tab.view.setVisible(isVisible);
     tab.view.setBounds(isVisible ? browserBounds : hiddenBounds);
+  }
+
+  if (assistantHandleView && mainWindow && !mainWindow.isDestroyed()) {
+    const shouldShow = browserBounds.width > 0 &&
+      browserBounds.height > 0 &&
+      !assistantExpanded &&
+      Boolean(activeTabId && tabs.has(activeTabId));
+    assistantHandleView.setBounds(shouldShow ? {
+      x: browserBounds.x + browserBounds.width - 44,
+      y: browserBounds.y + Math.round((browserBounds.height - 70) / 2),
+      width: 44,
+      height: 70
+    } : hiddenBounds);
+    assistantHandleView.setVisible(shouldShow);
+    if (shouldShow) mainWindow.contentView.addChildView(assistantHandleView);
   }
 }
 
@@ -532,6 +549,25 @@ function createWindow() {
   });
   mainWindow = win;
   browserBounds = { ...hiddenBounds };
+  assistantExpanded = false;
+  assistantHandleView = new WebContentsView({
+    webPreferences: {
+      preload: path.join(__dirname, "assistant-handle-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true
+    }
+  });
+  assistantHandleView.setBackgroundColor("#00000000");
+  assistantHandleView.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  assistantHandleView.webContents.on("will-navigate", (event, url) => {
+    if (url !== pathToFileURL(path.join(__dirname, "ui", "assistant-handle.html")).href) event.preventDefault();
+  });
+  win.contentView.addChildView(assistantHandleView);
+  assistantHandleView.setVisible(false);
+  assistantHandleView.setBounds(hiddenBounds);
+  assistantHandleView.webContents.loadFile(path.join(__dirname, "ui", "assistant-handle.html"));
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("file:")) return;
@@ -549,7 +585,10 @@ function createWindow() {
         if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
       }
       tabs.clear();
+      if (assistantHandleView && !assistantHandleView.webContents.isDestroyed()) assistantHandleView.webContents.close();
+      assistantHandleView = null;
       activeTabId = null;
+      assistantExpanded = false;
     }
   });
 }
@@ -624,6 +663,7 @@ function registerIPC() {
   });
   ipcMain.on("browser:set-bounds", (_event, bounds) => {
     if (!bounds || !mainWindow) return;
+    assistantExpanded = bounds.assistantExpanded === true;
     const width = Math.max(0, Math.min(10000, Number(bounds.width) || 0));
     const height = Math.max(0, Math.min(10000, Number(bounds.height) || 0));
     browserBounds = width > 0 && height > 0
@@ -635,6 +675,11 @@ function registerIPC() {
         }
       : { ...hiddenBounds };
     updateWebViewVisibility();
+  });
+  ipcMain.on("assistant:open-from-handle", event => {
+    if (!assistantHandleView || event.sender !== assistantHandleView.webContents) return;
+    if (browserBounds.width === 0 || browserBounds.height === 0 || assistantExpanded) return;
+    sendCommand("assistant", { focusUI: true });
   });
   ipcMain.handle("ai:get-config", async () => {
     const settings = await readSettings();

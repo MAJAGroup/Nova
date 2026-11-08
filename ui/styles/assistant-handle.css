@@ -1,0 +1,8 @@
+*{box-sizing:border-box}
+html,body{width:44px;height:70px;margin:0;background:transparent;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter Variable",sans-serif}
+button{width:44px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0;border:1px solid #304267;border-right:0;border-radius:10px 0 0 10px;background:linear-gradient(180deg,#192642f2,#0e1729f2);color:#aebce0;font:600 9px -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter Variable",sans-serif;letter-spacing:.7px;box-shadow:0 6px 20px #0007;cursor:pointer;transition:color 140ms ease,border-color 140ms ease,background 140ms ease}
+button:hover{color:#fff;border-color:#5a78ac;background:linear-gradient(180deg,#233658f5,#121f35f5)}
+button:focus-visible{outline:2px solid #c4d3ff;outline-offset:-3px;color:#fff}
+.assistant-orb{color:#8fe8ff;font-size:16px;text-shadow:0 0 12px #65ddeb}
+@media(prefers-reduced-motion:reduce){button{transition:none}}

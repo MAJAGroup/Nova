@@ -2,8 +2,8 @@ import { el } from "../lib/dom.js";
 
 // The area where the web page appears. The page is a native view that the
 // main process draws on top of this document, so we report this element's
-// position to it. Modal and cosmos views hide the page; the assistant reserves
-// a right-hand lane so its handle remains clickable over a live web page.
+// position to it. Modal and cosmos views hide the page; Electron places the
+// assistant handle in a small transparent native view above live web pages.
 export function createBrowserView({ browser, tabs }) {
   const content = el("browser-content");
   const coveredBy = new Set();
@@ -13,11 +13,17 @@ export function createBrowserView({ browser, tabs }) {
     const assistantWidth = assistantOpen ? Math.min(380, Math.max(300, window.innerWidth * 0.34)) : 0;
     content.style.setProperty("--assistant-width", assistantWidth + "px");
     if (coveredBy.size) {
-      browser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0 });
+      browser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0, assistantExpanded: assistantOpen });
       return;
     }
     const rect = content.getBoundingClientRect();
-    browser.setBrowserBounds({ x: rect.left, y: rect.top, width: Math.max(0, rect.width - assistantWidth), height: rect.height });
+    browser.setBrowserBounds({
+      x: rect.left,
+      y: rect.top,
+      width: Math.max(0, rect.width - assistantWidth),
+      height: rect.height,
+      assistantExpanded: assistantOpen
+    });
   }
 
   tabs.subscribe(() => {

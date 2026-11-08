@@ -23,6 +23,7 @@
     "files": [
       "desktop-main.js",
       "desktop-preload.js",
+      "assistant-handle-preload.js",
       "tab-groups.js",
       "ai-grouping.js",
       "ui/**/*",
