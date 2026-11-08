@@ -435,14 +435,44 @@ function makeTrail(root, color, opacity, offset) {
   return { line, geometry, positions, history, timer: 0, offset };
 }
 
+function makeTimeVortex(root) {
+  const group = new THREE.Group();
+  group.visible = false;
+  group.renderOrder = 52;
+  for (const [index, radius] of [0.76, 1.02, 1.3].entries()) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, index === 1 ? .014 : .009, 6, 72), new THREE.MeshBasicMaterial({
+      color: index === 1 ? 0x9cf4ff : index === 0 ? 0x71d7ff : 0xa98cff,
+      transparent: true, opacity: index === 1 ? .72 : .42, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    ring.renderOrder = 52 + index;
+    group.add(ring);
+  }
+  const ticks = [];
+  for (let index = 0; index < 48; index++) {
+    const angle = index / 48 * Math.PI * 2;
+    const inner = index % 4 === 0 ? 1.13 : 1.19;
+    const outer = 1.36;
+    ticks.push(Math.cos(angle) * inner, Math.sin(angle) * inner, .01,
+      Math.cos(angle) * outer, Math.sin(angle) * outer, .01);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(ticks, 3));
+  const marks = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0x94e9ff, transparent: true, opacity: .5, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+  marks.renderOrder = 55;
+  group.add(marks);
+  root.add(group);
+  return group;
+}
+
 // A camera-facing white wormhole and explorer ship. Its animation never
 // changes the user's camera, so it can play over the existing live scene.
-export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTargets, positionOf } = {}) {
+export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTargets, positionOf, orbitRadius = 0.135 } = {}) {
   const rig = new THREE.Group();
   rig.renderOrder = 18;
   scene.add(rig);
   const portal = makePortal(rig, camera);
   const ship = makeShip(rig);
+  const timeVortex = makeTimeVortex(rig);
   const trails = [makeTrail(rig, 0xeafaff, 0.82, -0.014), makeTrail(rig, 0x54d8ff, 0.68, 0.014)];
   const historyPoints = [new THREE.Vector3(), new THREE.Vector3()];
   const shipLocal = new THREE.Vector3();
@@ -451,6 +481,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
   let elapsed = 0;
   let time = 0;
   let exitRequested = false;
+  let timelineStyle = false;
   let current = { x: -0.3, y: 0.05 };
   let heading = 0;
   let travel = null;
@@ -601,7 +632,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     const center = targetPointOnScreen(tourTargets[tourTargetIndex]);
     const angle = orbitPhaseOffset + elapsed * (Math.PI * 2 / ORBIT_SECONDS);
     const radius = smooth(elapsed / 0.55);
-    const radiusY = 0.135 * radius;
+    const radiusY = orbitRadius * radius;
     const radiusX = radiusY / Math.max(0.65, camera.aspect);
     current.x = center.x + Math.cos(angle) * radiusX;
     current.y = center.y + Math.sin(angle) * radiusY;
@@ -662,8 +693,9 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     return current;
   }
 
-  function start() {
+  function start({ timeline = false } = {}) {
     cancel();
+    timelineStyle = Boolean(timeline);
     updateRig();
     phase = "entry";
     elapsed = 0;
@@ -675,7 +707,9 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     const arrivalIndex = arrivalStarId ? tourTargets.findIndex(target => target.id === arrivalStarId) : -1;
     if (arrivalIndex > 0) tourTargets = [...tourTargets.slice(arrivalIndex), ...tourTargets.slice(0, arrivalIndex)];
     tourTargetIndex = 0;
-    entryPoint = randomPortalPoint();
+    entryPoint = timelineStyle
+      ? { x: -.94, y: -.5 + Math.random() }
+      : randomPortalPoint();
     entryBend = Math.random() < 0.5 ? -1 : 1;
     current = { ...entryPoint };
     entryPath = curvedPath(entryPoint, arrivalPointOnScreen(), entryBend);
@@ -703,6 +737,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
     ship.setDepthTest(false);
     portal.group.visible = false;
     ship.group.visible = false;
+    timeVortex.visible = false;
     arrivalStarId = null;
     arrivalWorldPoint = null;
     entryPath = null;
@@ -754,11 +789,19 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
       if (elapsed >= 1.48) {
         portal.show(0, time);
         ship.group.visible = false;
+        timeVortex.visible = false;
         for (const trail of trails) trail.line.visible = false;
         phase = "idle";
         return true;
       }
     }
+    if (timelineStyle && ship.group.visible && (phase === "entry" || phase === "transit" || phase === "exit")) {
+      timeVortex.visible = true;
+      timeVortex.position.copy(ship.group.position);
+      timeVortex.rotation.z = time * (phase === "exit" ? -1.5 : 1.1);
+      const pulse = .92 + Math.sin(time * 12) * .06;
+      timeVortex.scale.setScalar(pulse);
+    } else timeVortex.visible = false;
     return false;
   }
 

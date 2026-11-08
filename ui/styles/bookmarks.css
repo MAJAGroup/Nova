@@ -2,6 +2,7 @@
 .bookmark-page svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round}
 .bookmark-page:hover{color:#c2eff7;background:#ffffff0a}.bookmark-page[aria-pressed="true"]{color:#f1cf8e}.bookmark-page[aria-pressed="true"] svg{fill:#f1cf8e33}.bookmark-page:disabled{opacity:.3;cursor:default}.bookmark-page:focus-visible{outline:2px solid #9dddf5;outline-offset:2px}
 .bookmarks-page .history-topbar{gap:12px;padding-left:22px;padding-right:22px}.bookmarks-page .history-page-heading{min-width:120px}.bookmarks-save-current{flex:none;color:#afe3ec;border-color:#427b8c}.bookmarks-save-current:disabled{opacity:.4;cursor:default}
+.bookmark-transfer{flex:none;color:#a5bdd4;white-space:nowrap}
 .bookmarks-page{container-type:inline-size}
 .bookmark-entry-row{display:flex;align-items:center;gap:8px}.bookmark-entry-row .history-entry{flex:1;min-width:0}.bookmark-actions{display:flex;gap:5px;flex:none}.bookmark-entry-row .bookmark-actions{padding-right:8px}.history-details .bookmark-actions{margin-top:9px}.bookmark-actions .bookmark-remove{color:#bd9ba6}
 .bookmark-editor{width:min(460px,calc(100vw - 32px));padding:23px;border:1px solid #496583;border-radius:13px;background:#0e192b;color:#d9e7f7;box-shadow:0 24px 100px #000a;font:12px var(--font)}

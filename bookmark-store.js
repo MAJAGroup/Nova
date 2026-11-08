@@ -47,6 +47,23 @@ class BookmarkStore {
     const next = existing ? this.items.map(row => row.id === item.id ? item : row) : [...this.items, item];
     this.write(next); return { ...item };
   }
+  import(items) {
+    if (!Array.isArray(items) || items.length > 10000) throw Error("This bookmark file has an invalid number of entries.");
+    const next = [...this.items];
+    const urls = new Set(next.map(item => item.url));
+    let imported = 0;
+    for (const source of items) {
+      try {
+        const url = bookmarkUrl(source?.url);
+        if (urls.has(url)) continue;
+        next.push({ id: randomUUID(), url, title: text(source?.title) || new URL(url).hostname,
+          favicon: icon(source?.favicon), at: Number.isFinite(source?.at) && source.at > 0 ? source.at : Date.now() });
+        urls.add(url); imported++;
+      } catch { /* Ignore invalid, unsupported, or executable bookmark URLs. */ }
+    }
+    this.write(next);
+    return imported;
+  }
   remove(id) { const next = this.items.filter(item => item.id !== id); this.write(next); }
   clear() { this.write([]); }
   write(items) {

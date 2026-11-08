@@ -24,23 +24,53 @@ export function createBrowserView({ browser, tabs }) {
     content.style.setProperty("--assistant-width", assistantWidth + "px");
     const rect = content.getBoundingClientRect();
     const available = Math.max(0, rect.width - assistantWidth);
+    content.style.setProperty("--orbit-split-left", Math.floor(available / 2) + "px");
     const side = tabs.sideTab();
-    const sideWidth = side ? Math.round(Math.min(available - 240, Math.max(320, available * 0.48))) : 0;
-    const showSide = side && sideWidth > 0;
-    sidePane.hidden = !showSide || coveredBy.size > 0;
+    const multiView = tabs.multiView;
+    const tabSplit = multiView?.kind === "tabs";
+    const orbitSplit = multiView?.kind === "orbit";
+    const splitWidth = Math.floor(available / 2);
+    const sideWidth = tabSplit ? available - splitWidth : side ? Math.round(Math.min(available - 240, Math.max(320, available * 0.48))) : 0;
+    const showSide = (tabSplit || side) && sideWidth > 0;
+    const hasBlockingCover = [...coveredBy].some(reason => !(reason === "cosmos" && orbitSplit));
+    sidePane.classList.toggle("multi-tab-pane", Boolean(tabSplit));
+    sidePane.hidden = !showSide || hasBlockingCover || orbitSplit;
     if (showSide) {
-      sidePane.style.left = (available - sideWidth) + "px";
-      sidePane.style.width = sideWidth + "px";
+      sidePane.style.left = tabSplit ? "0px" : (available - sideWidth) + "px";
+      sidePane.style.width = (tabSplit ? available : sideWidth) + "px";
+      const leftTab = tabSplit ? tabs.tabs.find(tab => String(tab.id) === String(multiView.leftId)) : null;
+      const rightTab = tabSplit ? tabs.tabs.find(tab => String(tab.id) === String(multiView.rightId)) : null;
+      sideTitle.textContent = tabSplit
+        ? `${leftTab?.title || "Left tab"}  ↔  ${rightTab?.title || "Right tab"}`
+        : side.loading && !side.title ? "Loading…" : (side.title || domainOf(side.url) || "Side tab");
+      sideTitle.title = tabSplit
+        ? `${leftTab?.url || ""}\n${rightTab?.url || ""}`
+        : (side.url || "");
+      sideIcon.hidden = tabSplit || !side.favicon;
+      if (!tabSplit && side.favicon && sideIcon.src !== side.favicon) sideIcon.src = side.favicon;
+      sidePane.classList.toggle("loading", !tabSplit && Boolean(side.loading));
     }
-    if (coveredBy.size) {
+    sidePane.setAttribute("aria-label", tabSplit ? "Two tab split view" : "Side tab opened by Nova");
+    el("side-pane-kicker").textContent = tabSplit ? "SPLIT VIEW" : "NOVA";
+    el("side-pane-promote").hidden = Boolean(tabSplit);
+    el("side-pane-close").title = tabSplit ? "Close split view" : "Close side tab";
+    el("side-pane-close").setAttribute("aria-label", tabSplit ? "Close split view" : "Close side tab");
+    if (hasBlockingCover) {
       browser.setBrowserBounds({ x: 0, y: 0, width: 0, height: 0, assistantExpanded: assistantOpen }, null);
       return;
     }
-    const mainWidth = showSide ? available - sideWidth - 1 : available;
+    const mainWidth = tabSplit ? splitWidth : orbitSplit ? splitWidth : showSide ? available - sideWidth - 1 : available;
+    const contentTop = tabSplit ? rect.top + SIDE_HEADER_HEIGHT : rect.top;
+    const contentHeight = tabSplit ? Math.max(0, rect.height - SIDE_HEADER_HEIGHT) : rect.height;
     browser.setBrowserBounds(
-      { x: rect.left, y: rect.top, width: Math.max(0, mainWidth), height: rect.height, assistantExpanded: assistantOpen },
+      { x: rect.left, y: contentTop, width: Math.max(0, mainWidth), height: contentHeight, assistantExpanded: assistantOpen },
       showSide
-        ? { x: rect.left + available - sideWidth, y: rect.top + SIDE_HEADER_HEIGHT, width: sideWidth, height: Math.max(0, rect.height - SIDE_HEADER_HEIGHT) }
+        ? {
+          x: rect.left + (tabSplit ? splitWidth + 1 : available - sideWidth),
+          y: tabSplit ? contentTop : rect.top + SIDE_HEADER_HEIGHT,
+          width: Math.max(0, tabSplit ? sideWidth - 1 : sideWidth),
+          height: Math.max(0, rect.height - SIDE_HEADER_HEIGHT)
+        }
         : null
     );
   }
@@ -48,7 +78,7 @@ export function createBrowserView({ browser, tabs }) {
   tabs.subscribe(() => {
     el("browser-placeholder").hidden = Boolean(tabs.activeTab());
     const side = tabs.sideTab();
-    if (side) {
+    if (side && tabs.multiView?.kind !== "tabs") {
       sideTitle.textContent = side.loading && !side.title ? "Loading…" : (side.title || domainOf(side.url) || "Side tab");
       sideTitle.title = side.url || "";
       sideIcon.hidden = !side.favicon;
@@ -58,7 +88,10 @@ export function createBrowserView({ browser, tabs }) {
     syncBounds();
   });
 
-  el("side-pane-close").addEventListener("click", () => browser.closeSideTab());
+  el("side-pane-close").addEventListener("click", () => {
+    if (tabs.multiView?.kind === "tabs") browser.closeMultiView();
+    else browser.closeSideTab();
+  });
   el("side-pane-promote").addEventListener("click", () => browser.promoteSideTab());
 
   new ResizeObserver(syncBounds).observe(content);

@@ -6,6 +6,7 @@ import { domainOf } from "../../lib/url.js";
 import { createBackdrop } from "./backdrop.js";
 import { createBlackHole } from "./black-hole.js";
 import { createExplorerFlight } from "./explorer-flight.js";
+import { createAmbientUfo } from "./ambient-ufo.js";
 import { createTabStars } from "./tab-stars.js";
 import { createConstellations } from "./constellations.js";
 
@@ -32,9 +33,10 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   const explorationStatus = el("cosmos-exploration");
   let isOpen = false;
   let explorationPhase = "idle";
-  let explorationAutoOpened = false;
+  let aiBusy = false;
   let frame = 0;
   let flight = null;
+  let focusedGroupId = null;
   let lastTime = null;
   let suppressClick = false;
   let selectionAnchorId = null;
@@ -60,7 +62,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     }
   }
 
-  let scene, camera, controls, labels, backdrop, blackHole, explorer, stars, constellations;
+  let scene, camera, controls, labels, backdrop, blackHole, explorer, ambientUfo, stars, constellations;
   if (renderer) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(SPACE_COLOR);
@@ -105,6 +107,11 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       getOrbitTargets: () => tabs.tabs.map(tab => ({ id: String(tab.id), position: stars && stars.positionOf(tab.id) })).filter(target => target.position),
       positionOf: (id) => stars && stars.positionOf(id)
     });
+    ambientUfo = createAmbientUfo(scene, camera, {
+      getStarCount: () => tabs.tabs.length,
+      getStarTargets: () => tabs.tabs.map(tab => ({ id: String(tab.id), position: stars && stars.positionOf(tab.id) })).filter(target => target.position),
+      positionOf: (id) => stars && stars.positionOf(id)
+    });
     constellations = createConstellations({
       scene,
       camera,
@@ -140,8 +147,11 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   // the choice is remembered on this device.
   const SIDEBAR_KEY = "nova.cosmos.sidebarHidden";
   const sidebarToggle = el("cosmos-sidebar-toggle");
+  const splitClose = el("cosmos-split-close");
+  let splitPane = false;
   function setSidebarHidden(hidden) {
-    container.classList.toggle("sidebar-hidden", hidden);
+    sidebarHidden = Boolean(hidden);
+    container.classList.toggle("sidebar-hidden", sidebarHidden || splitPane);
     sidebarToggle.setAttribute("aria-expanded", String(!hidden));
     const label = hidden ? "Show tab list" : "Hide tab list";
     sidebarToggle.title = label;
@@ -152,6 +162,15 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   try { sidebarHidden = localStorage.getItem(SIDEBAR_KEY) === "1"; } catch (_) { /* storage unavailable */ }
   setSidebarHidden(sidebarHidden);
   sidebarToggle.addEventListener("click", () => setSidebarHidden(!container.classList.contains("sidebar-hidden")));
+  function setSplitPane(enabled) {
+    splitPane = Boolean(enabled);
+    container.classList.toggle("split-pane", splitPane);
+    container.classList.toggle("sidebar-hidden", splitPane || sidebarHidden);
+    sidebarToggle.hidden = splitPane;
+    splitClose.hidden = !splitPane;
+    if (renderer) requestAnimationFrame(resize);
+  }
+  splitClose.addEventListener("click", () => browser.closeMultiView());
 
   const stayToggle = el("cosmos-stay-toggle");
   const STAY_ON_NEW_TAB_KEY = "nova.cosmos.stayOnNewTab";
@@ -174,6 +193,8 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   el("cosmos-reset").addEventListener("click", () => {
     if (renderer) flyHome();
   });
+  const zoomOutButton = el("cosmos-zoom-out");
+  zoomOutButton?.addEventListener("click", () => flyHome());
 
   let previousTabIds = null;
   let previousGroupByTab = null;
@@ -188,6 +209,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     previousGroupByTab = groupByTab;
     renderTabList();
     if (stars) updateSelectionBar();
+    if (focusedGroupId && !tabs.groups.some(group => String(group.id) === focusedGroupId)) flyHome();
     if (isOpen && (tabAdded || groupFormed)) flyHome();
   });
 
@@ -554,12 +576,16 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   }
 
   function flyHome() {
+    focusedGroupId = null;
+    if (zoomOutButton) zoomOutButton.hidden = true;
     flight = overview();
   }
 
   function flyToGroup(groupId) {
     const center = constellations.centerOf(groupId);
     if (!center) return;
+    focusedGroupId = String(groupId);
+    if (zoomOutButton) zoomOutButton.hidden = false;
     const distance = Math.max(10, constellations.radiusOf(groupId) * 3 + 5);
     const direction = camera.position.clone().sub(controls.target).normalize();
     flight = { target: center, camera: center.clone().add(direction.multiplyScalar(distance)) };
@@ -584,6 +610,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     stars.update(time);
     constellations.update(time);
     const explorationFinished = explorer ? explorer.update(time, delta) : false;
+    ambientUfo?.update(time, delta);
     renderer.render(scene, camera);
     labels.render(scene, camera);
     if (explorationPhase === "exiting" && explorationFinished) finishExploration();
@@ -597,23 +624,21 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   function clearExploration() {
     explorationPhase = "idle";
-    explorationAutoOpened = false;
     if (explorer) explorer.cancel();
     container.classList.remove("exploring", "exploration-exiting");
     explorationStatus.hidden = true;
   }
 
   function finishExploration() {
-    const closeAfter = explorationAutoOpened;
     clearExploration();
-    if (closeAfter && isOpen) close();
   }
 
   function setExploring(busy) {
+    aiBusy = Boolean(busy);
     if (busy) {
       if (explorationPhase === "active") return;
-      if (explorationPhase === "idle") explorationAutoOpened = !isOpen;
-      if (!isOpen) open();
+      if (explorationPhase === "exiting") clearExploration();
+      if (!isOpen) return;
       explorationPhase = "active";
       container.classList.add("exploring");
       container.classList.remove("exploration-exiting");
@@ -633,16 +658,19 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (isOpen) return;
     isOpen = true;
     container.hidden = false;
+    ambientUfo?.openScene();
     onVisibilityChange(true);
     if (!renderer) return;
     resize();
     frameAll();
     lastTime = null;
     frame = requestAnimationFrame(tick);
+    if (aiBusy) setExploring(true);
   }
 
   function close() {
     if (!isOpen) return;
+    ambientUfo?.closeScene();
     if (explorationPhase !== "idle") clearExploration();
     isOpen = false;
     cancelAnimationFrame(frame);
@@ -665,6 +693,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     setExploring,
     toggle: () => (isOpen ? close() : open()),
     isOpen: () => isOpen,
+    setSplitPane,
     // Returns true when there was a selection to clear.
     clearSelection() {
       if (!stars || !stars.clearSelection()) return false;

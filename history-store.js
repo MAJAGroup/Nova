@@ -70,6 +70,29 @@ class HistoryStore {
     for (const tab of tabs.values()) this.attach(tab);
     this.flush();
   }
+  remove(id, tabs) {
+    return this.removeMany([id], tabs) > 0;
+  }
+  removeMany(ids, tabs) {
+    const removedIds = new Set((Array.isArray(ids) ? ids : []).filter(id => typeof id === "string"));
+    const byId = new Map(this.nodes.map(node => [node.id, node]));
+    for (const id of [...removedIds]) if (!byId.has(id)) removedIds.delete(id);
+    if (!removedIds.size) return 0;
+    const nearestParent = id => {
+      const seen = new Set();
+      while (id && removedIds.has(id) && !seen.has(id)) { seen.add(id); id = byId.get(id)?.parent || null; }
+      return id && byId.has(id) ? id : null;
+    };
+    for (const node of this.nodes) if (!removedIds.has(node.id) && removedIds.has(node.parent)) node.parent = nearestParent(node.parent);
+    this.nodes = this.nodes.filter(node => !removedIds.has(node.id));
+    for (const tab of tabs.values()) {
+      tab.visitSlots = tab.visitSlots.map(visitId => removedIds.has(visitId) ? null : visitId);
+      if (removedIds.has(tab.currentVisit)) tab.currentVisit = null;
+      if (removedIds.has(tab.openerVisit)) tab.openerVisit = nearestParent(tab.openerVisit);
+    }
+    this.flush();
+    return removedIds.size;
+  }
   schedule() {
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.flush(), 250);

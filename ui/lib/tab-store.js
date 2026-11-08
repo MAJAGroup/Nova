@@ -7,6 +7,7 @@ export function createTabStore(browser) {
   let groups = [];
   let activeId = null;
   let sideId = null;
+  let multiView = null;
   const listeners = new Set();
 
   function update(payload) {
@@ -14,6 +15,7 @@ export function createTabStore(browser) {
     groups = payload.groups || [];
     activeId = payload.activeId;
     sideId = payload.sideId || null;
+    multiView = payload.multiView || null;
     listeners.forEach((listener) => listener(store));
   }
 
@@ -22,6 +24,7 @@ export function createTabStore(browser) {
     get groups() { return groups; },
     get activeId() { return activeId; },
     get sideId() { return sideId; },
+    get multiView() { return multiView; },
     sideTab() {
       return sideId ? tabs.find((tab) => String(tab.id) === String(sideId)) || null : null;
     },

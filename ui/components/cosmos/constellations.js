@@ -27,7 +27,7 @@ function spanningTree(ids, positions) {
 // Draws each tab group as a constellation: lines between its stars, a faint
 // nebula behind them and its name above. In Nova, the name can be dragged to
 // another group to merge them, clicked to focus, or double-clicked to rename.
-export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, emphasisFor = () => 1 }) {
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, onGroupDrag, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
   scene.add(root);
   const items = new Map();
@@ -62,9 +62,10 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     });
     button.title = [
       onMerge ? "Drag the name onto another group to merge" : null,
+      onGroupDrag && !onMerge ? "Drag this journey to the black hole to delete it" : null,
       onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey"
     ].filter(Boolean).join(" · ");
-    if (onMerge) {
+    if (onMerge || onGroupDrag) {
       button.classList.add("merge-handle");
       button.draggable = true;
       button.addEventListener("pointerdown", () => { suppressGroupClick = false; });
@@ -74,27 +75,31 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData(GROUP_DRAG_TYPE, draggedGroupId);
         event.dataTransfer.setData("text/plain", draggedGroupId);
+        onGroupDrag?.(draggedGroupId);
         item.element.classList.add("dragging");
       });
-      button.addEventListener("dragover", event => {
-        if (!draggedGroupId || String(item.id) === draggedGroupId) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        item.element.classList.add("merge-target");
-      });
-      button.addEventListener("dragleave", event => {
-        if (!button.contains(event.relatedTarget)) item.element.classList.remove("merge-target");
-      });
-      button.addEventListener("drop", event => {
-        event.preventDefault();
-        const sourceId = event.dataTransfer?.getData(GROUP_DRAG_TYPE) || draggedGroupId;
-        item.element.classList.remove("merge-target");
-        if (sourceId && String(sourceId) !== String(item.id)) onMerge(sourceId, item.id);
-      });
+      if (onMerge) {
+        button.addEventListener("dragover", event => {
+          if (!draggedGroupId || String(item.id) === draggedGroupId) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          item.element.classList.add("merge-target");
+        });
+        button.addEventListener("dragleave", event => {
+          if (!button.contains(event.relatedTarget)) item.element.classList.remove("merge-target");
+        });
+        button.addEventListener("drop", event => {
+          event.preventDefault();
+          const sourceId = event.dataTransfer?.getData(GROUP_DRAG_TYPE) || draggedGroupId;
+          item.element.classList.remove("merge-target");
+          if (sourceId && String(sourceId) !== String(item.id)) onMerge(sourceId, item.id);
+        });
+      }
       button.addEventListener("dragend", () => {
         item.element.classList.remove("dragging");
         for (const candidate of items.values()) candidate.element.classList.remove("merge-target");
         draggedGroupId = null;
+        onGroupDrag?.(null);
         suppressGroupClick = true;
         setTimeout(() => { suppressGroupClick = false; }, 500);
       });
@@ -176,6 +181,7 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         const item = items.get(group.id) || createItem(group);
         items.set(group.id, item);
         item.group = group;
+        item.nebula.userData.groupId = String(group.id);
         item.radius = shape.radius;
         item.memberIds = shape.memberIds;
         item.labelPosition = shape.labelPosition;
@@ -233,6 +239,11 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
       if (items.has(highlighted)) items.get(highlighted).element.classList.remove("drop-target");
       highlighted = groupId;
       if (items.has(groupId)) items.get(groupId).element.classList.add("drop-target");
+    },
+    pick(raycaster) {
+      root.updateMatrixWorld(true);
+      const hit = raycaster.intersectObjects(Array.from(items.values(), item => item.nebula), false)[0];
+      return hit ? String(hit.object.userData.groupId || "") || null : null;
     },
     ids: () => Array.from(items.keys()),
     centerOf: (groupId) => (items.has(groupId) ? items.get(groupId).center.clone() : null),

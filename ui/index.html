@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="styles/cosmos.css">
     <link rel="stylesheet" href="styles/history.css">
     <link rel="stylesheet" href="styles/bookmarks.css">
+    <link rel="stylesheet" href="styles/utility-features.css">
     <script type="importmap">
       {
         "imports": {
@@ -46,6 +47,8 @@
           </div>
           <div class="toolbar-actions">
             <button type="button" class="icon-button assistant-toolbar-open" id="assistant-toolbar-open" title="Ask Nova (Ctrl+Space)" aria-label="Open Nova AI assistant"><span class="assistant-toolbar-orb" aria-hidden="true">✦</span><span class="assistant-toolbar-label" aria-hidden="true">AI</span></button>
+            <button type="button" class="icon-button downloads-toggle" id="downloads-toggle" title="Downloads (Ctrl+J)" aria-label="Show downloads">↓</button>
+            <button type="button" class="icon-button reading-list-toggle" id="reading-list-toggle" title="Reading List" aria-label="Show Reading List">◷</button>
             <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
             <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
             <button type="button" class="icon-button history-toggle bookmarks-toggle" id="bookmarks-tab" title="Bookmarks (Ctrl+Shift+B)" aria-label="Bookmarks" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4-6 4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -55,6 +58,13 @@
         <div class="tab-row" aria-label="Open tabs">
           <button type="button" class="cosmos-tab" id="cosmos-tab" title="Nova view (Ctrl+Shift+O)" aria-label="Nova view" aria-pressed="false"><svg class="nova-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><radialGradient id="nova-planet" cx="38%" cy="35%" r="70%"><stop offset="0" stop-color="#e8fdff"/><stop offset=".45" stop-color="#74e3f0"/><stop offset="1" stop-color="#6a5cff"/></radialGradient></defs><g transform="rotate(-22 12 12)"><path class="nova-ring" d="M2 12a10 3.6 0 0 1 20 0"/><circle class="nova-moon" r="1.5"><animateMotion dur="5s" repeatCount="indefinite" path="M22 12a10 3.6 0 1 1 -20 0a10 3.6 0 1 1 20 0"/></circle><circle class="nova-planet" cx="12" cy="12" r="5" fill="url(#nova-planet)"/><path class="nova-ring" d="M22 12a10 3.6 0 0 1 -20 0"/></g></svg></button>
           <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
+        </div>
+        <div class="find-bar" id="find-bar" role="search" aria-label="Find in page" hidden>
+          <input type="search" id="find-input" placeholder="Find in page" aria-label="Find in page" autocomplete="off" spellcheck="false">
+          <span id="find-count" class="find-count" role="status" aria-live="polite"></span>
+          <button type="button" id="find-previous" class="find-control" title="Previous match (Shift+Enter)" aria-label="Previous match">↑</button>
+          <button type="button" id="find-next" class="find-control" title="Next match (Enter)" aria-label="Next match">↓</button>
+          <button type="button" id="find-close" class="find-control" title="Close find bar (Esc)" aria-label="Close find bar">×</button>
         </div>
         <section id="browser-content" class="browser-content" aria-label="Current web page">
           <img id="browser-suggestion-preview" class="browser-suggestion-preview" alt="" aria-hidden="true" hidden>
@@ -66,7 +76,7 @@
           <div class="side-pane" id="side-pane" hidden aria-label="Side tab opened by Nova">
             <div class="side-pane-header">
               <img class="side-pane-icon" id="side-pane-icon" alt="" hidden>
-              <span class="side-pane-kicker">NOVA</span>
+              <span class="side-pane-kicker" id="side-pane-kicker">NOVA</span>
               <span class="side-pane-title" id="side-pane-title">Side tab</span>
               <button type="button" class="side-pane-button" id="side-pane-promote" title="Make this the main tab" aria-label="Make this the main tab"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 8 8M6.5 3.5h-3v9h9v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button type="button" class="side-pane-button" id="side-pane-close" title="Close side tab" aria-label="Close side tab">×</button>
@@ -99,6 +109,7 @@
             </aside>
             <div class="cosmos-stage history-stage" hidden>
               <div class="cosmos-header"><div class="cosmos-header-row"><button type="button" class="cosmos-icon-button history-sidebar-toggle" title="Hide history list" aria-label="Hide history list" aria-controls="history-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.3"/></svg></button><span class="cosmos-title history-period"></span></div><button type="button" class="cosmos-icon-button history-fit" title="Fit matching constellations (F or double-click empty space)" aria-label="Fit journeys"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button></div>
+              <button type="button" class="history-zoom-out" hidden>ZOOM OUT</button>
               <div class="history-tools"><button class="history-rotation history-quiet" aria-pressed="false">Resume rotation</button></div>
               <p class="history-empty"></p>
               <p class="history-webgl-note">3D graphics are unavailable. Browse the matching visits in the results list.</p>
@@ -117,6 +128,7 @@
                 <button type="button" class="history-mode" data-mode="timeline" aria-pressed="false">Timeline</button>
               </div>
               <button type="button" class="bookmarks-save-current history-quiet">Save current page</button>
+              <button type="button" class="bookmark-transfer history-quiet" aria-label="Import or export bookmarks" title="Import or export bookmarks">Import / Export</button>
               <button class="history-clear history-quiet">Clear bookmarks…</button>
               <button class="history-close cosmos-icon-button" aria-label="Close bookmarks">×</button>
             </header>
@@ -154,9 +166,11 @@
                 <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear selection</button>
               </div>
             </aside>
-            <div class="cosmos-stage" id="cosmos-stage">
+              <div class="cosmos-stage" id="cosmos-stage">
+                <button type="button" class="cosmos-zoom-out" id="cosmos-zoom-out" hidden>ZOOM OUT</button>
               <div class="cosmos-header">
                 <div class="cosmos-header-row"><button type="button" class="cosmos-icon-button" id="cosmos-sidebar-toggle" title="Hide tab list" aria-label="Hide tab list" aria-controls="cosmos-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button><button type="button" id="cosmos-stay-toggle" class="cosmos-stay-toggle" role="switch" aria-checked="false" title="New tabs opened with + switch to the web page"><span class="cosmos-switch-track" aria-hidden="true"><i></i></span><span>Keep Nova open on +</span></button></div>
+                <div class="cosmos-header-row cosmos-split-actions"><button type="button" class="cosmos-split-close" id="cosmos-split-close" hidden>EXIT SPLIT</button></div>
                 <button type="button" class="cosmos-icon-button" id="cosmos-reset" title="Reset view: show every tab (or double-click empty space)" aria-label="Reset view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 5.5V2.6c0-.4.4-.8.8-.8h2.9M10.5 1.8h2.9c.4 0 .8.4.8.8v2.9M14.2 10.5v2.9c0 .4-.4.8-.8.8h-2.9M5.5 14.2H2.6c-.4 0-.8-.4-.8-.8v-2.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button>
               </div>
               <div class="cosmos-hint" id="cosmos-hint" hidden></div>
@@ -171,7 +185,9 @@
         <aside class="assistant-dock" id="assistant" aria-label="Nova AI assistant">
           <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Nova AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Nova · Ctrl+Space"><span class="assistant-handle-orb" aria-hidden="true">✦</span><span aria-hidden="true">AI</span></button>
           <section class="assistant-panel" id="assistant-panel" role="complementary" aria-label="Ask Nova">
-            <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
+            <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><div class="assistant-heading-actions"><button type="button" class="assistant-chat-menu-toggle" id="assistant-chat-menu-toggle" aria-label="Chat history" aria-expanded="false" aria-controls="assistant-chat-menu" title="Chat history">☰</button><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
+              <div class="assistant-chat-menu" id="assistant-chat-menu" hidden aria-label="Saved chats"><div class="assistant-chat-menu-actions"><button type="button" id="assistant-new-chat">New chat</button><button type="button" id="assistant-clear-chat">Delete current chat</button></div><div class="assistant-chat-menu-label">RECENT CHATS</div><div id="assistant-chat-list" class="assistant-chat-list"></div></div>
+            </div>
             <div class="spotlight-bar">
               <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
               <textarea id="chat-input" rows="1" placeholder="Ask Nova anything…" aria-label="Message Nova assistant" aria-describedby="chat-input-help" spellcheck="false"></textarea>
@@ -189,6 +205,7 @@
                 <button class="suggestion-chip" data-prompt="Group my tabs by topic."><span>✦</span> Group my tabs</button>
               </div>
             </div>
+            <div class="assistant-flight-frame" id="assistant-flight-frame" hidden aria-hidden="true"><canvas id="assistant-flight-canvas"></canvas><span id="assistant-flight-label">EXPLORER ROAMING</span></div>
             <div class="spotlight-footer">
               <span class="assistant-status" aria-hidden="true"></span><span id="ai-status" role="status" aria-live="polite" aria-atomic="true">Ready to explore</span>
               <span class="spotlight-dot">·</span>
@@ -233,6 +250,7 @@
           <p class="browsing-data-intro">Cookies and website storage keep you signed in and remember preferences. Cached files help pages load faster.</p>
           <label class="data-option"><input id="clear-cookies" type="checkbox" checked><span><strong>Cookies and other site data</strong><small>Includes site storage and service workers. May sign you out of websites.</small></span></label>
           <label class="data-option"><input id="clear-cache" type="checkbox" checked><span><strong>Cached images and files</strong><small>Pages may load more slowly the next time you visit.</small></span></label>
+          <label class="data-option"><input id="clear-data-on-exit" type="checkbox"><span><strong>Clear cookies and cache when Nova quits</strong><small>Browsing history and bookmarks remain saved.</small></span></label>
           <button type="button" class="text-button data-clear-trigger" id="clear-browsing-data">Clear selected data…</button>
           <div class="data-clear-confirm" id="browsing-data-confirm" hidden role="group" aria-labelledby="browsing-data-confirm-text">
             <p id="browsing-data-confirm-text"></p>
@@ -240,9 +258,30 @@
           </div>
           <p class="browsing-data-footnote">Saved browsing history is kept separately.</p>
         </section>
+        <section class="browsing-data startup-preferences" aria-labelledby="startup-title">
+          <div class="browsing-data-heading"><div><div class="modal-kicker">STARTUP</div><h3 id="startup-title">Restore your session</h3></div></div>
+          <label class="data-option"><input id="restore-previous-session" type="checkbox" checked><span><strong>Reopen tabs from your last session</strong><small>Nova remembers each tab’s address and constellation on this device.</small></span></label>
+          <label class="data-option"><input id="enhanced-contrast" type="checkbox"><span><strong>Enhanced contrast</strong><small>Increase borders and focus indicators across Nova.</small></span></label>
+        </section>
+        <section class="browsing-data search-preferences" aria-labelledby="search-engine-title">
+          <div class="browsing-data-heading"><div><div class="modal-kicker">ADDRESS BAR</div><h3 id="search-engine-title">Search engine</h3></div></div>
+          <label class="field-label" for="search-provider">DEFAULT SEARCH PROVIDER</label>
+          <select id="search-provider" class="settings-input">
+            <option value="google">Google</option>
+            <option value="bing">Bing</option>
+            <option value="duckduckgo">DuckDuckGo</option>
+            <option value="brave">Brave Search</option>
+          </select>
+          <p class="browsing-data-intro">Use a provider prefix such as <code>ddg: ocean tides</code> or <code>b: weather</code> in the address bar for a one-time search.</p>
+        </section>
+        <section class="browsing-data site-permission-settings" aria-labelledby="permissions-settings-title">
+          <div class="browsing-data-heading"><div><div class="modal-kicker">WEBSITE ACCESS</div><h3 id="permissions-settings-title">Site permissions</h3></div><button type="button" class="text-button" id="manage-site-permissions">Manage…</button></div>
+          <p class="browsing-data-intro">One-time grants expire after a request. Session grants can be revoked at any time.</p>
+        </section>
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="sr-only" id="browser-announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <dialog id="bookmark-editor" class="bookmark-editor" aria-labelledby="bookmark-editor-title">
       <form id="bookmark-editor-form">
         <header><h2 id="bookmark-editor-title">Edit bookmark</h2><button type="button" id="bookmark-editor-close" class="history-quiet" aria-label="Close bookmark editor">×</button></header>
@@ -251,6 +290,40 @@
         <p id="bookmark-editor-error" role="alert" hidden></p>
         <footer><button type="button" id="bookmark-editor-remove" class="history-quiet">Remove</button><span></span><button type="button" id="bookmark-editor-cancel" class="history-quiet">Cancel</button><button type="submit" class="history-quiet bookmark-editor-save">Save</button></footer>
       </form>
+    </dialog>
+    <dialog id="downloads-dialog" class="utility-dialog" aria-labelledby="downloads-title">
+      <header><div><div class="modal-kicker">NOVA DOWNLOADS</div><h2 id="downloads-title">Downloads</h2></div><button type="button" class="utility-dialog-close" data-close-utility aria-label="Close downloads">×</button></header>
+      <div class="downloads-list" id="downloads-list" role="list" aria-live="polite"></div>
+      <p class="downloads-empty" id="downloads-empty">Your downloads will appear here.</p>
+      <footer><kbd>Ctrl</kbd><span>+</span><kbd>J</kbd><span> to open downloads</span></footer>
+    </dialog>
+    <dialog id="shortcuts-dialog" class="utility-dialog shortcuts-dialog" aria-labelledby="shortcuts-title">
+      <header><div><div class="modal-kicker">NOVA QUICK REFERENCE</div><h2 id="shortcuts-title">Keyboard shortcuts</h2></div><button type="button" class="utility-dialog-close" data-close-utility aria-label="Close shortcuts">×</button></header>
+      <div class="shortcut-grid">
+        <span>New tab</span><kbd>⌘/Ctrl T</kbd><span>Close tab</span><kbd>⌘/Ctrl W</kbd>
+        <span>Reopen closed tab</span><kbd>⌘/Ctrl ⇧ T</kbd><span>Next / previous tab</span><kbd>Ctrl Tab / Ctrl ⇧ Tab</kbd>
+        <span>Next / previous tab (alternate)</span><kbd>Ctrl PgDn / PgUp</kbd><span>Move tab left / right</span><kbd>Ctrl ⇧ PgUp / PgDn</kbd>
+        <span>Switch to tab 1–8 / last</span><kbd>⌘/Ctrl 1–9</kbd><span>Focus address bar / page</span><kbd>⌘/Ctrl L / K / F6</kbd>
+        <span>Find in page</span><kbd>⌘/Ctrl F</kbd><span>Next / previous match</span><kbd>⌘/Ctrl G / ⇧ G / F3</kbd>
+        <span>Reload / hard reload</span><kbd>⌘/Ctrl R / ⇧ R or F5 / Ctrl+F5</kbd><span>Zoom in / out / reset</span><kbd>⌘/Ctrl + / − / 0</kbd>
+        <span>Downloads</span><kbd>⌘/Ctrl J</kbd><span>Print / save webpage</span><kbd>⌘/Ctrl P / S</kbd>
+        <span>Save screenshot</span><kbd>⌘/Ctrl ⇧ S</kbd>
+        <span>Mute / unmute current tab</span><kbd>⌘/Ctrl M</kbd>
+        <span>History / bookmarks</span><kbd>⌘/Ctrl H / ⇧ B</kbd><span>Tab cosmos</span><kbd>⌘/Ctrl ⇧ O</kbd>
+        <span>Ask Nova</span><kbd>Ctrl Space</kbd>
+      </div>
+    </dialog>
+    <dialog id="permissions-dialog" class="utility-dialog permissions-dialog" aria-labelledby="permissions-title">
+      <header><div><div class="modal-kicker">WEBSITE ACCESS</div><h2 id="permissions-title">Site permissions</h2></div><button type="button" class="utility-dialog-close" data-close-utility aria-label="Close permissions">×</button></header>
+      <div class="permissions-list" id="permissions-list" role="list" aria-live="polite"></div>
+      <p class="permissions-empty" id="permissions-empty">No websites have session permissions right now.</p>
+      <p class="permissions-note">A one-time allowance disappears after the request. Session allowances remain until Nova closes or you revoke them here.</p>
+    </dialog>
+    <dialog id="reading-list-dialog" class="utility-dialog reading-list-dialog" aria-labelledby="reading-list-title">
+      <header><div><div class="modal-kicker">READ FOR LATER</div><h2 id="reading-list-title">Reading List</h2></div><button type="button" class="utility-dialog-close" data-close-utility aria-label="Close Reading List">×</button></header>
+      <div class="reading-list-tools"><label class="sr-only" for="reading-list-search">Search Reading List</label><input id="reading-list-search" type="search" placeholder="Search saved pages" autocomplete="off"><button type="button" id="reading-list-add-current" class="text-button">Save current page</button><button type="button" id="reading-list-clear" class="text-button">Clear read items</button></div>
+      <div class="reading-list-items" id="reading-list-items" role="list" aria-live="polite"></div>
+      <p class="reading-list-empty" id="reading-list-empty">Save pages to read later. You can mark them read when you’re done.</p>
     </dialog>
   </body>
 </html>

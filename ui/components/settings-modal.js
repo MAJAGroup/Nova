@@ -60,6 +60,10 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
   const dataConfirmation = el("browsing-data-confirm");
   const dataConfirmationText = el("browsing-data-confirm-text");
   const confirmClearData = el("confirm-clear-browsing-data");
+  const restoreSession = el("restore-previous-session");
+  const clearDataOnExit = el("clear-data-on-exit");
+  const enhancedContrast = el("enhanced-contrast");
+  const searchProvider = el("search-provider");
 
   function hideDataConfirmation() {
     dataConfirmation.hidden = true;
@@ -79,6 +83,12 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
       ? "Key stored securely — leave blank to keep"
       : (isPlainHTTP(config.url) ? "Optional for http:// endpoints" : "Paste the API key for this provider");
     loadVoiceConfig();
+    browser.getBrowserPreferences().then(preferences => {
+      restoreSession.checked = preferences.restorePreviousSession !== false;
+      clearDataOnExit.checked = preferences.clearDataOnExit === true;
+      searchProvider.value = preferences.searchProvider || "google";
+    }).catch(() => {});
+    try { enhancedContrast.checked = localStorage.getItem("nova.enhancedContrast") === "1"; } catch { enhancedContrast.checked = false; }
     setTimeout(() => urlInput.focus(), 50);
   }
 
@@ -194,6 +204,39 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
     el("clear-browsing-data").focus();
   });
   confirmClearData.addEventListener("click", clearBrowsingData);
+  restoreSession.addEventListener("change", async () => {
+    restoreSession.disabled = true;
+    try {
+      const result = await browser.saveBrowserPreferences({ restorePreviousSession: restoreSession.checked });
+      if (!result?.ok) throw Error(result?.error || "Could not save this preference.");
+      showToast(restoreSession.checked ? "Nova will restore your last session." : "Nova will start with a new tab next time.");
+    } catch (error) { restoreSession.checked = !restoreSession.checked; showToast(error.message); }
+    finally { restoreSession.disabled = false; }
+  });
+  clearDataOnExit.addEventListener("change", async () => {
+    clearDataOnExit.disabled = true;
+    try {
+      const result = await browser.saveBrowserPreferences({ clearDataOnExit: clearDataOnExit.checked });
+      if (!result?.ok) throw Error(result?.error || "Could not save this preference.");
+      showToast(clearDataOnExit.checked ? "Nova will clear cookies and cache when it quits." : "Nova will keep website data when it quits.");
+    } catch (error) { clearDataOnExit.checked = !clearDataOnExit.checked; showToast(error.message); }
+    finally { clearDataOnExit.disabled = false; }
+  });
+  enhancedContrast.addEventListener("change", () => {
+    const enabled = enhancedContrast.checked;
+    document.documentElement.dataset.enhancedContrast = String(enabled);
+    try { localStorage.setItem("nova.enhancedContrast", enabled ? "1" : "0"); } catch { /* Preference is optional in restricted sessions. */ }
+    showToast(enabled ? "Enhanced contrast enabled." : "Enhanced contrast disabled.");
+  });
+  searchProvider.addEventListener("change", async () => {
+    searchProvider.disabled = true;
+    try {
+      const result = await browser.saveBrowserPreferences({ searchProvider: searchProvider.value });
+      if (!result?.ok) throw Error(result?.error || "Could not save this preference.");
+      showToast(`Search provider set to ${searchProvider.options[searchProvider.selectedIndex].text}.`);
+    } catch (error) { showToast(error.message); }
+    finally { searchProvider.disabled = false; }
+  });
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", close));
   modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
 

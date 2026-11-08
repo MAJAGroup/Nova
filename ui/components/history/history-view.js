@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import { CSS2DObject, CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 import { createConstellations } from "../cosmos/constellations.js";
 import { createBackdrop } from "../cosmos/backdrop.js";
 import { createBlackHole } from "../cosmos/black-hole.js";
+import { createExplorerFlight } from "../cosmos/explorer-flight.js";
 import { createTabStars } from "../cosmos/tab-stars.js";
 import { dateKey, dateLabel, clock, historyLayout, navigationRoutes } from "./history-layout.mjs";
 
@@ -13,7 +14,7 @@ function node(tag, className, text) {
   return element;
 }
 const host = url => { try { return new URL(url).hostname; } catch { return url; } };
-const TIMELINE_WINDOW_SIZE = 20;
+const TIMELINE_WINDOW_SIZE = 30;
 const TIMELINE_WINDOW_CENTER = Math.floor((TIMELINE_WINDOW_SIZE - 1) / 2);
 const TIMELINE_WINDOW_END = TIMELINE_WINDOW_SIZE - 1;
 
@@ -123,8 +124,10 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   let mode = "universe", visualize = true, timelineIndex = 0, pinnedGroup = null;
   let sceneVisits = [], sceneGroups = [], sceneShape = historyLayout([]), timelineFocusX = 0;
   let shape = historyLayout([]), focusIds = null, focusGroupId = null, detailsDismissed = false;
-  let openState = false, openVersion = 0, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop;
-  let constellations, arrows = [], flight = null, lastTime = null;
+  let openState = false, openVersion = 0, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop, timelineArt;
+  let constellations, explorer, arrows = [], flight = null, lastTime = null;
+  let explorationPhase = "idle", explorationBusy = false, draggedHistoryGroupId = null;
+  const zoomOut = root.querySelector(".history-zoom-out");
   const listeners = new Set();
   const store = {
     get tabs() { return sceneVisits.map(v => ({ ...v, groupId: sceneShape?.groupOf.get(v.id) })); },
@@ -139,6 +142,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     scene = new THREE.Scene(); scene.background = new THREE.Color(0x050813);
     scene.fog = new THREE.FogExp2(0x050813, .004);
     timelineBackdrop = new THREE.Group(); timelineBackdrop.visible = false; scene.add(timelineBackdrop);
+    timelineArt = new THREE.Group(); timelineArt.visible = false; scene.add(timelineArt);
   try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
   catch { root.classList.add("history-no-webgl"); }
   if (renderer) {
@@ -161,9 +165,17 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     blackHole = createBlackHole(blackHoleRoot);
     constellations = createConstellations({ scene, camera, tabs: store,
       positionOf: id => stars?.positionOf(id), onFocus: focusGroup,
+      onGroupDrag: saved ? undefined : id => {
+        draggedHistoryGroupId = id;
+        if (!id) { blackHole.lure(false); root.classList.remove("history-group-doom"); }
+      },
       emphasisFor: group => focusIds === null || group.memberIds.some(id => focusIds.has(id)) ? 1 : .3 });
     stars = createTabStars({ scene, camera, tabs: store,
-      onSelect: visit => openVisit(visit.id), onContextMenu: visit => select(visit.id),
+      sink: blackHole, isVisible: () => openState && root.dataset.view === "stars",
+      onSelect: visit => selectHistoryStar(visit.id), onContextMenu: visit => {
+        select(visit.id);
+        if (!saved) browser.showHistoryMenu?.(visit.id);
+      },
       reducedMotion: () => motion.matches, animateLayout: false,
       emphasisFor: visit => focusIds === null || focusIds.has(visit.id) ? 1 : .28,
       layout: { compute() {
@@ -171,6 +183,15 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         const clusters = new Map(sceneGroups.map(g => [g.id, { ...g, edges: [], center: new THREE.Vector3(g.center.x, g.center.y, g.center.z) }]));
         return { stars: positions, constellations: clusters, extent: Math.max(12, ...[...positions.values()].map(p => p.length())) };
       }}, onLayout: layout => { constellations.sync(layout); drawTrails(); }
+    });
+    explorer = createExplorerFlight(scene, camera, {
+      getArrivalStar: () => {
+        const target = sceneVisits.find(visit => visit.id === selected) || sceneVisits[0];
+        const position = target && stars?.positionOf(target.id);
+        return position ? { id: String(target.id), position } : null;
+      },
+      getOrbitTargets: () => sceneVisits.map(visit => ({ id: String(visit.id), position: stars?.positionOf(visit.id) })).filter(target => target.position),
+      positionOf: id => stars?.positionOf(id)
     });
     // The star component shares Nova view's icon labels and hover behavior.
     const ray = new THREE.Raycaster(), pointer = new THREE.Vector2(); let down;
@@ -194,7 +215,13 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       });
       surface.addEventListener("pointerup", event => {
         if (down && surface === renderer.domElement && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 5) {
-          const star = hit(event); if (star) openVisit(star.id);
+          const star = hit(event);
+          if (star) selectHistoryStar(star.id);
+          else if (mode === "universe" && !saved) {
+            ray.setFromCamera(pointer, camera);
+            const groupId = constellations.pick(ray);
+            if (groupId) focusGroup(groupId);
+          }
         }
         down = null;
       });
@@ -205,6 +232,40 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       if (mode !== "timeline") return;
       event.preventDefault(); sidebar.scrollTop += event.deltaY || event.deltaX; syncTimelineWindowFromSidebar();
     }, { passive: false });
+    const canvas = renderer.domElement;
+    function overHistoryBlackHole(event) {
+      const center = new THREE.Vector3(0, 0, 0).project(camera);
+      if (!Number.isFinite(center.x) || center.z > 1) return false;
+      const rect = canvas.getBoundingClientRect();
+      const x = rect.left + (center.x + 1) * .5 * rect.width;
+      const y = rect.top + (1 - center.y) * .5 * rect.height;
+      const reach = Math.max(42, blackHole.diskRadius * rect.height / Math.max(1, camera.position.distanceTo(new THREE.Vector3())));
+      return Math.hypot(event.clientX - x, event.clientY - y) <= reach;
+    }
+    stage.addEventListener("dragover", event => {
+      if (saved || !draggedHistoryGroupId || mode !== "universe") return;
+      const over = overHistoryBlackHole(event);
+      blackHole.lure(over);
+      root.classList.toggle("history-group-doom", over);
+      if (over) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }
+    });
+    stage.addEventListener("drop", async event => {
+      if (saved || !draggedHistoryGroupId || mode !== "universe") return;
+      const id = draggedHistoryGroupId;
+      draggedHistoryGroupId = null; blackHole.lure(false); root.classList.remove("history-group-doom");
+      if (!overHistoryBlackHole(event)) return;
+      event.preventDefault();
+      const group = groups.find(item => String(item.id) === String(id));
+      if (!group?.memberIds?.length) return;
+      const removed = await browser.deleteHistoryGroup(group.memberIds);
+      if (removed) {
+        selected = null; pinnedGroup = null; focusGroupId = null; day = "all"; detailsDismissed = false;
+        blackHole.feed(Math.min(2.5, .6 + removed * .12)); refresh(true);
+      }
+    });
+    stage.addEventListener("dragleave", event => {
+      if (!stage.contains(event.relatedTarget)) { blackHole.lure(false); root.classList.remove("history-group-doom"); }
+    });
   }
   }
   function drawTrails() {
@@ -231,12 +292,87 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     // The universe view is spatial rather than chronological: dates remain
     // available in the sidebar filters, but are not drawn into the scene.
   }
-  function rebuildTimelineBackdrop(count) {
-    if (!timelineBackdrop) return;
-    for (const child of [...timelineBackdrop.children]) {
-      timelineBackdrop.remove(child);
-      child.traverse(object => { object.geometry?.dispose(); object.material?.dispose(); });
+  function disposeGroupContents(group) {
+    for (const child of [...group.children]) {
+      group.remove(child);
+      child.traverse?.(object => {
+        object.geometry?.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach(material => material?.dispose());
+      });
     }
+  }
+  function addTimelineLabel(group, text, className, position) {
+    const element = node("span", className, text);
+    const label = new CSS2DObject(element);
+    label.position.copy(position);
+    group.add(label);
+  }
+  function addBigBangArt(group, x) {
+    const burst = new THREE.Group();
+    burst.position.x = x;
+    const core = new THREE.Mesh(new THREE.SphereGeometry(.66, 24, 18), new THREE.MeshBasicMaterial({ color: 0xfff7e8 }));
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(1.05, 24, 18), new THREE.MeshBasicMaterial({ color: 0x8beaff, transparent: true, opacity: .26, side: THREE.BackSide, depthWrite: false }));
+    burst.add(core, halo);
+    const positions = [];
+    const colors = [];
+    const palette = [new THREE.Color(0xffd6ba), new THREE.Color(0xf3f8ff), new THREE.Color(0x8bdfff), new THREE.Color(0xb7a6ff)];
+    for (let index = 0; index < 144; index++) {
+      const angle = index * 2.399963229728653;
+      const length = 2.2 + (index % 17) * .48;
+      const direction = new THREE.Vector3(Math.sin(angle) * .72, Math.cos(angle), Math.sin(angle * 1.73) * .46).normalize();
+      positions.push(direction.x * .9, direction.y * .9, direction.z * .9,
+        direction.x * length, direction.y * length, direction.z * length);
+      const color = palette[index % palette.length];
+      colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+    }
+    const rays = new THREE.BufferGeometry();
+    rays.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    rays.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    burst.add(new THREE.LineSegments(rays, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: .72, depthWrite: false, blending: THREE.AdditiveBlending })));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.12, .025, 6, 72), new THREE.MeshBasicMaterial({ color: 0xffe5ce, transparent: true, opacity: .7, depthWrite: false }));
+    ring.rotation.y = Math.PI / 2;
+    burst.add(ring);
+    group.add(burst);
+    addTimelineLabel(group, "BIG BANG", "history-era-title history-era-big-bang", new THREE.Vector3(x, 5.1, 0));
+    addTimelineLabel(group, "Rapid expansion · first particles · first light", "history-era-caption", new THREE.Vector3(x, 4.1, 0));
+  }
+  function addModernUniverseArt(group, x) {
+    const system = new THREE.Group();
+    system.position.x = x;
+    system.add(new THREE.AmbientLight(0x8faecd, 1.25));
+    const sunLight = new THREE.PointLight(0xffd99c, 58, 45, 2);
+    sunLight.position.set(0, .1, 0); system.add(sunLight);
+    const addPlanet = (radius, color, point, options = {}) => {
+      const planet = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 20), new THREE.MeshStandardMaterial({ color, roughness: .72, metalness: .08, emissive: color, emissiveIntensity: .12 }));
+      planet.position.set(...point);
+      system.add(planet);
+      if (options.ring) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.55, .055, 8, 48), new THREE.MeshBasicMaterial({ color: options.ring, transparent: true, opacity: .68, depthWrite: false }));
+        ring.position.copy(planet.position); ring.rotation.set(.55, .2, -.25); system.add(ring);
+      }
+    };
+    addPlanet(1.2, 0xffc974, [0, .1, 0]);
+    addPlanet(.55, 0x67c7ed, [-3.1, -.45, .9]);
+    addPlanet(.82, 0xc98970, [-1.5, 2.6, -1.4], { ring: 0xf0c89a });
+    addPlanet(.48, 0xa9a0f1, [2.3, 2.1, .3]);
+    addPlanet(.7, 0x63b799, [3, -.9, -1.2], { ring: 0x9de3d0 });
+    addPlanet(.34, 0xe8e9f1, [1.2, -2.4, 1.1]);
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = [];
+    for (let index = 0; index < 90; index++) {
+      const angle = index * 2.399963229728653;
+      const radius = 4 + index % 9;
+      starPositions.push(Math.cos(angle) * radius, Math.sin(angle * 1.31) * radius * .5, Math.sin(angle) * radius);
+    }
+    starGeometry.setAttribute("position", new THREE.Float32BufferAttribute(starPositions, 3));
+    system.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xc4e8ff, size: .075, transparent: true, opacity: .9, depthWrite: false })));
+    group.add(system);
+  }
+  function rebuildTimelineBackdrop(count, dayStarts = [], showEraEnds = !saved) {
+    if (!timelineBackdrop) return;
+    disposeGroupContents(timelineBackdrop);
+    disposeGroupContents(timelineArt);
     const span = Math.max(34, (count - 1) * 2.4 + 20);
     const geometry = new THREE.CylinderGeometry(8.8, 2.2, span, 48, 1, true);
     for (const material of [
@@ -253,6 +389,18 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       }));
       ring.rotation.y = Math.PI / 2; ring.position.x = -span / 2 + progress * span; timelineBackdrop.add(ring);
     }
+    for (const marker of showEraEnds ? dayStarts : []) {
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(marker.x, -7.2, .2), new THREE.Vector3(marker.x, 7.2, .2)
+      ]), new THREE.LineBasicMaterial({ color: 0x8be7ff, transparent: true, opacity: .4, depthWrite: false }));
+      timelineBackdrop.add(line);
+      addTimelineLabel(timelineBackdrop, `${dateLabel(marker.key)} · ${clock(marker.at)}`, "history-era-date", new THREE.Vector3(marker.x, 8.1, .2));
+    }
+    if (showEraEnds) {
+      const firstGridPoint = -((count - 1) * 1.2);
+      addBigBangArt(timelineArt, firstGridPoint - 14);
+      addModernUniverseArt(timelineArt, span / 2 - 4.2);
+    }
   }
   function setSceneData() {
     if (!renderer) return;
@@ -262,6 +410,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       timelineIndex = Math.max(0, Math.min(timelineIndex, Math.max(0, chronological.length - TIMELINE_WINDOW_SIZE)));
       const windowVisits = chronological.slice(timelineIndex, timelineIndex + TIMELINE_WINDOW_SIZE);
       const positions = new Map();
+      const dayStarts = [];
       const golden = Math.PI * (3 - Math.sqrt(5));
       windowVisits.forEach((visit, index) => {
         const ageIndex = timelineIndex + index;
@@ -272,29 +421,35 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
           y: Math.sin(angle) * radius * 0.32,
           z: Math.cos(angle) * radius * 0.52
         });
+        const key = dateKey(visit.at);
+        if (index === 0 || dateKey(windowVisits[index - 1].at) !== key) {
+          dayStarts.push({ key, at: visit.at, x: positions.get(visit.id).x });
+        }
       });
       sceneVisits = windowVisits; sceneGroups = [];
       sceneShape = { positions, groupOf: new Map(), groups: [] };
       timelineFocusX = windowVisits.length
         ? windowVisits.reduce((sum, visit) => sum + positions.get(visit.id).x, 0) / windowVisits.length : 0;
-      rebuildTimelineBackdrop(chronological.length);
+      rebuildTimelineBackdrop(chronological.length, dayStarts, !saved);
       timelineBackdrop.visible = visible.length > 0;
+      timelineArt.visible = !saved && visible.length > 0;
     } else {
       const activityById = new Map(visits.map(visit => [visit.id, visit.at]));
       const recent = [...groups].sort((a, b) => {
         const latest = group => Math.max(...group.memberIds.map(id => activityById.get(id) || 0));
         return latest(b) - latest(a);
-      }).slice(0, 5);
+      }).slice(0, 10);
       const selectedGroup = pinnedGroup || (selected && shape.groupOf.get(selected));
       if (selectedGroup && !recent.some(group => group.id === selectedGroup)) {
         const group = groups.find(item => item.id === selectedGroup);
-        if (group) recent.splice(4, 1, group);
+        if (group) recent.splice(9, 1, group);
       }
       const allowed = new Set(recent.map(group => group.id));
       sceneVisits = visible.filter(visit => allowed.has(shape.groupOf.get(visit.id)));
       sceneShape = arrangeHistoryOrbits(recent, sceneVisits, shape.positions);
       sceneGroups = sceneShape.groups;
       timelineBackdrop.visible = false;
+      timelineArt.visible = false;
     }
     listeners.forEach(callback => callback());
     drawTrails();
@@ -317,14 +472,62 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     detailsDismissed = false; search.value = ""; entryLimit = 100; refresh(true); search.focus();
   }
   function overview() { day = "all"; selected = null; pinnedGroup = null; focusGroupId = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); }
-  function focusGroup(id) {
+  function zoomOutFromGroup() {
+    day = "all"; selected = null; pinnedGroup = null; focusGroupId = null; detailsDismissed = false;
+    timelineIndex = Number.MAX_SAFE_INTEGER; refresh(false);
+    if (!renderer || mode !== "universe") return;
+    const points = [...sceneShape.positions.values(), new THREE.Vector3(0, 0, 0)];
+    const view = viewFor(points);
+    flight = view; setOrbit(false);
+    syncZoomOut();
+  }
+  function syncZoomOut() {
+    if (!zoomOut) return;
+    zoomOut.hidden = saved || !openState || root.dataset.view !== "stars" || mode !== "universe" || day !== "group" || !pinnedGroup;
+  }
+  function focusGroup(id, visitId = null) {
     const group = groups.find(g => g.id === id); if (!group) return;
     pinnedGroup = id;
-    day = "group"; focusGroupId = id; selected = group.memberIds.at(-1); detailsDismissed = false; refresh(false);
+    day = "group"; focusGroupId = id; selected = visitId && group.memberIds.includes(visitId) ? visitId : group.memberIds.at(-1); detailsDismissed = false; refresh(false);
     if (renderer) {
       const view = viewFor(group.memberIds.map(id => sceneShape.positions.get(id) || shape.positions.get(id)));
       flight = view; setOrbit(false);
     }
+  }
+  function selectHistoryStar(id) {
+    if (!saved && mode === "universe") {
+      const groupId = sceneShape.groupOf.get(id) || shape.groupOf.get(id);
+      const alreadyFocused = groupId != null && String(pinnedGroup) === String(groupId) && day === "group" && String(focusGroupId) === String(groupId);
+      if (groupId != null && !alreadyFocused) { focusGroup(groupId, id); return; }
+    }
+    void openVisit(id);
+  }
+  function startExploration() {
+    if (saved || !explorationBusy || !openState || root.dataset.view !== "stars" || !explorer) return;
+    if (explorationPhase === "active") return;
+    if (explorationPhase === "exiting") { explorer.cancel(); root.classList.remove("history-exploration-exiting"); }
+    explorationPhase = "active";
+    root.classList.add("history-exploring");
+    explorer.start({ timeline: mode === "timeline" });
+    if (!frame) { lastTime = null; frame = requestAnimationFrame(tick); }
+  }
+  function setExploring(busy) {
+    explorationBusy = Boolean(busy);
+    if (explorationBusy) { startExploration(); return; }
+    if (explorationPhase !== "active") return;
+    explorationPhase = "exiting";
+    root.classList.add("history-exploration-exiting");
+    explorer?.finish();
+  }
+  function restartExploration() {
+    if (!explorationBusy || !openState || !explorer || root.dataset.view !== "stars") return;
+    explorer.cancel(); explorationPhase = "idle";
+    root.classList.remove("history-exploring", "history-exploration-exiting");
+    startExploration();
+  }
+  function finishExploration() {
+    explorationPhase = "idle";
+    root.classList.remove("history-exploring", "history-exploration-exiting");
   }
   function pathTo(id) {
     const ancestors = new Set(); const byId = new Map(visits.map(v => [v.id, v]));
@@ -418,6 +621,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         const copy = node("span", "cosmos-info-copy");
         copy.append(node("span", "cosmos-info-title", visit.title || host(visit.url)), node("span", "cosmos-info-url", host(visit.url)));
         button.append(mark, copy); button.onclick = () => select(visit.id, true); button.ondblclick = () => openVisit(visit.id);
+        if (!saved) button.oncontextmenu = event => { event.preventDefault(); browser.showHistoryMenu?.(visit.id); };
         sections.get(key).append(button);
         sections.get(key).querySelector(".history-timeline-count").textContent = String(Number(sections.get(key).querySelector(".history-timeline-count").textContent) + 1);
       });
@@ -446,6 +650,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
           const image = document.createElement("img"); image.src = visit.favicon; image.alt = ""; mark.append(image);
         } else mark.textContent = host(visit.url).slice(0, 1).toUpperCase();
         button.append(mark, copy); button.onclick = () => select(visit.id, true); button.ondblclick = () => openVisit(visit.id);
+        if (!saved) button.oncontextmenu = event => { event.preventDefault(); browser.showHistoryMenu?.(visit.id); };
         section.append(button);
       }
       sidebar.append(section);
@@ -474,7 +679,17 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       link.append(time, icon, copy);
       if (visit.liveTabId) link.append(node("span", "history-entry-live", "Open tab"));
       link.append(node("span", "history-entry-arrow", "↗"));
-      link.onclick = event => { event.preventDefault(); void openVisit(visit.id); };
+      link.onclick = event => {
+        event.preventDefault();
+        if (!saved && (event.ctrlKey || event.metaKey || event.shiftKey)) {
+          void browser.openHistory(visit.id, { newTab: true, activate: event.shiftKey });
+        } else void openVisit(visit.id);
+      };
+      link.onauxclick = event => {
+        if (saved || event.button !== 1) return;
+        event.preventDefault(); void browser.openHistory(visit.id, { newTab: true, activate: false });
+      };
+      if (!saved) link.oncontextmenu = event => { event.preventDefault(); browser.showHistoryMenu?.(visit.id); };
       if (saved) {
         const row = node("div", "bookmark-entry-row"); row.append(link, bookmarkActions(visit)); sections.get(key).append(row);
       } else sections.get(key).append(link);
@@ -484,6 +699,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     root.querySelector(".history-load-more").hidden = entryLimit >= visits.length;
   }
   function setMode(next) {
+    if (next !== mode) { day = "all"; selected = null; pinnedGroup = null; focusGroupId = null; detailsDismissed = false; }
     if (next === "list") { mode = "universe"; visualize = false; }
     else { mode = next === "timeline" ? "timeline" : "universe"; visualize = true; }
     timelineIndex = next === "timeline" ? Number.MAX_SAFE_INTEGER : 0;
@@ -501,6 +717,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       ? "Scroll either side to move through time · Click a star to open · Click a sidebar row to inspect"
       : "Click a star to open · Click a sidebar row to inspect · Drag to rotate · Scroll to zoom";
     refresh(true);
+    restartExploration();
   }
   function setView(searching) {
     const previous = root.dataset.view;
@@ -519,10 +736,12 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     if (searching) {
       initializeScene();
       if (renderer && !frame) { lastTime = null; frame = requestAnimationFrame(tick); }
+      if (explorationBusy) startExploration();
     } else {
       cancelAnimationFrame(frame); frame = 0; lastTime = null;
       if (previous === "stars") listView.scrollTop = 0;
     }
+    syncZoomOut();
   }
   function refresh(refit = false) {
     if (!openState) return;
@@ -542,6 +761,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       const button = node("button", "history-date" + (day === key ? " active" : "")); button.dataset.date = key;
       button.append(node("span", "", dateLabel(key)), node("small", "", String(visits.filter(v => dateKey(v.at) === key).length)));
       button.onclick = () => focusDate(key); dates.append(button);
+      if (!saved) button.oncontextmenu = event => { event.preventDefault(); browser.showHistoryDateMenu?.(key); };
     }
     search.placeholder = saved ? "Search bookmarks" : "Search all history";
     const filtered = visits.filter(v => (!keys.includes(day) || dateKey(v.at) === day) && `${v.title} ${v.url}`.toLowerCase().includes(query)).sort((a,b) => a.at - b.at || a.id.localeCompare(b.id));
@@ -584,25 +804,28 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     const sidebarWidth = root.classList.contains("sidebar-hidden") ? 0 : root.querySelector(".cosmos-sidebar").getBoundingClientRect().width;
     const aspect = Math.max(.3, (width - sidebarWidth) / Math.max(1, height));
     const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const distance = Math.max(42, (size.y + 36) / (2 * tangent), (size.x + 36) / (2 * tangent * aspect));
-    return { target, offset: new THREE.Vector3(0, 0, distance) };
+    const orbitCameraDirection = new THREE.Vector3(0, .8, .7).normalize();
+    const screenHeight = size.y * .658 + size.z * .753;
+    const distance = Math.max(42, (screenHeight + 36) / (2 * tangent), (size.x + 36) / (2 * tangent * aspect));
+    return { target, offset: orbitCameraDirection.multiplyScalar(distance) };
   }
   function fit() {
     if (!renderer) return; resize(); flight = null;
     if (mode === "timeline") {
       controls.enabled = false; controls.autoRotate = false;
       controls.target.set(timelineFocusX, 0, 0);
-      camera.position.set(timelineFocusX, 29, 48); camera.lookAt(controls.target);
+      camera.position.set(timelineFocusX, 34, 56); camera.lookAt(controls.target);
       scene.fog.density = .004; setOrbit(false); return;
     }
     controls.enabled = true;
     const points = [...sceneShape.positions.values()];
     if (blackHoleRoot?.visible) points.push({ x: 0, y: 0, z: 0 });
     const { target, offset } = viewFor(points);
-    controls.maxDistance = Math.max(4000, offset.z * 3);
-    camera.far = Math.max(10000, offset.z * 5); camera.updateProjectionMatrix();
+    const distance = offset.length();
+    controls.maxDistance = Math.max(4000, distance * 3);
+    camera.far = Math.max(10000, distance * 5); camera.updateProjectionMatrix();
     controls.target.copy(target); camera.position.copy(target).add(offset);
-    scene.fog.density = .12 / offset.z;
+    scene.fog.density = .12 / distance;
     setOrbit(false); controls.update();
   }
   function tick(now) {
@@ -631,7 +854,13 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       item.line.material.opacity = highlighted ? .95 : context ? .16 : .62;
       item.arrow.cone.material.opacity = highlighted ? 1 : context ? .24 : .8;
     }
+    const ended = explorer ? explorer.update(time, dt) : false;
     renderer.render(scene, camera); labels.render(scene, camera);
+    if (explorationPhase === "exiting" && ended) finishExploration();
+    if (timelineArt?.visible && timelineArt.children[0]) {
+      const modern = timelineArt.children.find(child => child.type === "Group" && child.children.some(part => part.isPoints));
+      if (modern) modern.rotation.y = Math.sin(time * .08) * .045;
+    }
   }
   function setOrbit(enabled) {
     if (controls) controls.autoRotate = enabled && !motion.matches;
@@ -657,17 +886,20 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   root.querySelectorAll(".history-mode").forEach(button => { button.onclick = () => setMode(button.dataset.mode); });
   sidebar.addEventListener("scroll", syncTimelineWindowFromSidebar, { passive: true });
   root.querySelector(".history-fit").onclick = overview;
+  zoomOut?.addEventListener("click", zoomOutFromGroup);
   clearSearch.onclick = showAllHistory;
   root.querySelector(".history-load-more").onclick = () => { entryLimit += 100; renderEntries(); };
   root.querySelector(".history-close").onclick = close;
   search.oninput = () => { day = "all"; selected = null; focusGroupId = null; pinnedGroup = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); };
   root.addEventListener("keydown", event => {
-    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && sidebar.contains(event.target)) {
+    if (["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"].includes(event.key) && sidebar.contains(event.target)) {
       const current = event.target.closest("[data-visit-id]");
       if (current) {
         const rows = [...sidebar.querySelectorAll("button[data-visit-id]")];
         const index = rows.indexOf(current);
-        const next = rows[index + (event.key === "ArrowDown" ? 1 : -1)];
+        const amount = event.key === "PageDown" ? 8 : event.key === "PageUp" ? -8 : event.key === "Home" ? -Infinity : event.key === "End" ? Infinity : event.key === "ArrowDown" ? 1 : -1;
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + amount));
+        const next = rows[nextIndex];
         event.preventDefault();
         if (next) {
           next.focus();
@@ -700,10 +932,12 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     root.hidden = false; onVisibilityChange(true);
     day = "all"; selected = null; detailsDismissed = false; search.value = ""; entryLimit = 100;
     refresh(true); listView.scrollTop = 0; sidebar.scrollTop = 0; search.focus();
+    if (explorationBusy) startExploration();
   }
   function close() {
     if (!openState) return; openState = false; root.hidden = true; cancelAnimationFrame(frame); frame = 0; onVisibilityChange(false);
+    explorer?.cancel(); finishExploration();
     document.getElementById(`${collection}-tab`).focus();
   }
-  return { open, close, toggle: () => openState ? close() : open(), isOpen: () => openState };
+  return { open, close, toggle: () => openState ? close() : open(), isOpen: () => openState, setExploring };
 }

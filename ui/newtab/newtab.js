@@ -6,6 +6,7 @@ import { migrateNovaPreferences } from "../lib/preferences.js";
 migrateNovaPreferences();
 
 const canvas = document.getElementById("universe");
+const startSearch = document.getElementById("start-search");
 const motion = matchMedia("(prefers-reduced-motion: reduce)");
 const toggle = document.getElementById("motion-toggle");
 const galaxy = createGalaxyScene(canvas);
@@ -65,9 +66,17 @@ if (window.novaSearch) {
     cancelRequests: () => bridge.cancelSuggestions(), onCommit: item => { void bridge.chooseSuggestion(item); }
   });
 }
+function focusStartSearch() {
+  if (document.visibilityState === "hidden" || !startSearch) return;
+  startSearch.focus({ preventScroll: true });
+}
+window.addEventListener("pageshow", focusStartSearch);
+requestAnimationFrame(() => requestAnimationFrame(focusStartSearch));
 document.getElementById("search-form").addEventListener("submit", event => {
   event.preventDefault(); const query = document.getElementById("start-search").value.trim();
-  if (query) location.assign(normalizeAddress(query));
+  if (!query) return;
+  if (window.novaSearch) void window.novaSearch.chooseSuggestion({ kind: "search", value: query });
+  else location.assign(normalizeAddress(query));
 });
 resize(); syncMotion();
 document.documentElement.dataset.startReady = "true";

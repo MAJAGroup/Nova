@@ -1,4 +1,4 @@
-import { domainOf, normalizeAddress, searchUrl } from "../../lib/url.js";
+import { domainOf } from "../../lib/url.js";
 
 // Plain-language browser commands the assistant handles itself, without a
 // model. Returns the reply text, or "" when the prompt isn't a command.
@@ -23,7 +23,7 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
   match = text.match(/^(?:search(?: the web)?(?: for)?|google)\s+(.+)$/i);
   if (match) {
     if (aiAvailable && /\b(?:new\s+)?(?:tabs?|websites?|sites?|pages?)\b/i.test(text)) return "";
-    browser.newTab(searchUrl(match[1]));
+    browser.newTab(match[1]);
     return "Searching the web for “" + match[1] + "”.";
   }
 
@@ -39,7 +39,7 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
   match = text.match(/^(?:open|visit|go to)\s+(.+)$/i);
   if (match) {
     if (aiAvailable && /\b(?:new\s+)?(?:tabs?|websites?|sites?|pages?)\b/i.test(text)) return "";
-    browser.newTab(normalizeAddress(match[1]));
+    browser.newTab(match[1]);
     return "Opening " + match[1] + ".";
   }
 

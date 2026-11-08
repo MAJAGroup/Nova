@@ -4,6 +4,7 @@ const {
   app,
   BrowserWindow,
   WebContentsView,
+  clipboard,
   ipcMain,
   Menu,
   dialog,
@@ -14,17 +15,27 @@ const {
   session
 } = require("electron");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const START_PAGE_URL = pathToFileURL(path.join(__dirname, "ui", "newtab", "index.html")).href;
 const START_PAGE_ICON = pathToFileURL(path.join(__dirname, "ui", "newtab", "icon.svg")).href;
 const isStartPage = url => url === START_PAGE_URL;
+const START_PAGE_FOCUS_SCRIPT = `(() => { const focus = () => { const input = document.getElementById("start-search"); if (input) input.focus({ preventScroll: true }); }; requestAnimationFrame(() => requestAnimationFrame(focus)); })()`;
+
+function focusStartSearch(tab) {
+  if (!tab || tab.view.webContents.isDestroyed()) return;
+  const currentUrl = tab.view.webContents.getURL() || tab.url;
+  if (!isStartPage(currentUrl)) return;
+  tab.view.webContents.executeJavaScript(START_PAGE_FOCUS_SCRIPT).catch(() => {});
+}
 const { createTabGroups } = require("./tab-groups");
 const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 const { runAgent } = require("./ai-agent");
 
 const { HistoryStore } = require("./history-store");
 const { BookmarkStore } = require("./bookmark-store");
+const { ReadingListStore } = require("./reading-list-store");
 const { registerLinuxDesktop } = require("./linux-desktop");
 const { createTabResourceView } = require("./tab-resources-view");
 const { configureNovaProfile } = require("./profile-migration");
@@ -35,10 +46,14 @@ const suggestionRequests = new Map();
 const launch = configureNovaProfile(app);
 let visitHistory;
 let bookmarks;
+let readingList;
 
 const tabs = new Map();
 const groups = createTabGroups();
 const permissionGrants = new Map();
+const closedTabs = [];
+const downloads = new Map();
+const siteZoomLevels = new Map();
 const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
 let mainWindow = null;
 let assistantHandleView = null;
@@ -47,11 +62,20 @@ let activeTabId = null;
 // A tab the assistant opened beside the current page. It is an ordinary tab
 // shown next to the active one until it is closed or switched to.
 let sideTabId = null;
+let multiView = null; // { kind: "tabs", leftId, rightId } or { kind: "orbit", tabId }
+let orbitSceneVisible = false;
 let nextTabId = 1;
+let nextDownloadId = 1;
 let browserBounds = { ...hiddenBounds };
 let assistantExpanded = false;
 let sideBounds = { ...hiddenBounds };
 let settingsCache = null;
+let restoreSessionOnLaunch = true;
+let clearDataOnExit = false;
+let clearingDataForExit = false;
+let searchProvider = "google";
+let sessionRestoreSnapshot = null;
+let sessionSaveTimer = null;
 
 function normalizeDestination(input) {
   const value = String(input || "").trim();
@@ -64,10 +88,36 @@ function normalizeDestination(input) {
   try {
     const parsed = new URL(value);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
-    return "https://www.google.com/search?q=" + encodeURIComponent(value);
+    return searchDestination(value);
   } catch (_) {
-    return "https://www.google.com/search?q=" + encodeURIComponent(value);
+    return searchDestination(value);
   }
+}
+
+const searchProviders = {
+  google: query => "https://www.google.com/search?q=" + encodeURIComponent(query),
+  bing: query => "https://www.bing.com/search?q=" + encodeURIComponent(query),
+  duckduckgo: query => "https://duckduckgo.com/?q=" + encodeURIComponent(query),
+  brave: query => "https://search.brave.com/search?q=" + encodeURIComponent(query)
+};
+
+function searchDestination(input) {
+  const value = String(input || "").trim();
+  const keyword = value.match(/^(g|google|b|bing|ddg|duckduckgo|br|brave):?\s+(.+)$/i);
+  if (keyword) {
+    const provider = /^(g|google)$/i.test(keyword[1]) ? "google" : /^(b|bing)$/i.test(keyword[1]) ? "bing" : /^(br|brave)$/i.test(keyword[1]) ? "brave" : "duckduckgo";
+    return searchProviders[provider](keyword[2]);
+  }
+  return searchProviders[searchProvider](value);
+}
+
+function navigateActive(input, { searchOnly = false } = {}) {
+  const target = searchOnly ? searchDestination(input) : normalizeDestination(input);
+  if (!activeTabId || !tabs.has(activeTabId)) return createTab(target);
+  const tab = tabs.get(activeTabId);
+  tab.freshNavigation = true;
+  tab.view.webContents.loadURL(target).catch(() => {});
+  return target;
 }
 
 function isWebUrl(value) {
@@ -91,10 +141,15 @@ function tabSnapshot(tab) {
     favicon: tab.favicon || "",
     active: tab.id === activeTabId,
     side: tab.id === sideTabId,
+    multiTab: multiView?.kind === "tabs" && (tab.id === multiView.leftId || tab.id === multiView.rightId),
     loading: tab.loading,
     lastAccessed: tab.lastAccessed,
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
+    pinned: tab.pinned === true,
+    audible: contents.isCurrentlyAudible(),
+    muted: contents.isAudioMuted(),
+    zoomLevel: contents.getZoomLevel(),
     currentVisit: tab.currentVisit,
     connection: isStartPage(tab.url) ? { state: "local", message: "Nova start page — stored on this device" } : tab.connection?.snapshot(tab.url),
     groupId: tab.groupId || null
@@ -107,7 +162,8 @@ function tabsPayload() {
     tabs: Array.from(tabs.values()).map(tabSnapshot),
     groups: groups.list(),
     activeId: activeTabId,
-    sideId: sideTabId
+    sideId: sideTabId,
+    multiView
   };
 }
 
@@ -117,6 +173,90 @@ function sendTabs() {
   mainWindow.webContents.send("browser:tabs-updated", tabsPayload());
   mainWindow.webContents.send("browser:history-updated", visitHistory.snapshot(tabs));
   mainWindow.webContents.send("browser:bookmarks-updated", bookmarks.snapshot(tabs));
+  mainWindow.webContents.send("browser:reading-list-updated", readingList?.snapshot(tabs) || []);
+  scheduleSessionSave();
+}
+
+function sessionSnapshotPath() {
+  return path.join(app.getPath("userData"), "nova-session.json");
+}
+
+function saveSessionSnapshot() {
+  clearTimeout(sessionSaveTimer); sessionSaveTimer = null;
+  try {
+    const snapshot = {
+      version: 1,
+      activeIndex: Array.from(tabs.keys()).indexOf(activeTabId),
+      tabs: Array.from(tabs.values()).map(tab => ({
+        url: isStartPage(tab.url) ? "nova://newtab" : isWebUrl(tab.url) ? tab.url : "",
+        title: tab.title, favicon: tab.favicon, pinned: tab.pinned === true,
+        groupName: tab.groupId ? groups.get(tab.groupId)?.name || "" : ""
+      })).filter(tab => tab.url),
+      closedTabs: closedTabs.slice(-25).map(tab => ({
+        url: isStartPage(tab.url) ? "nova://newtab" : isWebUrl(tab.url) ? tab.url : "",
+        title: tab.title, favicon: tab.favicon, pinned: tab.pinned === true,
+        groupName: tab.groupName || (tab.groupId ? groups.get(tab.groupId)?.name || "" : "")
+      })).filter(tab => tab.url)
+    };
+    const destination = sessionSnapshotPath();
+    fsSync.mkdirSync(path.dirname(destination), { recursive: true });
+    fsSync.writeFileSync(destination + ".tmp", JSON.stringify(snapshot), { mode: 0o600 });
+    fsSync.renameSync(destination + ".tmp", destination);
+  } catch (error) { console.error("Could not save the previous session:", error.message); }
+}
+
+function scheduleSessionSave() {
+  if (!app.isReady()) return;
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(saveSessionSnapshot, 500);
+  sessionSaveTimer.unref?.();
+}
+
+function restoreSavedTabs() {
+  const saved = sessionRestoreSnapshot;
+  sessionRestoreSnapshot = null;
+  if (!restoreSessionOnLaunch || !saved || !Array.isArray(saved.tabs)) return false;
+  const groupIds = new Map();
+  const restored = [];
+  let restoredActiveId = null;
+  for (const [savedIndex, item] of saved.tabs.slice(0, 100).entries()) {
+    const url = item.url === "nova://newtab" ? START_PAGE_URL : isWebUrl(item.url) ? item.url : "";
+    if (!url) continue;
+    let groupId = null;
+    if (typeof item.groupName === "string" && item.groupName.trim()) {
+      const name = item.groupName.trim().slice(0, 64);
+      if (!groupIds.has(name)) groupIds.set(name, groups.create(name));
+      groupId = groupIds.get(name);
+    }
+    const id = createTab(url, { groupId, activate: false });
+    const tab = id && tabs.get(id);
+    if (!tab) continue;
+    tab.title = typeof item.title === "string" ? item.title.slice(0, 512) : tab.title;
+    tab.favicon = typeof item.favicon === "string" && /^(https?:|data:image\/)/i.test(item.favicon) ? item.favicon.slice(0, 8192) : "";
+    tab.pinned = item.pinned === true;
+    restored.push(id);
+    if (savedIndex === saved.activeIndex) restoredActiveId = id;
+  }
+  closedTabs.length = 0;
+  for (const item of Array.isArray(saved.closedTabs) ? saved.closedTabs.slice(-25) : []) {
+    const url = item?.url === "nova://newtab" ? START_PAGE_URL : isWebUrl(item?.url) ? item.url : "";
+    if (!url) continue;
+    let groupId = null;
+    if (typeof item.groupName === "string" && item.groupName.trim()) {
+      const name = item.groupName.trim().slice(0, 64);
+      if (!groupIds.has(name)) groupIds.set(name, groups.create(name));
+      groupId = groupIds.get(name);
+    }
+    closedTabs.push({ url, title: typeof item.title === "string" ? item.title.slice(0, 512) : "",
+      favicon: typeof item.favicon === "string" && /^(https?:|data:image\/)/i.test(item.favicon) ? item.favicon.slice(0, 8192) : "",
+      pinned: item.pinned === true, groupId });
+  }
+  if (restored.length) {
+    reorderTabs(restored);
+    setActiveTab(restoredActiveId && tabs.has(restoredActiveId) ? restoredActiveId : restored[0]);
+    return true;
+  }
+  return false;
 }
 
 // Puts tabs into a group: an existing one (groupId) or a new one (optional
@@ -145,18 +285,25 @@ function removeGroup(groupId) {
   sendTabs();
 }
 
-function showTabMenu(id) {
+function showTabMenu(id, selectedIds = []) {
   const tab = tabs.get(String(id));
   if (!tab || !mainWindow) return;
+  const targets = Array.isArray(selectedIds) ? [...new Set(selectedIds.map(String).filter(tabId => tabs.has(tabId)))] : [];
+  if (!targets.includes(tab.id)) targets.push(tab.id);
+  const targetIds = targets.length > 1 ? targets : [tab.id];
   const current = tab.groupId ? groups.get(tab.groupId) : null;
   const others = groups.list().filter((group) => group.id !== tab.groupId);
   const template = [
-    { label: "New constellation with this tab", click: () => groupTabs([tab.id]) }
+    { label: "Duplicate tab", click: () => duplicateTab(tab.id) },
+    { label: tab.pinned ? "Unpin tab" : "Pin tab", click: () => pinTab(tab.id, !tab.pinned) },
+    { label: tab.view.webContents.isAudioMuted() ? "Unmute tab" : "Mute tab", click: () => targetIds.forEach(targetId => { const target = tabs.get(targetId); if (target) setTabMuted(targetId, !target.view.webContents.isAudioMuted()); }) },
+    { type: "separator" },
+    { label: targetIds.length > 1 ? `New constellation with ${targetIds.length} tabs` : "New constellation with this tab", click: () => groupTabs(targetIds) }
   ];
   if (others.length) {
     template.push({
       label: "Add to constellation",
-      submenu: others.map((group) => ({ label: group.name, click: () => groupTabs([tab.id], { groupId: group.id }) }))
+      submenu: others.map((group) => ({ label: group.name, click: () => groupTabs(targetIds, { groupId: group.id }) }))
     });
   }
   if (current) {
@@ -174,20 +321,290 @@ function showTabMenu(id) {
         }))
       }] : []),
       { type: "separator" },
-      { label: "Remove from " + current.name, click: () => ungroupTabs([tab.id]) },
+      { label: "Remove from " + current.name, click: () => ungroupTabs(targetIds) },
       { label: "Rename " + current.name + "…", click: () => sendCommand("rename-group", { focusUI: true, arg: current.id }) },
       { label: "Ungroup " + current.name, click: () => removeGroup(current.id) }
     );
   }
-  template.push({ type: "separator" }, { label: "Close tab", click: () => closeTab(tab.id) });
+  const ordered = Array.from(tabs.keys());
+  const index = ordered.indexOf(tab.id);
+  const otherTabs = ordered.filter((tabId) => tabId !== tab.id);
+  const tabsToRight = ordered.slice(index + 1);
+  const previousTabId = ordered[index - 1];
+  const nextTabId = ordered[index + 1];
+  if (targetIds.length === 2 || previousTabId || nextTabId) {
+    template.push({ type: "separator" });
+    if (targetIds.length === 2) {
+      const pair = ordered.filter(tabId => targetIds.includes(tabId));
+      template.push({ label: "Split selected tabs side by side", click: () => setMultiTabPair(pair[0], pair[1]) });
+    }
+    if (previousTabId) template.push({ label: "Split with previous tab", click: () => setMultiTabPair(previousTabId, tab.id) });
+    if (nextTabId) template.push({ label: "Split with next tab", click: () => setMultiTabPair(tab.id, nextTabId) });
+    template.push({ label: "Pair with Orbit scene", click: () => setOrbitMultiView(tab.id) });
+  }
+  template.push(
+    { type: "separator" },
+    { label: "Close other tabs", enabled: otherTabs.length > 0, click: () => otherTabs.forEach((tabId) => closeTab(tabId)) },
+    { label: "Close tabs to the right", enabled: tabsToRight.length > 0, click: () => tabsToRight.forEach((tabId) => closeTab(tabId)) },
+    { label: "Close tab", click: () => closeTab(tab.id) }
+  );
   Menu.buildFromTemplate(template).popup({ window: mainWindow });
+}
+
+function showNavigationMenu(direction) {
+  const contents = activeContents();
+  if (!contents || !mainWindow || !["back", "forward"].includes(direction)) return;
+  const history = contents.navigationHistory;
+  const entries = history.getAllEntries();
+  const activeIndex = history.getActiveIndex();
+  const indices = entries.map((_, index) => index).filter(index => direction === "back" ? index < activeIndex : index > activeIndex);
+  indices.sort((a, b) => direction === "back" ? b - a : a - b);
+  const template = indices.slice(0, 20).map(index => {
+    const entry = entries[index];
+    const title = String(entry.title || entry.url || "Page").replace(/\s+/g, " ");
+    return { label: title.length > 64 ? title.slice(0, 61) + "…" : title, click: () => history.goToIndex(index) };
+  });
+  if (!template.length) return;
+  Menu.buildFromTemplate(template).popup({ window: mainWindow });
+}
+
+function showAddressMenu() {
+  if (!mainWindow) return;
+  const pasted = clipboard.readText().trim().slice(0, 8192);
+  const template = [
+    { role: "undo" }, { role: "redo" }, { type: "separator" },
+    { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" },
+    { type: "separator" },
+    { label: "Paste and Go", enabled: Boolean(pasted), click: () => navigateActive(pasted) },
+    { label: "Paste and Search", enabled: Boolean(pasted), click: () => navigateActive(pasted, { searchOnly: true }) },
+    { label: "Open Clipboard in New Tab", enabled: Boolean(pasted), click: () => createTab(normalizeDestination(pasted)) }
+  ];
+  Menu.buildFromTemplate(template).popup({ window: mainWindow });
+}
+
+function showHistoryMenu(id) {
+  const visit = visitHistory.nodes.find(node => node.id === String(id));
+  if (!visit || !mainWindow) return;
+  const hostname = (() => { try { return new URL(visit.url).hostname.replace(/^www\./, ""); } catch { return ""; } })();
+  const removeSite = () => {
+    const ids = visitHistory.nodes.filter(node => {
+      try { const current = new URL(node.url).hostname.replace(/^www\./, ""); return current === hostname || current.endsWith("." + hostname); } catch { return false; }
+    }).map(node => node.id);
+    const count = visitHistory.removeMany(ids, tabs);
+    if (count) { sendTabs(); sendCommand("toast", { arg: `Removed ${count} visit${count === 1 ? "" : "s"} from ${hostname}.` }); }
+  };
+  Menu.buildFromTemplate([
+    { label: "Open page", click: () => openHistoryVisit(visit.id) },
+    { label: "Open in new tab", click: () => createTab(visit.url, { openerVisit: visit.id }) },
+    { label: "Open in background tab", click: () => createTab(visit.url, { openerVisit: visit.id, activate: false }) },
+    { label: "Copy link address", click: () => clipboard.writeText(visit.url) },
+    { type: "separator" },
+    { label: "Remove this visit", click: () => { visitHistory.remove(visit.id, tabs); sendTabs(); sendCommand("toast", { arg: "Removed from browsing history." }); } },
+    ...(hostname ? [{ label: `Remove all history from ${hostname}`, click: removeSite }] : [])
+  ]).popup({ window: mainWindow });
+}
+
+function showHistoryDateMenu(key) {
+  if (!mainWindow || typeof key !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+  const [year, month, day] = key.split("-").map(Number);
+  const start = new Date(year, month - 1, day).getTime();
+  const end = new Date(year, month - 1, day + 1).getTime();
+  const count = visitHistory.nodes.filter(node => node.at >= start && node.at < end).length;
+  if (!count) return;
+  Menu.buildFromTemplate([
+    { label: `Remove ${count} visit${count === 1 ? "" : "s"} from this date`, click: () => {
+      const ids = visitHistory.nodes.filter(node => node.at >= start && node.at < end).map(node => node.id);
+      const removed = visitHistory.removeMany(ids, tabs);
+      if (removed) { sendTabs(); sendCommand("toast", { arg: `Removed ${removed} visits from history.` }); }
+    } }
+  ]).popup({ window: mainWindow });
+}
+
+function saveToReadingList(input) {
+  if (!readingList || !input || !isWebUrl(input.url)) return false;
+  const existed = readingList.items.some(item => item.url === input.url);
+  try {
+    const item = readingList.save(input);
+    sendTabs();
+    sendCommand("toast", { arg: existed ? "This page is already in your Reading List." : "Added to your Reading List." });
+    return item;
+  } catch (error) {
+    sendCommand("toast", { arg: error.message || "Could not add this page to the Reading List." });
+    return false;
+  }
+}
+
+function openHistoryVisit(id, options = {}) {
+  const { newTab = false, activate = true } = options && typeof options === "object" ? options : {};
+  const node = visitHistory.nodes.find(item => item.id === String(id));
+  if (!node) return false;
+  const live = Array.from(tabs.values()).find(tab => tab.currentVisit === id);
+  if (live && !newTab) return setActiveTab(live.id);
+  return createTab(node.url, { openerVisit: node.id, activate });
+}
+
+function activeContents() {
+  return activeTabId ? tabs.get(activeTabId)?.view.webContents || null : null;
+}
+
+function setActiveZoom(level) {
+  const contents = activeContents();
+  if (!contents) return false;
+  const next = Math.max(-7.6, Math.min(8.8, Number(level) || 0));
+  contents.setZoomLevel(next);
+  const origin = permissionOrigin(contents.getURL());
+  if (origin) {
+    siteZoomLevels.set(origin, next);
+    void readSettings().then(settings => {
+      settings.siteZoomLevels = Object.fromEntries(siteZoomLevels);
+      return writeSettings(settings);
+    }).catch(error => console.error("Could not save site zoom:", error.message));
+  }
+  sendTabs();
+  return true;
+}
+
+function adjustActiveZoom(delta) {
+  const contents = activeContents();
+  return contents ? setActiveZoom(contents.getZoomLevel() + delta) : false;
+}
+
+function cycleTab(direction) {
+  const ordered = Array.from(tabs.keys());
+  if (ordered.length < 2) return false;
+  const current = ordered.indexOf(activeTabId);
+  const next = (current + direction + ordered.length) % ordered.length;
+  return setActiveTab(ordered[next]);
+}
+
+function moveTab(id, direction) {
+  const ordered = Array.from(tabs.values());
+  const index = ordered.findIndex(tab => tab.id === String(id));
+  if (index < 0 || !Number.isFinite(direction) || direction === 0) return false;
+  const tab = ordered[index];
+  const pinnedCount = ordered.filter(item => item.pinned === true).length;
+  const minimum = tab.pinned ? 0 : pinnedCount;
+  const maximum = tab.pinned ? Math.max(0, pinnedCount - 1) : ordered.length - 1;
+  const target = Math.max(minimum, Math.min(maximum, index + Math.sign(direction)));
+  if (target === index) return false;
+  ordered.splice(index, 1);
+  ordered.splice(target, 0, tab);
+  return reorderTabs(ordered.map(item => item.id));
+}
+
+function activateTabNumber(number) {
+  const ordered = Array.from(tabs.keys());
+  if (!ordered.length) return false;
+  const index = number === 9 ? ordered.length - 1 : number - 1;
+  return index >= 0 && index < ordered.length ? setActiveTab(ordered[index]) : false;
+}
+
+function reopenClosedTab(reverseIndex = 0) {
+  const index = closedTabs.length - 1 - Math.max(0, Math.min(closedTabs.length - 1, Number(reverseIndex) || 0));
+  const closed = closedTabs.splice(index, 1)[0];
+  if (!closed) return false;
+  let groupId = closed.groupId && groups.get(closed.groupId) ? closed.groupId : null;
+  if (!groupId && closed.groupName) {
+    const existing = groups.list().find(group => group.name.toLowerCase() === closed.groupName.toLowerCase());
+    groupId = existing ? existing.id : groups.create(closed.groupName);
+  }
+  const id = createTab(closed.url, { groupId, activate: true });
+  const tab = id && tabs.get(id);
+  if (tab) {
+    tab.title = closed.title || tab.title;
+    tab.favicon = closed.favicon || "";
+    tab.pinned = closed.pinned === true;
+    if (tab.pinned) pinTab(tab.id, true);
+  }
+  sendTabs();
+  return Boolean(id);
+}
+
+function showRecentlyClosedMenu() {
+  if (!mainWindow) return;
+  const recent = [...closedTabs].reverse().slice(0, 15);
+  const template = recent.length
+    ? recent.map((tab, index) => ({ label: String(tab.title || tab.url || "Closed tab").replace(/\s+/g, " ").slice(0, 76), click: () => reopenClosedTab(index) }))
+    : [{ label: "No recently closed tabs", enabled: false }];
+  Menu.buildFromTemplate(template).popup({ window: mainWindow });
+}
+
+function pinTab(id, pinned) {
+  const tab = tabs.get(String(id));
+  if (!tab) return false;
+  tab.pinned = pinned === true;
+  const ordered = Array.from(tabs.values());
+  ordered.sort((a, b) => Number(b.pinned === true) - Number(a.pinned === true));
+  tabs.clear();
+  for (const item of ordered) tabs.set(item.id, item);
+  sendTabs();
+  return true;
+}
+
+function setTabMuted(id, muted) {
+  const tab = tabs.get(String(id));
+  if (!tab) return false;
+  tab.view.webContents.setAudioMuted(muted === true);
+  sendTabs();
+  return true;
+}
+
+function duplicateTab(id) {
+  const tab = tabs.get(String(id));
+  return tab ? createTab(tab.url, { groupId: tab.groupId }) : null;
+}
+
+function reorderTabs(order) {
+  if (!Array.isArray(order) || order.length > 500) return false;
+  const seen = new Set();
+  const ordered = [];
+  for (const id of order) {
+    const tab = tabs.get(String(id));
+    if (tab && !seen.has(tab.id)) { seen.add(tab.id); ordered.push(tab); }
+  }
+  for (const tab of tabs.values()) if (!seen.has(tab.id)) ordered.push(tab);
+  const pinned = ordered.filter((tab) => tab.pinned === true);
+  const regular = ordered.filter((tab) => tab.pinned !== true);
+  tabs.clear();
+  for (const tab of [...pinned, ...regular]) tabs.set(tab.id, tab);
+  sendTabs();
+  return true;
+}
+
+function downloadSnapshot(entry) {
+  const item = entry.item;
+  let totalBytes = 0, receivedBytes = 0, state = entry.state, filename = entry.filename, savePath = entry.savePath;
+  try {
+    totalBytes = item.getTotalBytes();
+    receivedBytes = item.getReceivedBytes();
+    state = item.getState();
+    filename = item.getFilename();
+    savePath = item.getSavePath();
+  } catch { /* The item may have been released after a terminal event. */ }
+  return { id: entry.id, filename, url: entry.url, savePath, state, totalBytes, receivedBytes,
+    percent: totalBytes > 0 ? Math.min(100, Math.round(receivedBytes / totalBytes * 100)) : 0,
+    canResume: (() => { try { return item.canResume(); } catch { return false; } })(),
+    paused: (() => { try { return item.isPaused(); } catch { return false; } })() };
+}
+
+function downloadsPayload() {
+  return Array.from(downloads.values()).reverse().map(downloadSnapshot);
+}
+
+function sendDownloads() {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("browser:downloads-updated", downloadsPayload());
 }
 
 function updateWebViewVisibility() {
   const hasArea = (bounds) => bounds.width > 0 && bounds.height > 0;
   for (const tab of tabs.values()) {
     let bounds = hiddenBounds;
-    if (tab.id === activeTabId && hasArea(browserBounds)) bounds = browserBounds;
+    if (multiView?.kind === "tabs") {
+      if (tab.id === multiView.leftId && hasArea(browserBounds)) bounds = browserBounds;
+      else if (tab.id === multiView.rightId && hasArea(sideBounds)) bounds = sideBounds;
+    } else if (multiView?.kind === "orbit") {
+      if (tab.id === multiView.tabId && hasArea(browserBounds)) bounds = browserBounds;
+    } else if (tab.id === activeTabId && hasArea(browserBounds)) bounds = browserBounds;
     else if (tab.id === sideTabId && hasArea(sideBounds)) bounds = sideBounds;
     tab.view.setVisible(bounds !== hiddenBounds);
     tab.view.setBounds(bounds);
@@ -221,12 +638,51 @@ function pickFallbackTab() {
 }
 
 function setActiveTab(id) {
-  if (!tabs.has(String(id))) return false;
-  activeTabId = String(id);
-  if (sideTabId === activeTabId) sideTabId = null;
+  const targetId = String(id);
+  if (!tabs.has(targetId)) return false;
+  if (multiView?.kind === "tabs" && targetId !== multiView.leftId && targetId !== multiView.rightId) clearMultiViewState();
+  else if (multiView?.kind === "orbit" && targetId !== multiView.tabId) clearMultiViewState();
+  activeTabId = targetId;
+  if (sideTabId === activeTabId && multiView?.kind !== "tabs") sideTabId = null;
   tabs.get(activeTabId).lastAccessed = Date.now();
   updateWebViewVisibility();
   sendTabs();
+  focusStartSearch(tabs.get(activeTabId));
+  return true;
+}
+
+function clearMultiViewState() {
+  if (!multiView) return false;
+  if (multiView.kind === "tabs" && sideTabId === multiView.rightId) sideTabId = null;
+  multiView = null;
+  return true;
+}
+
+function setMultiTabPair(leftId, rightId) {
+  leftId = String(leftId); rightId = String(rightId);
+  if (!tabs.has(leftId) || !tabs.has(rightId) || leftId === rightId) return false;
+  multiView = { kind: "tabs", leftId, rightId };
+  sideTabId = rightId;
+  activeTabId = leftId;
+  tabs.get(leftId).lastAccessed = Date.now();
+  updateWebViewVisibility(); sendTabs();
+  return true;
+}
+
+function setOrbitMultiView(tabId) {
+  tabId = String(tabId);
+  if (!tabs.has(tabId)) return false;
+  multiView = { kind: "orbit", tabId };
+  sideTabId = null;
+  activeTabId = tabId;
+  tabs.get(tabId).lastAccessed = Date.now();
+  updateWebViewVisibility(); sendTabs();
+  return true;
+}
+
+function closeMultiView() {
+  if (!clearMultiViewState()) return false;
+  updateWebViewVisibility(); sendTabs();
   return true;
 }
 
@@ -246,6 +702,11 @@ function attachWebContentsHandlers(tab) {
     }
     tab.title = contents.getTitle() || tab.title;
     tab.loading = contents.isLoading();
+    const origin = permissionOrigin(tab.url);
+    if (origin && origin !== tab.origin) {
+      tab.origin = origin;
+      contents.setZoomLevel(siteZoomLevels.get(origin) || 0);
+    }
     visitHistory.commit(tab, { url: tab.url, title: tab.title, index: contents.navigationHistory.getActiveIndex(), fresh: tab.freshNavigation, favicon: tab.favicon });
     tab.freshNavigation = false;
     sendTabs();
@@ -262,6 +723,7 @@ function attachWebContentsHandlers(tab) {
     if (!isStartPage(tab.url)) visitHistory.title(tab, tab.title);
     sendTabs();
   });
+  contents.on("did-finish-load", () => { if (tab.id === activeTabId) focusStartSearch(tab); });
   contents.on("did-navigate", (event, url) => updateUrl(event, url));
   contents.on("did-navigate-in-page", updateUrl);
   contents.on("page-title-updated", (_event, title) => {
@@ -274,14 +736,74 @@ function attachWebContentsHandlers(tab) {
     if (!isStartPage(contents.getURL())) visitHistory.favicon(tab, tab.favicon);
     sendTabs();
   });
-  // Ctrl+Space opens the assistant even while the page has focus, in case the
-  // menu accelerator does not reach a focused child view.
+  // Browser shortcuts must work while a native page view has focus too. These
+  // are intercepted here because the page's renderer is a separate process.
   contents.on("before-input-event", (event, input) => {
-    if (input.type === "keyDown" && input.control && !input.alt && !input.meta && input.code === "Space") {
+    if (input.type !== "keyDown" || input.isComposing) return;
+    const mod = input.control || input.meta;
+    const key = String(input.key || "").toLowerCase();
+    let handled = true;
+    if (input.control && !input.alt && !input.meta && input.code === "Space") sendCommand("assistant", { focusUI: true });
+    else if (mod && !input.alt && key === "l") sendCommand("focus-address", { focusUI: true });
+    else if (mod && !input.alt && key === "k") sendCommand("focus-address", { focusUI: true });
+    else if (mod && !input.alt && key === "d") sendCommand("bookmark-page", { focusUI: true });
+    else if (mod && !input.alt && key === "h") sendCommand("history", { focusUI: true });
+    else if (mod && input.shift && key === "b") sendCommand("bookmarks", { focusUI: true });
+    else if (mod && input.shift && key === "o") sendCommand("cosmos", { focusUI: true });
+    else if (mod && !input.alt && key === ",") sendCommand("settings", { focusUI: true });
+    else if (mod && !input.alt && key === "/") sendCommand("shortcut-guide", { focusUI: true });
+    else if (input.key === "F6") sendCommand("focus-address", { focusUI: true });
+    else if (input.alt && !input.control && !input.meta && input.key === "ArrowLeft" && contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack();
+    else if (input.alt && !input.control && !input.meta && input.key === "ArrowRight" && contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward();
+    else if (input.alt && !input.control && !input.meta && input.key === "Home") sendCommand("go-home");
+    else if (mod && !input.alt && key === "t" && input.shift) reopenClosedTab();
+    else if (mod && !input.alt && key === "t") createTab();
+    else if (mod && !input.alt && key === "w") closeTab(tab.id);
+    else if (mod && !input.alt && key === "r" && input.shift) contents.reloadIgnoringCache();
+    else if (mod && !input.alt && key === "r") contents.reload();
+    else if (mod && !input.alt && key === "f") sendCommand("find", { focusUI: true });
+    else if (mod && !input.alt && key === "g" && input.shift) sendCommand("find-previous", { focusUI: true });
+    else if (mod && !input.alt && key === "g") sendCommand("find-next", { focusUI: true });
+    else if (input.key === "F3" && input.shift) sendCommand("find-previous", { focusUI: true });
+    else if (input.key === "F3") sendCommand("find-next", { focusUI: true });
+    else if (input.control && !input.alt && !input.meta && input.code === "Tab") cycleTab(input.shift ? -1 : 1);
+    else if (mod && !input.alt && /^[1-9]$/.test(key)) activateTabNumber(Number(key));
+    else if (mod && !input.alt && ["+", "=", "add"].includes(key)) adjustActiveZoom(1);
+    else if (mod && !input.alt && ["-", "_", "subtract"].includes(key)) adjustActiveZoom(-1);
+    else if (mod && !input.alt && key === "0") setActiveZoom(0);
+    else if (mod && !input.alt && key === "j") sendCommand("downloads", { focusUI: true });
+    else if (mod && !input.alt && key === "p") sendCommand("print");
+    else if (mod && !input.alt && key === "s" && input.shift) sendCommand("save-screenshot");
+    else if (mod && !input.alt && key === "s") sendCommand("save-page");
+    else if (input.control && !input.alt && !input.meta && input.code === "PageUp" && input.shift) moveTab(tab.id, -1);
+    else if (input.control && !input.alt && !input.meta && input.code === "PageDown" && input.shift) moveTab(tab.id, 1);
+    else if (input.control && !input.alt && !input.meta && input.code === "PageUp") cycleTab(-1);
+    else if (input.control && !input.alt && !input.meta && input.code === "PageDown") cycleTab(1);
+    else if (mod && !input.alt && key === "m") setTabMuted(tab.id, !contents.isAudioMuted());
+    else if (input.key === "F5" && !input.alt && input.control && !input.meta) contents.reloadIgnoringCache();
+    else if (input.key === "F5" && !input.alt) contents.reload();
+    else if (input.key === "Escape" && contents.isLoading()) contents.stop();
+    else if (mod && input.shift && key === "delete") sendCommand("clear-data-settings", { focusUI: true });
+    else handled = false;
+    if (handled) event.preventDefault();
+  });
+  contents.on("before-mouse-event", (event, mouse) => {
+    if (mouse.type !== "mouseDown") return;
+    if (mouse.button === "back") {
       event.preventDefault();
-      sendCommand("assistant", { focusUI: true });
+      if (contents.navigationHistory.canGoBack()) contents.navigationHistory.goBack();
+    } else if (mouse.button === "forward") {
+      event.preventDefault();
+      if (contents.navigationHistory.canGoForward()) contents.navigationHistory.goForward();
     }
   });
+  contents.on("found-in-page", (_event, result) => {
+    if (tab.id === activeTabId && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("browser:find-result", result);
+  });
+  contents.on("update-target-url", (_event, url) => {
+    if (tab.id === activeTabId && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("browser:link-preview", String(url || ""));
+  });
+  contents.on("audio-state-changed", () => sendTabs());
   contents.on("will-navigate", (event, url) => {
     if (isStartPage(url)) return;
     if (isWebUrl(url)) { tab.freshNavigation = true; return; }
@@ -298,17 +820,37 @@ function attachWebContentsHandlers(tab) {
     return { action: "deny" };
   });
   contents.on("context-menu", (_event, params) => {
-    const menu = Menu.buildFromTemplate([
+    const template = [
+      ...(params.misspelledWord ? (Array.isArray(params.dictionarySuggestions) ? params.dictionarySuggestions.slice(0, 8).map(suggestion => ({
+        label: suggestion,
+        click: () => contents.replaceMisspelling(suggestion)
+      })) : []) : []),
+      ...(params.misspelledWord ? [{
+        label: "Add to dictionary",
+        click: () => contents.session.addWordToSpellCheckerDictionary(String(params.misspelledWord).slice(0, 128))
+      }, { type: "separator" }] : []),
       { label: "Back", enabled: contents.navigationHistory.canGoBack(), click: () => contents.navigationHistory.goBack() },
       { label: "Forward", enabled: contents.navigationHistory.canGoForward(), click: () => contents.navigationHistory.goForward() },
       { type: "separator" },
+      ...(isWebUrl(params.linkURL) ? [
+        { label: "Open link in new tab", click: () => createTab(params.linkURL, { groupId: tab.groupId, openerVisit: tab.currentVisit }) },
+        { label: "Open link in background tab", click: () => createTab(params.linkURL, { groupId: tab.groupId, openerVisit: tab.currentVisit, activate: false }) },
+        { label: "Add link to Reading List", click: () => saveToReadingList({ url: params.linkURL, title: params.linkText || params.linkURL }) },
+        { label: "Copy link address", click: () => clipboard.writeText(params.linkURL) },
+        { type: "separator" }
+      ] : []),
+      ...(params.selectionText ? [
+        { label: `Search the web for “${String(params.selectionText).trim().slice(0, 48)}${String(params.selectionText).length > 48 ? "…" : ""}”`, click: () => createTab(searchDestination(params.selectionText), { groupId: tab.groupId, openerVisit: tab.currentVisit }) },
+        { type: "separator" }
+      ] : []),
       { role: "copy", enabled: params.selectionText.length > 0 },
       { role: "paste" },
       { role: "selectAll" },
       { type: "separator" },
+      ...(isWebUrl(tab.url) ? [{ label: "Add current page to Reading List", click: () => saveToReadingList({ url: tab.url, title: tab.title, favicon: tab.favicon }) }, { type: "separator" }] : []),
       { label: "Reload", click: () => contents.reload() }
-    ]);
-    menu.popup({ window: mainWindow });
+    ];
+    Menu.buildFromTemplate(template).popup({ window: mainWindow });
   });
   contents.on("render-process-gone", () => {
     tab.loading = false;
@@ -319,6 +861,8 @@ function attachWebContentsHandlers(tab) {
     suggestionRequests.get(contents.id)?.abort(); suggestionRequests.delete(contents.id);
     if (!tabs.has(tab.id)) return;
     tabs.delete(tab.id);
+    if ((multiView?.kind === "tabs" && (multiView.leftId === tab.id || multiView.rightId === tab.id)) ||
+        (multiView?.kind === "orbit" && multiView.tabId === tab.id)) clearMultiViewState();
     if (sideTabId === tab.id) sideTabId = null;
     if (activeTabId === tab.id) {
       activeTabId = pickFallbackTab();
@@ -342,7 +886,8 @@ function createTab(url, { groupId = null, openerVisit = null, activate = true, s
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      webSecurity: true
+      webSecurity: true,
+      spellcheck: true
     }
   });
   const tab = {
@@ -355,6 +900,8 @@ function createTab(url, { groupId = null, openerVisit = null, activate = true, s
     lastAccessed: Date.now(),
     groupId: groupId && groups.get(groupId) ? String(groupId) : null
   };
+  tab.pinned = false;
+  if (typeof view.webContents.setZoomMode === "function") view.webContents.setZoomMode("isolated");
   visitHistory.attach(tab, openerVisit);
   tab.connection = trackConnectionSecurity(view.webContents, sendTabs, {
     verificationDisabled: app.commandLine.hasSwitch("ignore-certificate-errors") || app.commandLine.hasSwitch("ignore-certificate-errors-spki-list")
@@ -366,6 +913,7 @@ function createTab(url, { groupId = null, openerVisit = null, activate = true, s
   attachWebContentsHandlers(tab);
   if (side && activeTabId) {
     const previous = sideTabId;
+    clearMultiViewState();
     sideTabId = id;
     if (previous) closeTab(previous);
     updateWebViewVisibility();
@@ -384,9 +932,18 @@ function closeTab(id) {
   const tab = tabs.get(String(id));
   if (!tab) return false;
   if (tabs.size === 1) {
-    if (!createTab()) return false;
-    return closeTab(id);
+    sendCommand("prepare-last-tab-close");
+    if (!createTab(START_PAGE_URL)) { sendCommand("cancel-last-tab-close"); return false; }
+    const closed = closeTab(id);
+    if (closed) sendCommand("open-cosmos");
+    else sendCommand("cancel-last-tab-close");
+    return closed;
   }
+  if (multiView?.kind === "tabs" && (tab.id === multiView.leftId || tab.id === multiView.rightId)) clearMultiViewState();
+  else if (multiView?.kind === "orbit" && tab.id === multiView.tabId) clearMultiViewState();
+  closedTabs.push({ url: tab.url || START_PAGE_URL, title: tab.title, favicon: tab.favicon,
+    groupId: tab.groupId, groupName: tab.groupId ? groups.get(tab.groupId)?.name || "" : "", pinned: tab.pinned === true });
+  if (closedTabs.length > 25) closedTabs.shift();
   const wasActive = activeTabId === tab.id;
   mainWindow.contentView.removeChildView(tab.view);
   tabs.delete(tab.id);
@@ -499,6 +1056,15 @@ function permissionOrigin(value) {
   }
 }
 
+function permissionsPayload() {
+  return Array.from(permissionGrants, ([origin, permissions]) => ({ origin, permissions: [...permissions].sort() }))
+    .filter(entry => entry.permissions.length).sort((a, b) => a.origin.localeCompare(b.origin));
+}
+
+function sendPermissions() {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("browser:permissions-updated", permissionsPayload());
+}
+
 function installPermissionPrompts() {
   const configureSession = (ses) => {
     ses.setPermissionCheckHandler((contents, permission, requestingOrigin) => {
@@ -525,28 +1091,193 @@ function installPermissionPrompts() {
       const displayOrigin = origin === "file://" ? "Nova desktop" : origin;
       const answer = await dialog.showMessageBox(mainWindow, {
         type: "question",
-        buttons: ["Allow", "Block"],
-        defaultId: 1,
-        cancelId: 1,
+        buttons: ["Allow this time", "Allow for this session", "Block"],
+        defaultId: 2,
+        cancelId: 2,
         title: "Website permission",
         message: displayOrigin + " wants to " + (labels[permission] || ("use " + permission)),
-        detail: "Only allow access for websites you trust."
+        detail: "A one-time grant expires after this request. Session grants can be revoked in Settings."
       });
-      if (answer.response !== 0) return callback(false);
+      if (answer.response === 0) return callback(true);
+      if (answer.response !== 1) return callback(false);
       const updated = permissionGrants.get(origin) || new Set();
       updated.add(permission);
       permissionGrants.set(origin, updated);
+      sendPermissions();
       callback(true);
     });
   };
   configureSession(session.defaultSession);
-  configureSession(session.fromPartition("persist:nova"));
+  const browserSession = session.fromPartition("persist:nova");
+  configureSession(browserSession);
+  browserSession.on("will-download", (_event, item) => {
+    const entry = { id: String(nextDownloadId++), item, filename: item.getFilename(), url: item.getURL(), savePath: "", state: "progressing" };
+    downloads.set(entry.id, entry);
+    const trim = () => {
+      if (downloads.size <= 100) return;
+      for (const [id, candidate] of downloads) {
+        if (downloads.size <= 100) break;
+        if (candidate.state !== "progressing") downloads.delete(id);
+      }
+    };
+    item.on("updated", (_event, state) => {
+      entry.state = state;
+      try { entry.savePath = item.getSavePath(); } catch {}
+      trim(); sendDownloads();
+    });
+    item.once("done", (_event, state) => {
+      entry.state = state;
+      try { entry.savePath = item.getSavePath(); } catch {}
+      trim(); sendDownloads();
+    });
+    sendDownloads();
+  });
 }
 
 function sendCommand(command, { focusUI = false, arg } = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (focusUI) mainWindow.webContents.focus();
   mainWindow.webContents.send("browser:command", command, arg);
+}
+
+function printActivePage() {
+  const contents = activeContents();
+  if (!contents || contents.isDestroyed()) return false;
+  contents.print({ printBackground: true });
+  return true;
+}
+
+async function saveActivePageAsPDF() {
+  const contents = activeContents();
+  if (!contents || contents.isDestroyed() || !mainWindow) return false;
+  const safeTitle = (contents.getTitle() || "Nova page").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").trim().slice(0, 100) || "Nova page";
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Save page as PDF",
+    defaultPath: path.join(app.getPath("downloads"), safeTitle + ".pdf"),
+    filters: [{ name: "PDF document", extensions: ["pdf"] }]
+  });
+  if (canceled || !filePath) return false;
+  try {
+    const pdf = await contents.printToPDF({ printBackground: true, preferCSSPageSize: true });
+    await fs.writeFile(filePath, pdf);
+    sendCommand("toast", { arg: "Saved PDF: " + path.basename(filePath) });
+    return true;
+  } catch (error) {
+    console.error("Could not save page as PDF:", error.message);
+    sendCommand("toast", { arg: "Nova could not save this page as a PDF." });
+    return false;
+  }
+}
+
+async function saveActivePage() {
+  const contents = activeContents();
+  if (!contents || contents.isDestroyed() || !mainWindow) return false;
+  const safeTitle = (contents.getTitle() || "Nova page").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").trim().slice(0, 100) || "Nova page";
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Save webpage",
+    defaultPath: path.join(app.getPath("downloads"), safeTitle + ".html"),
+    filters: [{ name: "Webpage, complete", extensions: ["html"] }, { name: "Webpage archive", extensions: ["mhtml"] }]
+  });
+  if (canceled || !filePath) return false;
+  const saveType = path.extname(filePath).toLowerCase() === ".mhtml" ? "MHTML" : "HTMLComplete";
+  try {
+    await contents.savePage(filePath, saveType);
+    sendCommand("toast", { arg: "Saved webpage: " + path.basename(filePath) });
+    return true;
+  } catch (error) {
+    console.error("Could not save webpage:", error.message);
+    sendCommand("toast", { arg: "Nova could not save this webpage." });
+    return false;
+  }
+}
+
+async function saveActiveScreenshot() {
+  const contents = activeContents();
+  if (!contents || contents.isDestroyed() || !mainWindow) return false;
+  const title = (contents.getTitle() || "Nova page").replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").trim().slice(0, 90) || "Nova page";
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Save page screenshot",
+    defaultPath: path.join(app.getPath("pictures"), title + ".png"),
+    filters: [{ name: "PNG image", extensions: ["png"] }]
+  });
+  if (canceled || !filePath) return false;
+  try {
+    const image = await contents.capturePage();
+    if (image.isEmpty()) throw Error("The page has no visible image to save.");
+    await fs.writeFile(filePath, image.toPNG());
+    sendCommand("toast", { arg: `Saved screenshot: ${path.basename(filePath)}` });
+    return true;
+  } catch (error) {
+    console.error("Could not save screenshot:", error.message);
+    sendCommand("toast", { arg: error.message || "Could not save the screenshot." });
+    return false;
+  }
+}
+
+function decodeBookmarkHTML(value) {
+  return String(value || "").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Math.min(0x10ffff, Number(code))))
+    .replace(/&#x([\da-f]+);/gi, (_match, code) => String.fromCodePoint(Math.min(0x10ffff, parseInt(code, 16))));
+}
+
+function parseBookmarkFile(source) {
+  const trimmed = String(source || "").trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : parsed.bookmarks;
+  }
+  const items = [];
+  const anchors = /<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a\s*>/gi;
+  let match;
+  while ((match = anchors.exec(trimmed)) && items.length < 10000) {
+    items.push({ url: decodeBookmarkHTML(match[2]), title: decodeBookmarkHTML(match[3].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()) });
+  }
+  return items;
+}
+
+async function importBookmarks() {
+  if (!mainWindow) return false;
+  const selection = await dialog.showOpenDialog(mainWindow, { title: "Import bookmarks", properties: ["openFile"], filters: [{ name: "Bookmarks", extensions: ["html", "htm", "json"] }] });
+  if (selection.canceled || !selection.filePaths[0]) return false;
+  try {
+    const source = await fs.readFile(selection.filePaths[0], "utf8");
+    const entries = parseBookmarkFile(source);
+    if (!Array.isArray(entries)) throw Error("No bookmark list was found in that file.");
+    const count = bookmarks.import(entries);
+    sendTabs(); sendCommand("toast", { arg: `Imported ${count} bookmark${count === 1 ? "" : "s"}.` });
+    return true;
+  } catch (error) {
+    console.error("Could not import bookmarks:", error.message);
+    sendCommand("toast", { arg: error.message || "Could not import that bookmark file." });
+    return false;
+  }
+}
+
+async function exportBookmarks() {
+  if (!mainWindow) return false;
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Export bookmarks",
+    defaultPath: path.join(app.getPath("documents"), "Nova-bookmarks.html"),
+    filters: [{ name: "Browser bookmark file", extensions: ["html"] }, { name: "JSON backup", extensions: ["json"] }]
+  });
+  if (canceled || !filePath) return false;
+  try {
+    const items = bookmarks.items;
+    let content;
+    if (path.extname(filePath).toLowerCase() === ".json") content = JSON.stringify({ version: 1, bookmarks: items }, null, 2);
+    else {
+      const escape = value => String(value || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      content = `<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Nova Bookmarks</TITLE>\n<H1>Nova Bookmarks</H1>\n<DL><p>\n${items.map(item => `<DT><A HREF="${escape(item.url)}" ADD_DATE="${Math.floor(item.at / 1000)}">${escape(item.title)}</A>`).join("\n")}\n</DL><p>\n`;
+    }
+    await fs.writeFile(filePath, content, "utf8");
+    sendCommand("toast", { arg: `Exported ${items.length} bookmarks.` });
+    return true;
+  } catch (error) {
+    console.error("Could not export bookmarks:", error.message);
+    sendCommand("toast", { arg: "Could not export bookmarks." });
+    return false;
+  }
 }
 
 function createApplicationMenu() {
@@ -565,8 +1296,17 @@ function createApplicationMenu() {
       label: "File",
       submenu: [
         { label: "New Tab", accelerator: "CommandOrControl+T", click: () => sendCommand("new-tab") },
+        { label: "Duplicate Tab", accelerator: "CommandOrControl+Shift+K", click: () => duplicateTab(activeTabId) },
         { label: "Bookmark This Page", accelerator: "CommandOrControl+D", click: () => sendCommand("bookmark-page", { focusUI: true }) },
+        { label: "Reopen Closed Tab", accelerator: "CommandOrControl+Shift+T", click: () => reopenClosedTab() },
         { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => sendCommand("close-tab") },
+        { type: "separator" },
+        { label: "Downloads", accelerator: "CommandOrControl+J", click: () => sendCommand("downloads", { focusUI: true }) },
+        { label: "Import or Export Bookmarks…", click: () => Menu.buildFromTemplate([{ label: "Import bookmarks…", click: () => importBookmarks() }, { label: "Export bookmarks…", click: () => exportBookmarks() }]).popup({ window: mainWindow }) },
+        { label: "Save Webpage…", accelerator: "CommandOrControl+S", click: () => saveActivePage() },
+        { label: "Save Page as PDF…", click: () => saveActivePageAsPDF() },
+        { label: "Save Screenshot…", accelerator: "CommandOrControl+Shift+S", click: () => saveActiveScreenshot() },
+        { label: "Print…", accelerator: "CommandOrControl+P", click: () => printActivePage() },
         { type: "separator" },
         { role: "quit" }
       ]
@@ -575,14 +1315,40 @@ function createApplicationMenu() {
     {
       label: "View",
       submenu: [
+        { label: "Back", accelerator: "Alt+Left", click: () => { const history = activeContents()?.navigationHistory; if (history?.canGoBack()) history.goBack(); } },
+        { label: "Forward", accelerator: "Alt+Right", click: () => { const history = activeContents()?.navigationHistory; if (history?.canGoForward()) history.goForward(); } },
+        { type: "separator" },
         { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
-        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
+        { label: "Focus Address Bar or Page", click: () => sendCommand("toggle-focus", { focusUI: true }) },
+        { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => activeContents()?.reload() },
+        { label: "Hard Reload", accelerator: "CommandOrControl+Shift+R", click: () => activeContents()?.reloadIgnoringCache() },
+        { label: "Find in Page…", accelerator: "CommandOrControl+F", click: () => sendCommand("find", { focusUI: true }) },
+        { label: "Find Next", accelerator: "CommandOrControl+G", click: () => sendCommand("find-next", { focusUI: true }) },
+        { label: "Find Previous", accelerator: "CommandOrControl+Shift+G", click: () => sendCommand("find-previous", { focusUI: true }) },
+        { type: "separator" },
+        { label: "Next Tab", accelerator: "Control+Tab", click: () => cycleTab(1) },
+        { label: "Previous Tab", accelerator: "Control+Shift+Tab", click: () => cycleTab(-1) },
+        { label: "Next Tab (alternate)", accelerator: "Control+PageDown", click: () => cycleTab(1) },
+        { label: "Previous Tab (alternate)", accelerator: "Control+PageUp", click: () => cycleTab(-1) },
+        { label: "Move Tab Right", accelerator: "Control+Shift+PageDown", click: () => moveTab(activeTabId, 1) },
+        { label: "Move Tab Left", accelerator: "Control+Shift+PageUp", click: () => moveTab(activeTabId, -1) },
+        ...Array.from({ length: 8 }, (_, index) => ({ label: `Switch to Tab ${index + 1}`, accelerator: `CommandOrControl+${index + 1}`, click: () => activateTabNumber(index + 1) })),
+        { label: "Switch to Last Tab", accelerator: "CommandOrControl+9", click: () => activateTabNumber(9) },
+        { type: "separator" },
+        { label: "Zoom In", accelerator: "CommandOrControl+Plus", click: () => adjustActiveZoom(1) },
+        { label: "Zoom Out", accelerator: "CommandOrControl+-", click: () => adjustActiveZoom(-1) },
+        { label: "Reset Zoom", accelerator: "CommandOrControl+0", click: () => setActiveZoom(0) },
         { label: "History constellation", accelerator: "CommandOrControl+H", click: () => sendCommand("history", { focusUI: true }) },
         { label: "Bookmarks", accelerator: "CommandOrControl+Shift+B", click: () => sendCommand("bookmarks", { focusUI: true }) },
         { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
         { label: "Ask Nova", accelerator: "Control+Space", click: () => sendCommand("assistant", { focusUI: true }) },
+        { label: "Keyboard Shortcuts", accelerator: "CommandOrControl+/", click: () => sendCommand("shortcut-guide", { focusUI: true }) },
+        { label: "Clear Cookies and Cache…", accelerator: "CommandOrControl+Shift+Delete", click: () => sendCommand("clear-data-settings", { focusUI: true }) },
+        { label: "Site Permissions…", click: () => sendCommand("permissions", { focusUI: true }) },
+        { label: "Reading List", click: () => sendCommand("reading-list", { focusUI: true }) },
+        { label: "Toggle Full Screen", accelerator: "F11", click: () => { if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen()); } },
         { type: "separator" },
-        { role: "toggleDevTools" }
+        { role: "toggleDevTools", accelerator: "F12" }
       ]
     }
   ];
@@ -620,6 +1386,22 @@ function createWindow() {
     }
   });
   mainWindow = win;
+  win.on("app-command", (_event, command) => {
+    const focused = Array.from(tabs.values()).find((tab) => tab.view.webContents.isFocused())?.view.webContents || activeContents();
+    const history = focused?.navigationHistory;
+    if (command === "browser-backward" && history?.canGoBack()) history.goBack();
+    else if (command === "browser-forward" && history?.canGoForward()) history.goForward();
+  });
+  // Electron exposes the legacy macOS page-swipe event when the system
+  // "Swipe between pages" gesture is enabled. Modern trackpads may instead
+  // route these through Chromium's native history navigation.
+  if (process.platform === "darwin") {
+    win.on("swipe", (_event, direction) => {
+      const history = activeContents()?.navigationHistory;
+      if (direction === "right" && history?.canGoBack()) history.goBack();
+      else if (direction === "left" && history?.canGoForward()) history.goForward();
+    });
+  }
   tabResourceView = createTabResourceView({ window: win, tabs, getMetrics: () => app.getAppMetrics() });
   browserBounds = { ...hiddenBounds };
   assistantExpanded = false;
@@ -648,8 +1430,9 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
-    if (mainWindow === win && tabs.size === 0) createTab(launch.startUrl);
+    if (mainWindow === win && tabs.size === 0 && !restoreSavedTabs()) createTab(launch.startUrl);
   });
+  win.on("close", () => saveSessionSnapshot());
   win.on("closed", () => {
     if (mainWindow === win) {
       tabResourceView?.dispose(); tabResourceView = null;
@@ -663,6 +1446,10 @@ function createWindow() {
       assistantHandleView = null;
       activeTabId = null;
       assistantExpanded = false;
+      if (process.platform === "darwin" && restoreSessionOnLaunch) {
+        try { sessionRestoreSnapshot = JSON.parse(fsSync.readFileSync(sessionSnapshotPath(), "utf8")); }
+        catch { sessionRestoreSnapshot = null; }
+      }
     }
   });
 }
@@ -692,6 +1479,34 @@ function registerIPC() {
   ipcMain.on("tab-resources:pointer", (event, inside) => { if (tabResourceView?.owns(event)) tabResourceView.pointer(inside === true); });
   ipcMain.on("tab-resources:dismiss", event => { if (tabResourceView?.owns(event)) tabResourceView.hide(); });
   ipcMain.handle("browser:get-bookmarks", event => fromShell(event) ? bookmarks.snapshot(tabs) : []);
+  ipcMain.handle("browser:get-reading-list", event => fromShell(event) ? readingList.snapshot(tabs) : []);
+  ipcMain.handle("browser:add-current-to-reading-list", event => {
+    if (!fromShell(event)) return false;
+    const tab = tabs.get(activeTabId);
+    return tab ? saveToReadingList({ url: tab.url, title: tab.title, favicon: tab.favicon }) : false;
+  });
+  ipcMain.handle("browser:remove-reading-list-item", (event, id) => {
+    if (!fromShell(event) || typeof id !== "string") return false;
+    readingList.remove(id); sendTabs(); return true;
+  });
+  ipcMain.handle("browser:mark-reading-list-item", (event, id, read) => {
+    if (!fromShell(event) || typeof id !== "string" || typeof read !== "boolean") return false;
+    const result = readingList.markRead(id, read); if (result) sendTabs(); return result;
+  });
+  ipcMain.handle("browser:clear-reading-list", event => {
+    if (!fromShell(event)) return false;
+    readingList.clear(); sendTabs(); return true;
+  });
+  ipcMain.handle("browser:open-reading-list-item", (event, id, options = {}) => {
+    if (!fromShell(event)) return false;
+    options = options && typeof options === "object" ? options : {};
+    const item = readingList.items.find(entry => entry.id === id);
+    if (!item) return false;
+    const live = readingList.snapshot(tabs).find(entry => entry.id === id)?.liveTabId;
+    const result = live && options.newTab !== true ? setActiveTab(live) : createTab(item.url, { activate: options.activate !== false });
+    readingList.markRead(id, true); sendTabs(); return result;
+  });
+  ipcMain.on("browser:reading-list-updated-request", event => { if (fromShell(event)) event.sender.send("browser:reading-list-updated", readingList.snapshot(tabs)); });
   const changeBookmark = (event, operation) => {
     if (!fromShell(event)) return { ok: false, error: "Bookmarks can only be changed in Nova." };
     try { const bookmark = operation(); sendTabs(); return { ok: true, bookmark }; }
@@ -708,6 +1523,13 @@ function registerIPC() {
   }));
   ipcMain.handle("browser:remove-bookmark", (event, id) => changeBookmark(event, () => bookmarks.remove(id)));
   ipcMain.handle("browser:clear-bookmarks", event => changeBookmark(event, () => bookmarks.clear()));
+  ipcMain.on("browser:bookmark-transfer-menu", event => {
+    if (!fromShell(event)) return;
+    Menu.buildFromTemplate([
+      { label: "Import bookmarks…", click: () => importBookmarks() },
+      { label: "Export bookmarks…", click: () => exportBookmarks() }
+    ]).popup({ window: mainWindow });
+  });
   ipcMain.handle("browser:open-bookmark", (event, id) => {
     if (!fromShell(event)) return false;
     const bookmark = bookmarks.items.find(item => item.id === id); if (!bookmark) return false;
@@ -736,21 +1558,28 @@ function registerIPC() {
     if (suggestion.kind === "tab") return setActiveTab(suggestion.tabId);
     if (suggestion.kind !== "url" && suggestion.kind !== "search") return false;
     const value = suggestion.value.trim(); if (!value) return false;
-    const url = suggestion.kind === "search" ? "https://www.google.com/search?q=" + encodeURIComponent(value) : value;
+    const url = suggestion.kind === "search" ? searchDestination(value) : value;
     if (!isWebUrl(url) && url !== "nova://newtab") return false;
     const tab = tabs.get(activeTabId);
     if (!tab) return createTab(url);
     tab.freshNavigation = true; tab.view.webContents.loadURL(normalizeDestination(url)).catch(() => {}); return true;
   });
   ipcMain.handle("browser:get-history", event => fromShell(event) ? visitHistory.snapshot(tabs) : []);
-  ipcMain.handle("browser:open-history", (event, id) => {
-    if (!fromShell(event)) return false;
-    const node = visitHistory.nodes.find(n => n.id === id);
-    if (!node) return false;
-    const live = Array.from(tabs.values()).find(t => t.currentVisit === id);
-    if (live) return setActiveTab(live.id);
-    return createTab(node.url, { openerVisit: node.id });
+  ipcMain.handle("browser:open-history", (event, id, options) => fromShell(event) ? openHistoryVisit(id, options) : false);
+  ipcMain.handle("browser:delete-history-entry", (event, id) => {
+    if (!fromShell(event) || typeof id !== "string") return false;
+    const removed = visitHistory.remove(id, tabs);
+    if (removed) sendTabs();
+    return removed;
   });
+  ipcMain.handle("browser:delete-history-group", (event, ids) => {
+    if (!fromShell(event) || !Array.isArray(ids) || ids.length > 1000) return false;
+    const removed = visitHistory.removeMany(ids.filter(id => typeof id === "string").slice(0, 1000), tabs);
+    if (removed) sendTabs();
+    return removed;
+  });
+  ipcMain.on("browser:show-history-menu", (event, id) => { if (fromShell(event)) showHistoryMenu(id); });
+  ipcMain.on("browser:show-history-date-menu", (event, key) => { if (fromShell(event)) showHistoryDateMenu(key); });
   ipcMain.handle("browser:clear-history", event => {
     if (!fromShell(event)) return false;
     visitHistory.clear(tabs);
@@ -778,6 +1607,102 @@ function registerIPC() {
     }
   });
   ipcMain.handle("browser:get-tabs", () => tabsPayload());
+  ipcMain.handle("browser:get-browser-preferences", async event => {
+    if (!fromShell(event)) return { restorePreviousSession: true, clearDataOnExit: false, searchProvider: "google" };
+    const settings = await readSettings();
+    return { restorePreviousSession: settings.restorePreviousSession !== false, clearDataOnExit: settings.clearDataOnExit === true,
+      searchProvider: Object.hasOwn(searchProviders, settings.searchProvider) ? settings.searchProvider : "google" };
+  });
+  ipcMain.handle("browser:get-permissions", event => fromShell(event) ? permissionsPayload() : []);
+  ipcMain.on("browser:revoke-permission", (event, origin, permission) => {
+    if (!fromShell(event) || typeof origin !== "string" || typeof permission !== "string") return;
+    const grants = permissionGrants.get(origin);
+    if (!grants) return;
+    grants.delete(permission);
+    if (!grants.size) permissionGrants.delete(origin);
+    sendPermissions();
+  });
+  ipcMain.handle("browser:clear-site-data", async (event, rawOrigin) => {
+    if (!fromShell(event) || typeof rawOrigin !== "string" || !mainWindow) return { ok: false, error: "Invalid website origin." };
+    let origin;
+    try { const parsed = new URL(rawOrigin); if (!/^https?:$/.test(parsed.protocol)) throw Error(); origin = parsed.origin; }
+    catch { return { ok: false, error: "Only http and https website data can be cleared." }; }
+    const answer = await dialog.showMessageBox(mainWindow, {
+      type: "warning", buttons: ["Clear site data", "Cancel"], defaultId: 1, cancelId: 1,
+      title: "Clear website data", message: `Clear cookies and stored data for ${origin}?`,
+      detail: "This may sign you out and remove preferences saved by this website."
+    });
+    if (answer.response !== 0) return { ok: false, canceled: true };
+    try {
+      await session.fromPartition("persist:nova").clearData({ origins: [origin], dataTypes: ["cookies", "cache", "backgroundFetch", "fileSystems", "indexedDB", "localStorage", "serviceWorkers", "webSQL"] });
+      return { ok: true, origin };
+    } catch (error) {
+      console.error("Could not clear website data:", error.message);
+      return { ok: false, error: "Nova could not clear data for this website." };
+    }
+  });
+  ipcMain.handle("browser:save-browser-preferences", async (event, preferences = {}) => {
+    if (!fromShell(event) || !preferences || typeof preferences !== "object" ||
+      (preferences.restorePreviousSession !== undefined && typeof preferences.restorePreviousSession !== "boolean") ||
+      (preferences.clearDataOnExit !== undefined && typeof preferences.clearDataOnExit !== "boolean") ||
+      (preferences.searchProvider !== undefined && !Object.hasOwn(searchProviders, preferences.searchProvider))) return { ok: false, error: "Invalid browser preference." };
+    const settings = await readSettings();
+    if (typeof preferences.restorePreviousSession === "boolean") settings.restorePreviousSession = preferences.restorePreviousSession;
+    if (typeof preferences.clearDataOnExit === "boolean") settings.clearDataOnExit = preferences.clearDataOnExit;
+    if (typeof preferences.searchProvider === "string") settings.searchProvider = preferences.searchProvider;
+    await writeSettings(settings);
+    restoreSessionOnLaunch = settings.restorePreviousSession !== false;
+    clearDataOnExit = settings.clearDataOnExit === true;
+    searchProvider = Object.hasOwn(searchProviders, settings.searchProvider) ? settings.searchProvider : "google";
+    return { ok: true, restorePreviousSession: restoreSessionOnLaunch, clearDataOnExit, searchProvider };
+  });
+  ipcMain.handle("browser:reopen-closed-tab", event => fromShell(event) && reopenClosedTab());
+  ipcMain.handle("browser:duplicate-tab", (event, id) => fromShell(event) ? duplicateTab(id) : null);
+  ipcMain.handle("browser:pin-tab", (event, id, pinned) => fromShell(event) && pinTab(id, pinned));
+  ipcMain.handle("browser:mute-tab", (event, id, muted) => fromShell(event) && setTabMuted(id, muted));
+  ipcMain.handle("browser:reorder-tabs", (event, order) => fromShell(event) && reorderTabs(order));
+  ipcMain.handle("browser:get-downloads", event => fromShell(event) ? downloadsPayload() : []);
+  ipcMain.handle("browser:download-action", async (event, id, action) => {
+    if (!fromShell(event) || typeof id !== "string" || !["pause", "resume", "cancel", "open", "reveal", "remove"].includes(action)) return false;
+    const entry = downloads.get(id);
+    if (!entry) return false;
+    const item = entry.item;
+    try {
+      if (action === "pause" && !item.isPaused()) item.pause();
+      else if (action === "resume" && item.isPaused()) item.resume();
+      else if (action === "cancel" && item.getState() === "progressing") item.cancel();
+      else if (action === "remove" && item.getState() !== "progressing") downloads.delete(id);
+      else if (action === "open" && item.getState() === "completed" && item.getSavePath()) return (await shell.openPath(item.getSavePath())) === "";
+      else if (action === "reveal" && item.getState() === "completed" && item.getSavePath()) shell.showItemInFolder(item.getSavePath());
+      else return false;
+      sendDownloads();
+      return true;
+    } catch (error) {
+      console.error("Could not update download:", error.message);
+      return false;
+    }
+  });
+  ipcMain.handle("browser:find-page", (event, query, options = {}) => {
+    if (!fromShell(event) || typeof query !== "string" || query.length > 512) return false;
+    const contents = activeContents();
+    if (!contents || !query.trim()) return false;
+    contents.findInPage(query.trim(), { forward: options.forward !== false, findNext: options.findNext === true, matchCase: options.matchCase === true });
+    return true;
+  });
+  ipcMain.handle("browser:stop-find", event => {
+    if (!fromShell(event)) return false;
+    activeContents()?.stopFindInPage("clearSelection");
+    return true;
+  });
+  ipcMain.handle("browser:focus-page", event => {
+    if (!fromShell(event)) return false;
+    activeContents()?.focus();
+    return true;
+  });
+  ipcMain.handle("browser:print-page", event => fromShell(event) && printActivePage());
+  ipcMain.handle("browser:save-pdf", event => fromShell(event) && saveActivePageAsPDF());
+  ipcMain.handle("browser:save-page", event => fromShell(event) && saveActivePage());
+  ipcMain.handle("browser:save-screenshot", event => fromShell(event) && saveActiveScreenshot());
   ipcMain.handle("browser:group-tabs", (_event, tabIds, options) => groupTabs(tabIds, {
     groupId: options && options.groupId,
     name: options && options.name
@@ -789,16 +1714,31 @@ function registerIPC() {
     return renamed;
   });
   ipcMain.handle("browser:remove-group", (_event, groupId) => removeGroup(groupId));
-  ipcMain.on("browser:show-tab-menu", (_event, id) => showTabMenu(id));
-  ipcMain.handle("browser:new-tab", (_event, url) => createTab(url));
+  ipcMain.on("browser:show-tab-menu", (event, payload) => {
+    if (!fromShell(event)) return;
+    if (payload && typeof payload === "object") showTabMenu(payload.id, payload.selectedIds);
+    else showTabMenu(payload);
+  });
+  ipcMain.on("browser:show-navigation-menu", (event, direction) => { if (fromShell(event)) showNavigationMenu(direction); });
+  ipcMain.on("browser:show-address-menu", event => { if (fromShell(event)) showAddressMenu(); });
+  ipcMain.on("browser:show-closed-menu", event => { if (fromShell(event)) showRecentlyClosedMenu(); });
+  ipcMain.on("browser:open-link", (event, payload) => {
+    const opener = Array.from(tabs.values()).find(tab => tab.view.webContents === event.sender);
+    if (!opener || event.senderFrame !== event.sender.mainFrame || !isWebUrl(payload?.url)) return;
+    createTab(payload.url, { groupId: opener.groupId, openerVisit: opener.currentVisit, activate: payload.activate !== false });
+  });
+  ipcMain.on("browser:history-gesture", (event, direction) => {
+    const tab = Array.from(tabs.values()).find(item => item.view.webContents === event.sender);
+    if (!tab || event.senderFrame !== event.sender.mainFrame || !["back", "forward"].includes(direction)) return;
+    const history = tab.view.webContents.navigationHistory;
+    if (direction === "back" && history.canGoBack()) history.goBack();
+    else if (direction === "forward" && history.canGoForward()) history.goForward();
+  });
+  ipcMain.handle("browser:new-tab", (event, url, options = {}) => fromShell(event) ? createTab(url, { activate: options?.activate !== false }) : null);
   ipcMain.handle("browser:activate-tab", (_event, id) => setActiveTab(id));
   ipcMain.handle("browser:close-tab", (_event, id) => closeTab(id));
   ipcMain.handle("browser:navigate", (_event, input) => {
-    if (!activeTabId || !tabs.has(activeTabId)) return createTab(input);
-    const target = normalizeDestination(input);
-    tabs.get(activeTabId).freshNavigation = true;
-    tabs.get(activeTabId).view.webContents.loadURL(target).catch(() => {});
-    return target;
+    return navigateActive(input);
   });
   ipcMain.handle("browser:back", () => {
     const history = activeTabId && tabs.get(activeTabId)?.view.webContents.navigationHistory;
@@ -808,9 +1748,15 @@ function registerIPC() {
     const history = activeTabId && tabs.get(activeTabId)?.view.webContents.navigationHistory;
     if (history && history.canGoForward()) history.goForward();
   });
-  ipcMain.handle("browser:reload", () => {
+  ipcMain.handle("browser:reload", (_event, ignoreCache = false) => {
     const contents = activeTabId && tabs.get(activeTabId)?.view.webContents;
-    if (contents) contents.reload();
+    if (contents) ignoreCache === true ? contents.reloadIgnoringCache() : contents.reload();
+  });
+  ipcMain.handle("browser:zoom", (event, request = {}) => {
+    if (!fromShell(event)) return false;
+    if (Number.isFinite(request.level)) return setActiveZoom(request.level);
+    if (Number.isFinite(request.delta)) return adjustActiveZoom(request.delta);
+    return false;
   });
   ipcMain.handle("browser:stop", () => {
     const contents = activeTabId && tabs.get(activeTabId)?.view.webContents;
@@ -844,6 +1790,18 @@ function registerIPC() {
   ipcMain.handle("browser:close-side-tab", () => (sideTabId ? closeTab(sideTabId) : false));
   // Makes the side tab the main page.
   ipcMain.handle("browser:promote-side-tab", () => (sideTabId ? setActiveTab(sideTabId) : false));
+  ipcMain.handle("browser:open-multi-tab", (event, leftId, rightId) => {
+    if (!fromShell(event) || !setMultiTabPair(leftId, rightId)) return false;
+    return true;
+  });
+  ipcMain.handle("browser:open-orbit-split", (event, tabId) => {
+    if (!fromShell(event) || !setOrbitMultiView(tabId)) return false;
+    return true;
+  });
+  ipcMain.handle("browser:close-multi-view", event => fromShell(event) && closeMultiView());
+  ipcMain.on("browser:orbit-visible", (event, visible) => {
+    if (fromShell(event)) orbitSceneVisible = visible === true;
+  });
   ipcMain.handle("ai:get-config", async () => {
     const settings = await readSettings();
     const keyConfigured = Boolean(await getStoredAPIKey(settings));
@@ -896,16 +1854,20 @@ function registerIPC() {
       ...(tab.group ? { group: String(tab.group).slice(0, 60) } : {})
     })) : [];
     const sender = event.sender;
+    let assistantTargetTabId = null;
     return runAgent({
       prompt,
       tabs: context,
       today: localDate(),
       complete: (messages) => chatCompletion(endpoint, messages, { json: true, maxTokens: 800 }),
       openSideTab: async (url) => {
-        const id = createTab(url, { side: true });
+        const useOrbitSplit = orbitSceneVisible;
+        const id = createTab(url, useOrbitSplit ? { activate: false } : { side: true });
+        assistantTargetTabId = id;
+        if (id && useOrbitSplit) setOrbitMultiView(id);
         return id ? { id, ...await readTabText(id) } : null;
       },
-      readSideTab: async () => (sideTabId ? readTabText(sideTabId, { settle: 1500 }) : null),
+      readSideTab: async () => (assistantTargetTabId ? readTabText(assistantTargetTabId, { settle: 1500 }) : null),
       openTabs: (requested, reply) => openRequestedTabs(prompt, requested, reply),
       onProgress: (note) => { if (!sender.isDestroyed()) sender.send("ai:progress", note); }
     });
@@ -1156,15 +2118,22 @@ async function resolveAIEndpoint() {
 
 // Opens up to three tabs the model asked for, but only when the user
 // explicitly asked for websites or tabs to be opened. Returns the reply.
-function openRequestedTabs(prompt, requested, reply) {
+async function openRequestedTabs(prompt, requested, reply) {
   const allowed = explicitlyRequestsTabs(prompt);
   const opened = [];
+  const openedIds = [];
+  const comparison = allowed && explicitlyRequestsComparison(prompt);
+  const orbitPair = allowed && !comparison && orbitSceneVisible;
   if (allowed) {
     for (const entry of requested.slice(0, 3)) {
       const url = normalizeAssistantWebUrl(entry.url);
       if (!url) continue;
-      if (createTab(url, { activate: entry.activate === true })) opened.push(url);
+      const id = createTab(url, { activate: !comparison && !orbitPair && entry.activate === true });
+      if (id) { opened.push(url); openedIds.push(id); }
     }
+    if (comparison && openedIds.length >= 2) setMultiTabPair(openedIds[0], openedIds[1]);
+    else if (orbitPair && openedIds.length) setOrbitMultiView(openedIds[0]);
+    else if (comparison && openedIds.length) setActiveTab(openedIds[0]);
   }
   let text = reply || (opened.length ? "I opened the requested websites in new tabs." : "");
   if (requested.length && !opened.length) {
@@ -1172,17 +2141,27 @@ function openRequestedTabs(prompt, requested, reply) {
       ? "I couldn’t open those tabs because their URLs were not valid web addresses."
       : "I didn’t open any tabs because you didn’t ask me to open websites.");
   }
-  return opened.length
-    ? text + "\n\nOpened " + opened.length + (opened.length === 1 ? " new tab:" : " new tabs:") + "\n" + opened.join("\n")
-    : text;
+  if (opened.length) text += "\n\nOpened " + opened.length + (opened.length === 1 ? " new tab:" : " new tabs:") + "\n" + opened.join("\n");
+  if (openedIds.length) {
+    const pages = (await Promise.all(openedIds.map(id => readTabText(id, { settle: 1800 })))).filter(Boolean);
+    if (pages.length) return { text, pages };
+  }
+  return text;
 }
 
 function explicitlyRequestsTabs(prompt) {
   const text = String(prompt || "").trim();
-  if (/\b(?:don't|do not|never|without)\b[^.!?]{0,60}\b(?:open|visit|browse|create|make)\b/i.test(text)) return false;
-  if (/^(?:how|what|why|when|where)\b/i.test(text) || /\bhow (?:do|can|would) I\b/i.test(text)) return false;
-  return /\b(?:open|visit|browse to|navigate to|go to|create|make)\b/i.test(text) ||
-    /\b(?:new|another|multiple|\d+)\s+(?:browser\s+)?tabs?\b/i.test(text);
+  if (/\b(?:don't|do not|never|without)\b[^.!?]{0,60}\b(?:open|visit|browse|search|create|make)\b/i.test(text)) return false;
+  const comparison = explicitlyRequestsComparison(text);
+  if (!comparison && (/^(?:how|what|why|when|where)\b/i.test(text) || /\bhow (?:do|can|would) I\b/i.test(text))) return false;
+  return /\b(?:open|visit|browse to|search(?: the web)? for|navigate to|go to|create|make)\b/i.test(text) ||
+    /\b(?:new|another|multiple|\d+)\s+(?:browser\s+)?tabs?\b/i.test(text) || comparison;
+}
+
+function explicitlyRequestsComparison(prompt) {
+  const text = String(prompt || "").trim();
+  if (/\b(?:don't|do not|never|without)\b[^.!?]{0,60}\b(?:compare|comparing|comparison|contrast)\b/i.test(text)) return false;
+  return /\b(?:compare|comparing|comparison|versus|vs\.?|side[- ]by[- ]side|differences? between)\b/i.test(text);
 }
 
 function normalizeAssistantWebUrl(value) {
@@ -1290,11 +2269,34 @@ app.whenReady().then(async () => {
       });
     } catch (error) { console.error("Could not register the Nova desktop icon:", error.message); }
   }
+  try {
+    const settings = await readSettings();
+    restoreSessionOnLaunch = !launch.startUrl && settings.restorePreviousSession !== false;
+    clearDataOnExit = settings.clearDataOnExit === true;
+    searchProvider = Object.hasOwn(searchProviders, settings.searchProvider) ? settings.searchProvider : "google";
+    if (settings.siteZoomLevels && typeof settings.siteZoomLevels === "object") {
+      for (const [origin, level] of Object.entries(settings.siteZoomLevels)) {
+        if (/^https?:\/\//.test(origin) && Number.isFinite(level)) siteZoomLevels.set(origin, Math.max(-7.6, Math.min(8.8, level)));
+      }
+    }
+    if (restoreSessionOnLaunch) {
+      try {
+        const snapshot = JSON.parse(fsSync.readFileSync(sessionSnapshotPath(), "utf8"));
+        if (snapshot?.version === 1 && Array.isArray(snapshot.tabs)) sessionRestoreSnapshot = snapshot;
+      } catch { sessionRestoreSnapshot = null; }
+    }
+  } catch (error) { console.error("Could not load site zoom preferences:", error.message); }
   try { bookmarks = new BookmarkStore(path.join(app.getPath("userData"), "nova-bookmarks.json")); }
   catch (error) {
     console.error("Bookmarks could not be loaded:", error.message);
     bookmarks = new BookmarkStore(null);
     dialog.showErrorBox("Bookmarks unavailable", "Your bookmarks file could not be read. It has been left untouched; new bookmarks will only last for this session.");
+  }
+  try { readingList = new ReadingListStore(path.join(app.getPath("userData"), "nova-reading-list.json")); }
+  catch (error) {
+    console.error("Reading List could not be loaded:", error.message);
+    readingList = new ReadingListStore(null);
+    dialog.showErrorBox("Reading List unavailable", "Your existing Reading List could not be read. It has been left untouched; new items will only last for this session.");
   }
   try { visitHistory = new HistoryStore(path.join(app.getPath("userData"), "nova-history.json")); }
   catch (error) {
@@ -1316,8 +2318,17 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", event => {
+  if (tabs.size) saveSessionSnapshot();
   visitHistory?.flush();
+  if (clearDataOnExit && !clearingDataForExit) {
+    event.preventDefault();
+    clearingDataForExit = true;
+    session.fromPartition("persist:nova").clearData({ dataTypes: ["cookies", "cache", "backgroundFetch", "fileSystems", "indexedDB", "localStorage", "serviceWorkers", "webSQL"] })
+      .catch(error => console.error("Could not clear site data on exit:", error.message))
+      .finally(() => app.quit());
+    return;
+  }
   for (const tab of tabs.values()) {
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close();
   }

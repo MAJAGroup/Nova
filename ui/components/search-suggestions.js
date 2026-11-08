@@ -14,7 +14,7 @@ export function createSearchSuggestions({ input, popup, requestLocal, requestWeb
     if (restore) { input.value = typed; input.dispatchEvent(new Event("suggestion-preview")); }
     selected = -1; items = []; popup.replaceChildren(); input.removeAttribute("aria-activedescendant"); visible(false);
   }
-  function choose(item) { if (!item) return; close(); onCommit(item); }
+  function choose(item, event) { if (!item) return; close(); onCommit(item, event); }
   function render() {
     const previousKey = items[selected]?.key;
     const seen = new Set();
@@ -81,7 +81,7 @@ export function createSearchSuggestions({ input, popup, requestLocal, requestWeb
       input.value = items[selected].value; input.dispatchEvent(new Event("suggestion-preview")); highlight(); visible(true);
       popup.children[selected]?.scrollIntoView({ block: "nearest" });
     } else if (event.key === "Enter" && shown && (selected >= 0 || typed.trim())) {
-      event.preventDefault(); event.stopImmediatePropagation(); choose(items[selected >= 0 ? selected : 0]);
+      event.preventDefault(); event.stopImmediatePropagation(); choose(items[selected >= 0 ? selected : 0], event);
     } else if (event.key === "Escape" && shown) {
       event.preventDefault(); event.stopImmediatePropagation(); close({ restore: true }); onEscape?.();
     } else if (event.key === "Tab") close();

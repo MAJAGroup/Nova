@@ -46,6 +46,7 @@
       "README.md",
       "history-store.js",
       "bookmark-store.js",
+      "reading-list-store.js",
       "connection-security.js",
       "search-suggestions.cjs",
       "search-preload.js",

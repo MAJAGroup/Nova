@@ -1,5 +1,8 @@
+import * as THREE from "three";
 import { el, escapeHTML, currentTime } from "../../lib/dom.js";
 import { showToast } from "../toast.js";
+import { createBlackHole } from "../cosmos/black-hole.js";
+import { createExplorerFlight } from "../cosmos/explorer-flight.js";
 import {
   handleBrowserIntent, localAssistantReply, isGroupingRequest, groupBySiteLocally, describeGroupingResult
 } from "./intents.js";
@@ -15,6 +18,11 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   const input = el("chat-input");
   const sendButton = el("chat-send");
   const status = el("ai-status");
+  const chatMenu = el("assistant-chat-menu");
+  const chatMenuToggle = el("assistant-chat-menu-toggle");
+  const chatList = el("assistant-chat-list");
+  const flightFrame = el("assistant-flight-frame");
+  const flightLabel = el("assistant-flight-label");
   const voice = createVoice({
     browser,
     onTranscript: (text) => { open(); return ask(text, { spoken: true }); },
@@ -30,11 +38,17 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     }
   });
   let pendingMessage = null;
-  let finishCurrentExploration = null;
-  // Nova is opening a page: end the cosmos animation so the side tab can be
-  // seen loading.
+  const CHAT_ARCHIVE_KEY = "nova.assistant.chats";
+  const CHAT_ARCHIVE_LIMIT = 5;
+  let archivedChats = readChatArchive();
+  let activeChatId = null;
+  let activeMessages = [];
+  let assistantRenderer = null, assistantScene = null, assistantCamera = null, assistantFlight = null, assistantBlackHole = null;
+  let assistantFlightFrame = 0, assistantFlightTime = null, assistantFlightBusy = false;
+  let assistantFlightRunning = false, assistantFlightReturnPending = false;
+  // Keep the explorer attached to the active scene while Nova performs page
+  // actions; progress updates describe the work but do not end the task.
   browser.onAssistantProgress((note) => {
-    if (finishCurrentExploration) finishCurrentExploration();
     const name = pendingMessage && pendingMessage.querySelector(".message-name span");
     if (name) name.textContent = String(note).slice(0, 120);
     status.textContent = String(note).slice(0, 80);
@@ -48,8 +62,232 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
   }
 
+  function readChatArchive() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("nova.assistant.chats") || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter(chat => chat && typeof chat.id === "string" && Array.isArray(chat.messages))
+        .map(chat => ({ ...chat, title: String(chat.title || "New chat"), messages: chat.messages.filter(message => message && ["user", "assistant"].includes(message.role) && typeof message.text === "string").slice(-80) }))
+        .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)).slice(0, CHAT_ARCHIVE_LIMIT);
+    } catch { return []; }
+  }
+
+  function saveChatArchive() {
+    archivedChats = archivedChats.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0)).slice(0, CHAT_ARCHIVE_LIMIT);
+    try { localStorage.setItem(CHAT_ARCHIVE_KEY, JSON.stringify(archivedChats)); } catch { /* keep this session usable when storage is unavailable */ }
+    renderChatArchive();
+  }
+
+  function chatTitle(messages) {
+    const prompt = messages.find(message => message.role === "user")?.text || "New chat";
+    return prompt.length > 48 ? `${prompt.slice(0, 45).trimEnd()}…` : prompt;
+  }
+
+  function ensureActiveChat() {
+    if (activeChatId) return;
+    activeChatId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    activeMessages = [];
+  }
+
+  function storeMessage(chatId, role, text) {
+    const chat = archivedChats.find(item => item.id === chatId);
+    if (!chat) return;
+    chat.messages.push({ role, text: String(text), at: Date.now() });
+    chat.messages = chat.messages.slice(-80);
+    chat.updatedAt = Date.now();
+    chat.title = chatTitle(chat.messages);
+    saveChatArchive();
+  }
+
+  function persistActiveMessage(role, text) {
+    ensureActiveChat();
+    const at = Date.now();
+    activeMessages.push({ role, text: String(text), at });
+    let chat = archivedChats.find(item => item.id === activeChatId);
+    if (!chat) {
+      chat = { id: activeChatId, title: "New chat", updatedAt: at, messages: [] };
+      archivedChats.unshift(chat);
+    }
+    chat.messages = activeMessages.slice(-80);
+    chat.updatedAt = at;
+    chat.title = chatTitle(chat.messages);
+    saveChatArchive();
+  }
+
+  function renderChatArchive() {
+    if (!chatList) return;
+    chatList.replaceChildren();
+    if (!archivedChats.length) {
+      const empty = document.createElement("div"); empty.className = "assistant-chat-empty"; empty.textContent = "Your recent chats will appear here."; chatList.append(empty); return;
+    }
+    for (const chat of archivedChats) {
+      const row = document.createElement("div"); row.className = "assistant-chat-row";
+      const openButton = document.createElement("button"); openButton.type = "button"; openButton.className = "assistant-chat-open";
+      openButton.textContent = chat.title || "New chat"; openButton.title = chat.title || "New chat";
+      openButton.setAttribute("aria-current", String(chat.id === activeChatId));
+      openButton.addEventListener("click", () => openArchivedChat(chat.id));
+      const deleteButton = document.createElement("button"); deleteButton.type = "button"; deleteButton.className = "assistant-chat-delete";
+      deleteButton.textContent = "×"; deleteButton.setAttribute("aria-label", `Delete chat: ${chat.title || "New chat"}`);
+      deleteButton.addEventListener("click", () => deleteArchivedChat(chat.id));
+      row.append(openButton, deleteButton); chatList.append(row);
+    }
+  }
+
+  function clearRenderedConversation() {
+    scroll.querySelectorAll(".message").forEach(message => message.remove());
+    pendingMessage = null;
+    suggestions.hidden = false;
+    input.value = ""; input.style.height = ""; syncSendButton();
+  }
+
+  function openArchivedChat(chatId) {
+    const chat = archivedChats.find(item => item.id === chatId);
+    if (!chat) return;
+    activeChatId = chat.id;
+    activeMessages = chat.messages.map(message => ({ ...message }));
+    clearRenderedConversation();
+    for (const message of activeMessages) {
+      const time = message.at ? new Date(message.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : currentTime();
+      appendMessage(message.text, message.role, { persist: false, speak: false, time });
+    }
+    hideChatMenu();
+    renderChatArchive();
+    input.focus();
+  }
+
+  function deleteArchivedChat(chatId) {
+    archivedChats = archivedChats.filter(chat => chat.id !== chatId);
+    if (activeChatId === chatId) resetCurrentChat(false);
+    saveChatArchive();
+  }
+
+  function resetCurrentChat(removeSaved = true) {
+    if (removeSaved && activeChatId) archivedChats = archivedChats.filter(chat => chat.id !== activeChatId);
+    activeChatId = null; activeMessages = [];
+    clearRenderedConversation();
+    saveChatArchive();
+    hideChatMenu();
+    input.focus();
+  }
+
+  function hideChatMenu() {
+    chatMenu.hidden = true;
+    chatMenuToggle.setAttribute("aria-expanded", "false");
+  }
+
+  renderChatArchive();
+
   function syncSendButton() {
     sendButton.disabled = !input.value.trim();
+  }
+
+  function resizeAssistantFlight() {
+    if (!assistantRenderer || !assistantCamera || flightFrame.hidden) return;
+    const { width, height } = flightFrame.getBoundingClientRect();
+    if (!width || !height) return;
+    assistantRenderer.setSize(width, height);
+    assistantCamera.aspect = width / height;
+    assistantCamera.updateProjectionMatrix();
+  }
+
+  function ensureAssistantFlight() {
+    if (assistantRenderer) return true;
+    const canvas = el("assistant-flight-canvas");
+    try {
+      assistantRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    } catch {
+      flightFrame.hidden = true;
+      return false;
+    }
+    assistantRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    assistantRenderer.setClearColor(0x000000, 0);
+    assistantScene = new THREE.Scene();
+    assistantCamera = new THREE.PerspectiveCamera(48, 1, .1, 1000);
+    assistantCamera.position.set(0, 0, 18); assistantCamera.lookAt(0, 0, 0);
+    const starPositions = [];
+    for (let index = 0; index < 86; index++) {
+      const angle = index * 2.399963229728653, radius = 3 + (index % 11) * .95;
+      starPositions.push(Math.cos(angle) * radius, Math.sin(angle * 1.19) * radius * .42, Math.sin(angle) * radius * .2);
+    }
+    const starGeometry = new THREE.BufferGeometry();
+    starGeometry.setAttribute("position", new THREE.Float32BufferAttribute(starPositions, 3));
+    assistantScene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0x9bdcf2, size: .055, transparent: true, opacity: .68, depthWrite: false })));
+    assistantBlackHole = createBlackHole(assistantScene);
+    const targets = new Map([
+      ["assistant-left", new THREE.Vector3(-11, -0.35, 0)],
+      ["assistant-mid-left", new THREE.Vector3(-5, 0.75, 0)],
+      ["assistant-mid-right", new THREE.Vector3(4, -0.65, 0)],
+      ["assistant-right", new THREE.Vector3(11, 0.25, 0)]
+    ]);
+    const center = targets.get("assistant-mid-left");
+    assistantFlight = createExplorerFlight(assistantScene, assistantCamera, {
+      getArrivalStar: () => ({ id: "assistant-hub", position: center }),
+      getOrbitTargets: () => [...targets].map(([id, position]) => ({ id, position })),
+      positionOf: id => String(id) === "assistant-hub" ? center : targets.get(String(id)) || null,
+      orbitRadius: 0.22
+    });
+    new ResizeObserver(resizeAssistantFlight).observe(flightFrame);
+    return true;
+  }
+
+  function tickAssistantFlight(now) {
+    if (!assistantRenderer || !assistantFlight) { assistantFlightFrame = 0; return; }
+    assistantFlightFrame = requestAnimationFrame(tickAssistantFlight);
+    const time = now / 1000;
+    const delta = assistantFlightTime === null ? 0 : Math.min(.1, time - assistantFlightTime);
+    assistantFlightTime = time;
+    assistantBlackHole?.update(time);
+    const ended = assistantFlight.update(time, delta);
+    assistantRenderer.render(assistantScene, assistantCamera);
+    if (ended) {
+      assistantFlightRunning = false;
+      assistantFlightTime = null;
+      if (!assistantFlightBusy && assistantFlightReturnPending && root.classList.contains("expanded")) {
+        assistantFlightReturnPending = false;
+        startAssistantIdleFlight();
+      } else if (assistantFlightBusy || !root.classList.contains("expanded")) {
+        cancelAnimationFrame(assistantFlightFrame); assistantFlightFrame = 0;
+        flightFrame.hidden = true;
+      }
+    }
+  }
+
+  function startAssistantIdleFlight() {
+    if (assistantFlightBusy || !root.classList.contains("expanded") || !ensureAssistantFlight()) return;
+    assistantFlightReturnPending = false;
+    flightLabel.textContent = "EXPLORER ROAMING";
+    flightFrame.hidden = false;
+    assistantFlight.cancel();
+    resizeAssistantFlight();
+    assistantFlight.start();
+    assistantFlightRunning = true;
+    assistantFlightTime = null;
+    if (!assistantFlightFrame) assistantFlightFrame = requestAnimationFrame(tickAssistantFlight);
+  }
+
+  function setAssistantFlight(busy) {
+    assistantFlightBusy = Boolean(busy);
+    if (assistantFlightBusy) {
+      if (!ensureAssistantFlight()) return;
+      assistantFlightReturnPending = false;
+      if (!assistantFlightRunning) {
+        flightFrame.hidden = false;
+        resizeAssistantFlight();
+        assistantFlight.start();
+        assistantFlightRunning = true;
+        assistantFlightTime = null;
+        if (!assistantFlightFrame) assistantFlightFrame = requestAnimationFrame(tickAssistantFlight);
+      }
+      flightLabel.textContent = "WORMHOLE TRANSIT";
+      assistantFlight.finish();
+      flightFrame.hidden = false;
+      return;
+    }
+    assistantFlightReturnPending = true;
+    if (!assistantFlightRunning) {
+      if (root.classList.contains("expanded")) startAssistantIdleFlight();
+      else { assistantFlightReturnPending = false; flightFrame.hidden = true; }
+    }
   }
 
   let activeAIRequests = 0;
@@ -57,6 +295,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     activeAIRequests++;
     if (activeAIRequests === 1) {
       root.setAttribute("aria-busy", "true");
+      setAssistantFlight(true);
       try { onExplorationChange(true); }
       catch (error) { console.warn("Nova exploration animation unavailable", error); }
     }
@@ -67,6 +306,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       activeAIRequests--;
       if (activeAIRequests === 0) {
         root.setAttribute("aria-busy", "false");
+        setAssistantFlight(false);
         try { onExplorationChange(false); }
         catch (error) { console.warn("Nova exploration animation unavailable", error); }
       }
@@ -80,6 +320,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     el("assistant-reopen").setAttribute("aria-expanded", "true");
     onVisibilityChange(true);
     requestAnimationFrame(() => {
+      if (!assistantFlightBusy) startAssistantIdleFlight();
       input.focus();
     });
   }
@@ -88,6 +329,11 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     if (!root.classList.contains("expanded")) return;
     root.classList.remove("expanded");
     el("assistant-reopen").setAttribute("aria-expanded", "false");
+    if (!assistantFlightBusy) {
+      cancelAnimationFrame(assistantFlightFrame); assistantFlightFrame = 0; assistantFlightTime = null;
+      assistantFlight?.cancel(); assistantFlightRunning = false; assistantFlightReturnPending = false;
+      flightFrame.hidden = true;
+    }
     onVisibilityChange(false);
     if (restoreFocus) requestAnimationFrame(() => el("assistant-reopen").focus());
   }
@@ -106,18 +352,19 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     scroll.scrollTop = scroll.scrollHeight;
   }
 
-  function appendMessage(text, role, { spoken = false } = {}) {
+  function appendMessage(text, role, { spoken = false, persist = true, speak = true, time = currentTime() } = {}) {
     suggestions.hidden = true;
     const isAssistant = role === "assistant";
     const message = document.createElement("div");
     message.className = "message " + (isAssistant ? "assistant-message" : "user-message");
     message.innerHTML = (isAssistant ? AVATAR : "") +
       '<div class="message-content"><div class="message-name">' + (isAssistant ? "Nova" : "YOU") +
-      " <span>" + currentTime() + '</span></div><div class="message-bubble">' +
+      " <span>" + escapeHTML(time) + '</span></div><div class="message-bubble">' +
       escapeHTML(text).replace(/\n/g, "<br>") + "</div></div>";
     scroll.appendChild(message);
     scrollToEnd();
-    if (isAssistant) voice.speak(text, { spoken });
+    if (persist) persistActiveMessage(role, text);
+    if (isAssistant && speak) voice.speak(text, { spoken });
   }
 
   function appendPending() {
@@ -138,10 +385,14 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const trimmed = String(prompt || "").trim();
     if (!trimmed) return;
     appendMessage(trimmed, "user");
+    const responseChatId = activeChatId;
     input.value = "";
     input.style.height = "";
     syncSendButton();
-    const reply = (text) => appendMessage(text, "assistant", { spoken });
+    const reply = (text) => {
+      if (activeChatId === responseChatId) appendMessage(text, "assistant", { spoken });
+      else storeMessage(responseChatId, "assistant", text);
+    };
 
     const aiAvailable = Boolean(aiConfig.get().url);
     // Requests often start by addressing the assistant ("Nova, open github").
@@ -156,7 +407,6 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     currentSpoken = spoken;
     voice.fill("", { spoken });
     const finishExploration = beginExploration();
-    finishCurrentExploration = finishExploration;
     try {
       const result = await browser.askAssistant({
         prompt: trimmed,
@@ -237,6 +487,20 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     showToast("When you ask Nova, it shares open tab titles and URLs with your configured AI endpoint.");
   });
   el("assistant-menu").addEventListener("click", () => { close({ restoreFocus: false }); onOpenSettings(); });
+  chatMenuToggle.addEventListener("click", () => {
+    const openMenu = chatMenu.hidden;
+    chatMenu.hidden = !openMenu;
+    chatMenuToggle.setAttribute("aria-expanded", String(openMenu));
+    if (openMenu) renderChatArchive();
+  });
+  el("assistant-new-chat").addEventListener("click", () => resetCurrentChat(false));
+  el("assistant-clear-chat").addEventListener("click", () => resetCurrentChat(true));
+  document.addEventListener("pointerdown", event => {
+    if (!chatMenu.hidden && !chatMenu.contains(event.target) && !chatMenuToggle.contains(event.target)) hideChatMenu();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !chatMenu.hidden) { hideChatMenu(); chatMenuToggle.focus(); }
+  });
   el("assistant-reopen").addEventListener("click", open);
   el("assistant-toolbar-open").addEventListener("click", open);
   el("assistant-minimize").addEventListener("click", close);

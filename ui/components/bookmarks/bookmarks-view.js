@@ -70,6 +70,7 @@ export function createBookmarksView({ browser, tabs, onVisibilityChange, onEdito
   editor.addEventListener("cancel", event => { event.preventDefault(); closeEditor(); });
   editor.addEventListener("keydown", event => { if (event.key === "Escape") event.stopPropagation(); });
   const saveCurrent = root.querySelector(".bookmarks-save-current"); saveCurrent.onclick = bookmarkCurrent;
+  root.querySelector(".bookmark-transfer").addEventListener("click", () => browser.showBookmarkTransferMenu());
   tabs.subscribe(() => { saveCurrent.disabled = !/^https?:\/\//i.test(tabs.activeTab()?.url || ""); });
   return { ...view, bookmarkCurrent, closeEditor, isEditorOpen: () => editor.open };
 }

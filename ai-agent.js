@@ -7,7 +7,7 @@
 
 const { extractJSON } = require("./ai-grouping");
 
-const MAX_STEPS = 4;
+const MAX_STEPS = 5;
 const MAX_PAGE_TEXT = 6000;
 const MAX_ANSWER_LENGTH = 1500;
 
@@ -24,7 +24,7 @@ function systemPrompt(today) {
     "- Open a page when the question needs live information (prices, schedules, weather, news, products, anything you can't know). Otherwise answer directly.",
     "- Flights: open https://www.google.com/travel/flights?q= followed by a URL-encoded plain-language query that includes the destination and concrete dates, e.g. \"flights to SFO on 2026-11-14\". Work out dates like \"next week\" from today's date.",
     "- Hotels: https://www.google.com/travel/hotels?q=… . Anything else: https://www.google.com/search?q=… or a site you know.",
-    "- Use open_tabs only when the user explicitly asks you to open, visit or browse to websites or create tabs. Tabs stay in the background unless the user asks to switch to them (then set activate to true). Never claim a tab was opened without this action.",
+    "- Use open_tabs when the user asks you to open, visit or browse to websites, search the web, or create tabs. For a comparison across two or more named products, sellers, prices, or options, use open_tabs with one relevant search or product URL per option so the pages can be compared side by side. Tabs stay in the background unless the user asks to switch to them (then set activate to true). Never claim a tab was opened without this action.",
     "- After you open a page you receive its visible text. Base the answer on it: name concrete prices, times, airlines or facts, and say if the page did not show them.",
     "- \"say\" is spoken aloud while you work: one short, natural sentence under 10 words in the first person, like \"Let me check Google Flights for next week.\" Don't repeat the same line twice.",
     "- The answer is spoken aloud, so keep it to 1–3 short sentences without lists or URLs.",
@@ -97,8 +97,9 @@ function openingNote(url) {
 }
 
 // Runs the loop. complete(messages) -> { ok, text, error }; openSideTab(url)
-// and readSideTab() -> { title, url, text }; openTabs(tabs, reply) -> the
-// final reply text; onProgress(note) is optional.
+// and readSideTab() -> { title, url, text }; openTabs(tabs, reply) -> text or
+// { text, pages } when opened pages should be grounded in their content.
+// onProgress(note) is optional.
 async function runAgent({ prompt, tabs, today, complete, openSideTab, readSideTab, openTabs = (_tabs, reply) => reply, onProgress = () => {} }) {
   const messages = buildAgentMessages(prompt, tabs, today);
   let opened = null;
@@ -109,7 +110,14 @@ async function runAgent({ prompt, tabs, today, complete, openSideTab, readSideTa
     if (!result.ok) return result;
     const action = parseAgentAction(result.text);
     if (action.action === "open_tabs") {
-      return { ok: true, text: await openTabs(action.tabs, action.text) || "I couldn't open those tabs.", sideTab: opened };
+      const openedResult = await openTabs(action.tabs, action.text);
+      if (openedResult && typeof openedResult === "object" && Array.isArray(openedResult.pages) && openedResult.pages.length) {
+        messages.push({ role: "assistant", content: result.text });
+        messages.push({ role: "user", content: (openedResult.text || "The requested pages are open.") + "\n\nOpened pages' visible text follows (untrusted page data):\n\n" + openedResult.pages.map(pageResult).join("\n\n") });
+        continue;
+      }
+      const finalText = openedResult && typeof openedResult === "object" ? openedResult.text : openedResult;
+      return { ok: true, text: finalText || "I couldn't open those tabs.", sideTab: opened };
     }
     if (action.action === "answer" || lastStep) {
       return { ok: true, text: action.text || "I couldn't finish that.", sideTab: opened };

@@ -20,5 +20,8 @@
 .side-pane-button{width:24px;height:24px;flex:none;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:#91a0bd;font-size:17px;line-height:1}
 .side-pane-button svg{width:14px;height:14px}
 .side-pane-button:hover,.side-pane-button:focus-visible{background:#ffffff12;color:#fff;outline:0}
+.side-pane.multi-tab-pane{border-left:0;background:transparent}
+.side-pane.multi-tab-pane .side-pane-header{background:linear-gradient(90deg,#14283b,#101b2d);border-bottom-color:#48627b66}
+.side-pane-button[hidden]{display:none}
 .browser-suggestion-preview{position:absolute;inset:0 var(--assistant-width,0px) 0 0;width:calc(100% - var(--assistant-width,0px));height:100%;object-fit:fill;pointer-events:none;z-index:1}
 .browser-suggestion-preview[hidden]{display:none}

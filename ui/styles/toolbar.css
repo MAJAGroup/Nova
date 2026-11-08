@@ -2,6 +2,8 @@
 .browser-toolbar{height:44px;flex:none;display:grid;grid-template-columns:minmax(116px,1fr) minmax(220px,min(560px,48vw)) minmax(76px,1fr);align-items:center;gap:12px;padding:0 10px;border-bottom:1px solid var(--line);background:#0b1020}
 .browser-nav{grid-column:1;display:flex;align-items:center;gap:1px;min-width:0}
 .browser-toolbar{position:relative;z-index:10}
+.browser-toolbar.is-loading:after{content:"";position:absolute;left:0;right:auto;bottom:-1px;width:34%;height:2px;background:linear-gradient(90deg,transparent,#83e8f5,#a8b3ff,transparent);animation:browser-progress 1.15s ease-in-out infinite}
+@keyframes browser-progress{from{transform:translateX(-100%)}to{transform:translateX(400%)}}
 .address-bar{position:relative}
 .browser-nav .icon-button{font-size:20px;color:#95a2bf}
 .browser-nav #reload-page{font-size:16px}
@@ -32,3 +34,4 @@
   .browser-toolbar{grid-template-columns:minmax(100px,1fr) minmax(100px,1.8fr) minmax(94px,1fr);gap:6px;padding:0 6px}
   .browser-nav .icon-button{width:24px}
 }
+@media(prefers-reduced-motion:reduce){.browser-toolbar.is-loading:after{animation:none;left:0;width:100%;opacity:.55}}

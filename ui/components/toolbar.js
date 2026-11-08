@@ -1,6 +1,6 @@
 import { createSearchSuggestions } from "./search-suggestions.js";
 import { el } from "../lib/dom.js";
-import { HOME_URL, normalizeAddress, simplifyAddress } from "../lib/url.js";
+import { HOME_URL, simplifyAddress } from "../lib/url.js";
 
 // Back / forward / reload, the address bar and the new-tab button.
 export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onBookmark, onNewTab = () => browser.newTab(), onSuggestionsVisibilityChange = () => {} }) {
@@ -28,6 +28,12 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onBoo
     const active = tabs.activeTab();
     el("go-back").disabled = !active || !active.canGoBack;
     el("go-forward").disabled = !active || !active.canGoForward;
+    const reload = el("reload-page");
+    reload.textContent = active?.loading ? "■" : "↻";
+    reload.title = active?.loading ? "Stop loading" : "Reload";
+    reload.setAttribute("aria-label", active?.loading ? "Stop loading page" : "Reload page");
+    reload.classList.toggle("is-loading", Boolean(active?.loading));
+    document.querySelector(".browser-toolbar")?.classList.toggle("is-loading", Boolean(active?.loading));
     const bookmark = el("bookmark-page");
     bookmark.disabled = !/^https?:\/\//i.test(active?.url || "");
     bookmark.setAttribute("aria-pressed", String(Boolean(active?.bookmarked)));
@@ -57,32 +63,58 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onBoo
     cancelRequests: () => browser.cancelSuggestions(),
     onEscape: () => { showActiveUrl(); omnibox.blur(); },
     onVisibilityChange: onSuggestionsVisibilityChange,
-    onCommit: item => { void browser.chooseSuggestion(item); omnibox.blur(); onNavigate(); }
+    onCommit: (item, event) => {
+      if ((event?.ctrlKey || event?.metaKey) && item.kind !== "tab") {
+        void browser.newTab(item.value, { activate: event.shiftKey });
+        if (event.shiftKey) onNavigate();
+      } else {
+        void browser.chooseSuggestion(item);
+        onNavigate();
+      }
+      omnibox.blur();
+    }
   });
   omnibox.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       const query = omnibox.value.trim();
       if (!query) return;
-      browser.navigate(normalizeAddress(query));
-      omnibox.blur();
-      onNavigate();
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        void browser.newTab(query, { activate: event.shiftKey });
+        omnibox.blur();
+        if (event.shiftKey) onNavigate();
+      } else {
+        browser.navigate(query);
+        omnibox.blur();
+        onNavigate();
+      }
     }
     if (event.key === "Escape") {
       showActiveUrl();
       omnibox.blur();
     }
   });
+  omnibox.addEventListener("contextmenu", event => { event.preventDefault(); browser.showAddressMenu(); });
 
 
   el("go-back").addEventListener("click", () => browser.goBack());
+  el("go-back").addEventListener("contextmenu", event => { event.preventDefault(); browser.showNavigationMenu("back"); });
   el("bookmark-page").addEventListener("click", onBookmark);
   el("go-forward").addEventListener("click", () => browser.goForward());
-  el("reload-page").addEventListener("click", () => browser.reload());
+  el("go-forward").addEventListener("contextmenu", event => { event.preventDefault(); browser.showNavigationMenu("forward"); });
+  el("reload-page").addEventListener("click", () => tabs.activeTab()?.loading ? browser.stop() : browser.reload());
   el("go-home").addEventListener("click", () => {
     browser.navigate(HOME_URL);
     onNavigate();
   });
-  el("new-tab").addEventListener("click", onNewTab);
+  el("new-tab").addEventListener("click", event => {
+    if (event.ctrlKey || event.metaKey) void browser.newTab(undefined, { activate: false });
+    else onNewTab();
+  });
+  el("new-tab").addEventListener("auxclick", event => {
+    if (event.button === 1) { event.preventDefault(); void browser.newTab(undefined, { activate: false }); }
+  });
+  el("new-tab").addEventListener("contextmenu", event => { event.preventDefault(); browser.showRecentlyClosedMenu(); });
   cosmosToggle.addEventListener("click", onToggleCosmos);
   cosmosTab.addEventListener("click", onToggleCosmos);
 
