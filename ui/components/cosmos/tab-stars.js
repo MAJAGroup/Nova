@@ -454,8 +454,10 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSour
         activeRing.scale.setScalar(reducedMotion() ? 1 : 1 + Math.sin(time * 2.2) * 0.06);
       }
     },
-    pick(raycaster) {
-      const hit = raycaster.intersectObjects(Array.from(stars.values(), (star) => star.halo))[0];
+    pick(raycaster, excludeId = null) {
+      const excluded = excludeId === null ? null : String(excludeId);
+      const hit = raycaster.intersectObjects(Array.from(stars.values(), (star) => star.halo))
+        .find((item) => String(item.object.userData.tabId) !== excluded);
       return hit ? stars.get(hit.object.userData.tabId) : null;
     },
     // While held (being dragged, or dropped on the black hole and waiting
@@ -478,6 +480,9 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSour
     setJoining(star, color) {
       star.element.classList.toggle("joining", Boolean(color));
       if (color) star.element.style.setProperty("--join-color", color);
+    },
+    setDropTarget(star, enabled) {
+      star.element.classList.toggle("drop-target", Boolean(enabled));
     },
     setDoomed(star, doomed) {
       star.doomed = doomed;

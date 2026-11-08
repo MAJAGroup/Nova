@@ -18,6 +18,9 @@
 .cosmos-info-tab{width:100%;min-height:49px;display:flex;align-items:center;gap:9px;margin-top:3px;padding:6px 7px;border:1px solid transparent;border-radius:7px;background:transparent;text-align:left;color:#bdc9e0}
 .cosmos-info-tab:hover{background:#ffffff08;border-color:#ffffff0c}
 .cosmos-info-tab.active{border-color:#77cbe52e;background:linear-gradient(100deg,#1531498c,#111b2aab);color:#eef5ff}
+.cosmos-info-tab.selected{border-color:#a6aaff70;background:linear-gradient(100deg,#39365d99,#111b2aab)}
+.cosmos-info-tab.selected.active{border-color:#c6d9ff}
+.cosmos-info-tab[aria-pressed="true"] .cosmos-info-favicon{box-shadow:0 0 0 2px #bbc8ff,0 0 12px #aab9ff77}
 .cosmos-info-favicon{width:22px;height:22px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#17233d;color:#d6e0ff;font:9px var(--font);box-shadow:0 0 0 1px color-mix(in srgb,var(--group-color) 50%,#33415e)}
 .cosmos-info-favicon img{width:14px;height:14px;object-fit:contain}
 .cosmos-info-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
@@ -81,6 +84,7 @@
 .star-label.dragging{z-index:1000!important}
 .star-label.dragging .star-label-pill{transition:none}
 .star-label.joining .star-label-mark{box-shadow:0 0 0 2px var(--join-color,#8fe8ff),0 0 16px 4px var(--join-color,#8fe8ff)}
+.star-label.drop-target .star-label-mark{box-shadow:0 0 0 2px #fff,0 0 0 5px color-mix(in srgb,var(--star-color,#8fe8ff) 65%,transparent),0 0 22px 7px var(--star-color,#8fe8ff);transform:scale(1.18)}
 /* Hovering over the black hole: the icon shrinks and quivers, as if being
    pulled in; it springs back if dragged away. */
 .star-label .star-label-mark{transition:transform .32s cubic-bezier(.3,1.4,.5,1),box-shadow .2s ease}
@@ -96,8 +100,12 @@
 .constellation-name{transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
 .constellation-name:hover,.constellation-name:focus-visible{background:rgba(14,22,44,.85)}
 .constellation-label.editing .constellation-name{text-transform:none;letter-spacing:.5px;cursor:text;background:rgba(14,22,44,.95);box-shadow:0 0 0 1px var(--group-color,#8fe8ff)}
-.cosmos-selection{position:absolute;z-index:2;bottom:34px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border:1px solid #33416a;border-radius:999px;background:rgba(14,20,40,.92);box-shadow:0 10px 30px #0008;color:#c9d3ee;font-size:11px;white-space:nowrap}
+.cosmos-sidebar-hint{flex:none;margin:0;padding:6px 15px 10px;color:#71809c;font-size:9px;line-height:1.5}
+.cosmos-selection{position:relative;z-index:2;flex:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 10px 12px;padding:9px;border:1px solid #33416a;border-radius:9px;background:rgba(14,20,40,.92);box-shadow:0 10px 30px #0008;color:#c9d3ee;font-size:10px}
 .cosmos-selection[hidden]{display:none}
-.cosmos-selection button{height:26px;padding:0 12px;border-radius:999px;font-size:11px}
+.cosmos-selection>span{grid-column:1/-1;padding:0 2px 2px}
+.cosmos-selection button{width:100%;min-width:0;height:29px;padding:0 5px;border-radius:6px;font-size:9px;white-space:nowrap}
 .cosmos-selection-group{border:1px solid #8394ff;background:linear-gradient(135deg,#8495ff,#5f70d8);color:#fff;font-weight:600}
-.cosmos-selection-clear{border:1px solid #33416a;background:transparent;color:#a9b4cf}
+.cosmos-selection-close{border:1px solid #75434f;background:#351c2b;color:#ffc3c7}
+.cosmos-selection-clear{grid-column:1/-1;border:1px solid #33416a;background:transparent;color:#a9b4cf}
+.cosmos-selection button:disabled{opacity:.45;cursor:not-allowed}

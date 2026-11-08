@@ -141,6 +141,18 @@ function showTabMenu(id) {
   }
   if (current) {
     template.push(
+      ...(others.length ? [{
+        label: "Merge all tabs into…",
+        submenu: others.map((group) => ({
+          label: group.name,
+          click: () => {
+            const memberIds = Array.from(tabs.values())
+              .filter((member) => String(member.groupId) === String(current.id))
+              .map((member) => member.id);
+            groupTabs(memberIds, { groupId: group.id });
+          }
+        }))
+      }] : []),
       { type: "separator" },
       { label: "Remove from " + current.name, click: () => ungroupTabs([tab.id]) },
       { label: "Rename " + current.name + "…", click: () => sendCommand("rename-group", { focusUI: true, arg: current.id }) },
@@ -609,6 +621,26 @@ function registerIPC() {
     visitHistory.clear(tabs);
     sendTabs();
     return true;
+  });
+  ipcMain.handle("browser:clear-browsing-data", async (event, options = {}) => {
+    if (!fromShell(event)) return { ok: false, error: "This action is only available in ORBIT settings." };
+    options = options && typeof options === "object" ? options : {};
+    const cookies = options.cookies === true;
+    const cache = options.cache === true;
+    if (!cookies && !cache) return { ok: false, error: "Choose cookies/site data, cached files, or both." };
+
+    const dataTypes = [];
+    if (cookies) dataTypes.push("cookies", "backgroundFetch", "fileSystems", "indexedDB", "localStorage", "serviceWorkers", "webSQL");
+    if (cache) dataTypes.push("cache");
+    const browserSession = session.fromPartition("persist:orbit");
+    try {
+      await browserSession.clearData({ dataTypes });
+      if (cookies) await browserSession.clearStorageData({ storages: ["cachestorage"] });
+      return { ok: true, cookies, cache };
+    } catch (error) {
+      console.error("Could not clear browsing data:", error.message);
+      return { ok: false, error: "ORBIT could not clear the selected browsing data." };
+    }
   });
   ipcMain.handle("browser:get-tabs", () => tabsPayload());
   ipcMain.handle("browser:group-tabs", (_event, tabIds, options) => groupTabs(tabIds, {

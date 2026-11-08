@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("orbitBrowser", {
   getHistory: () => ipcRenderer.invoke("browser:get-history"),
   openHistory: (id) => ipcRenderer.invoke("browser:open-history", id),
   clearHistory: () => ipcRenderer.invoke("browser:clear-history"),
+  clearBrowsingData: (options) => ipcRenderer.invoke("browser:clear-browsing-data", options),
   onHistoryUpdated: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("browser:history-updated", listener);

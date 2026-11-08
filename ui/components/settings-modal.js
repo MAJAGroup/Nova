@@ -23,10 +23,22 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
   const urlInput = el("api-url");
   const modelInput = el("api-model");
   const keyInput = el("api-key");
+  const clearCookies = el("clear-cookies");
+  const clearCache = el("clear-cache");
+  const dataConfirmation = el("browsing-data-confirm");
+  const dataConfirmationText = el("browsing-data-confirm-text");
+  const confirmClearData = el("confirm-clear-browsing-data");
+
+  function hideDataConfirmation() {
+    dataConfirmation.hidden = true;
+    clearCookies.disabled = false;
+    clearCache.disabled = false;
+  }
 
   function open() {
     const config = aiConfig.get();
     modal.hidden = false;
+    hideDataConfirmation();
     onVisibilityChange(true);
     urlInput.value = config.url || "";
     modelInput.value = config.model || "";
@@ -40,6 +52,7 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
 
   function close() {
     if (modal.hidden) return;
+    hideDataConfirmation();
     modal.hidden = true;
     onVisibilityChange(false);
   }
@@ -87,11 +100,55 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
     showToast("AI connection cleared.");
   }
 
+  function requestClearBrowsingData() {
+    const choices = { cookies: clearCookies.checked, cache: clearCache.checked };
+    if (!choices.cookies && !choices.cache) return showToast("Choose cookies/site data, cached files, or both.");
+    const selected = [
+      ...(choices.cookies ? ["cookies and other site data"] : []),
+      ...(choices.cache ? ["cached images and files"] : [])
+    ];
+    dataConfirmationText.textContent = `Clear ${selected.join(" and ")} for all websites and all time?${choices.cookies ? " This may sign you out of websites and remove their saved preferences." : ""}`;
+    confirmClearData.dataset.cookies = String(choices.cookies);
+    confirmClearData.dataset.cache = String(choices.cache);
+    clearCookies.disabled = true;
+    clearCache.disabled = true;
+    dataConfirmation.hidden = false;
+    confirmClearData.focus();
+  }
+
+  async function clearBrowsingData() {
+    const choices = {
+      cookies: confirmClearData.dataset.cookies === "true",
+      cache: confirmClearData.dataset.cache === "true"
+    };
+    confirmClearData.disabled = true;
+    try {
+      const result = await browser.clearBrowsingData(choices);
+      if (!result?.ok) return showToast(result?.error || "Could not clear browsing data.");
+      hideDataConfirmation();
+      const cleared = [
+        ...(choices.cookies ? ["cookies and site data"] : []),
+        ...(choices.cache ? ["cached files"] : [])
+      ];
+      showToast(`Cleared ${cleared.join(" and ")}. Browsing history remains saved.`);
+    } catch (_) {
+      showToast("Could not clear browsing data.");
+    } finally {
+      confirmClearData.disabled = false;
+    }
+  }
+
   document.querySelectorAll("[data-ollama-preset]").forEach((button) => {
     button.addEventListener("click", () => applyPreset(button.dataset.ollamaPreset));
   });
   el("save-settings").addEventListener("click", save);
   el("clear-settings").addEventListener("click", clear);
+  el("clear-browsing-data").addEventListener("click", requestClearBrowsingData);
+  el("cancel-clear-browsing-data").addEventListener("click", () => {
+    hideDataConfirmation();
+    el("clear-browsing-data").focus();
+  });
+  confirmClearData.addEventListener("click", clearBrowsingData);
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", close));
   modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
 

@@ -94,6 +94,13 @@
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
             <aside class="cosmos-sidebar" id="cosmos-sidebar" aria-label="Tab information">
               <div class="cosmos-tab-list" id="cosmos-tab-list"></div>
+              <p class="cosmos-sidebar-hint" id="cosmos-sidebar-hint">Shift-click or Ctrl/⌘-click tabs to select multiple</p>
+              <div class="cosmos-selection" id="cosmos-selection" hidden>
+                <span id="cosmos-selection-count" role="status" aria-live="polite">0 tabs selected</span>
+                <button type="button" class="cosmos-selection-group" id="cosmos-group">Group tabs</button>
+                <button type="button" class="cosmos-selection-close" id="cosmos-close-selected">Close selected</button>
+                <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear selection</button>
+              </div>
             </aside>
             <div class="cosmos-stage" id="cosmos-stage">
               <div class="cosmos-header">
@@ -105,11 +112,6 @@
                 <span class="cosmos-exploration-kicker">ORBIT AI · EXPLORING</span>
                 <span class="cosmos-exploration-title">Charting a course through space…</span>
                 <span class="cosmos-exploration-progress" aria-hidden="true"><i></i></span>
-              </div>
-              <div class="cosmos-selection" id="cosmos-selection" hidden>
-                <span id="cosmos-selection-count">0 tabs selected</span>
-                <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
-                <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear</button>
               </div>
             </div>
           </section>
@@ -151,9 +153,9 @@
     <div class="modal-backdrop" id="settings-modal" hidden>
       <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <button class="modal-close" data-close-modal aria-label="Close">×</button>
-        <div class="modal-kicker">AI SETTINGS <span>✦</span></div>
-        <h2 id="settings-title">Connect an AI model</h2>
-        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Ollama Kimi K3.1 Pro is available through Ollama Cloud; choose a preset below.</p>
+        <div class="modal-kicker">ORBIT SETTINGS <span>✦</span></div>
+        <h2 id="settings-title">Settings</h2>
+        <p class="modal-intro">Configure the Orbit assistant and manage website cookies and cached files. Ollama Kimi K3.1 Pro is available through Ollama Cloud.</p>
         <div class="settings-actions">
           <button type="button" class="text-button" data-ollama-preset="local">Local Ollama API</button>
           <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
@@ -166,6 +168,18 @@
         <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
         <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+        <section class="browsing-data" aria-labelledby="browsing-data-title">
+          <div class="browsing-data-heading"><div><div class="modal-kicker">BROWSER DATA</div><h3 id="browsing-data-title">Cookies and cache</h3></div><span class="data-device-badge">Saved on this device</span></div>
+          <p class="browsing-data-intro">Cookies and website storage keep you signed in and remember preferences. Cached files help pages load faster.</p>
+          <label class="data-option"><input id="clear-cookies" type="checkbox" checked><span><strong>Cookies and other site data</strong><small>Includes site storage and service workers. May sign you out of websites.</small></span></label>
+          <label class="data-option"><input id="clear-cache" type="checkbox" checked><span><strong>Cached images and files</strong><small>Pages may load more slowly the next time you visit.</small></span></label>
+          <button type="button" class="text-button data-clear-trigger" id="clear-browsing-data">Clear selected data…</button>
+          <div class="data-clear-confirm" id="browsing-data-confirm" hidden role="group" aria-labelledby="browsing-data-confirm-text">
+            <p id="browsing-data-confirm-text"></p>
+            <div><button type="button" class="text-button" id="cancel-clear-browsing-data">Cancel</button><button type="button" class="data-clear-confirm-button" id="confirm-clear-browsing-data">Clear data</button></div>
+          </div>
+          <p class="browsing-data-footnote">Saved browsing history is kept separately.</p>
+        </section>
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -13,6 +13,9 @@ function node(tag, className, text) {
   return element;
 }
 const host = url => { try { return new URL(url).hostname; } catch { return url; } };
+const TIMELINE_WINDOW_SIZE = 20;
+const TIMELINE_WINDOW_CENTER = Math.floor((TIMELINE_WINDOW_SIZE - 1) / 2);
+const TIMELINE_WINDOW_END = TIMELINE_WINDOW_SIZE - 1;
 
 function clearBlackHoleLane(layout) {
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
@@ -156,7 +159,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       positionOf: id => stars?.positionOf(id), onFocus: focusGroup,
       emphasisFor: group => focusIds === null || group.memberIds.some(id => focusIds.has(id)) ? 1 : .3 });
     stars = createTabStars({ scene, camera, tabs: store,
-      onSelect: visit => select(visit.id), onContextMenu: visit => select(visit.id),
+      onSelect: visit => openVisit(visit.id), onContextMenu: visit => select(visit.id),
       reducedMotion: () => motion.matches, animateLayout: false,
       emphasisFor: visit => focusIds === null || focusIds.has(visit.id) ? 1 : .28,
       layout: { compute() {
@@ -166,10 +169,6 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       }}, onLayout: layout => { constellations.sync(layout); drawTrails(); }
     });
     // The star component shares Orbit view's icon labels and hover behavior.
-    labels.domElement.addEventListener("dblclick", event => {
-      const label = event.target.closest(".star-label");
-      if (label && selected) openVisit(selected);
-    });
     const ray = new THREE.Raycaster(), pointer = new THREE.Vector2(); let down;
     function hit(event) {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -191,13 +190,13 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       });
       surface.addEventListener("pointerup", event => {
         if (down && surface === renderer.domElement && Math.hypot(event.clientX - down.x, event.clientY - down.y) < 5) {
-          const star = hit(event); if (star) select(star.id);
+          const star = hit(event); if (star) openVisit(star.id);
         }
         down = null;
       });
     }
     renderer.domElement.addEventListener("pointerleave", () => stars.setHovered(null));
-    renderer.domElement.addEventListener("dblclick", e => { const star = hit(e); if (star) openVisit(star.id); else overview(); });
+    renderer.domElement.addEventListener("dblclick", e => { if (!hit(e)) overview(); });
     renderer.domElement.addEventListener("wheel", event => {
       if (mode !== "timeline") return;
       event.preventDefault(); sidebar.scrollTop += event.deltaY || event.deltaX; syncTimelineWindowFromSidebar();
@@ -256,8 +255,8 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     blackHoleRoot.visible = mode === "universe";
     if (mode === "timeline") {
       const chronological = [...visible].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
-      timelineIndex = Math.max(0, Math.min(timelineIndex, Math.max(0, chronological.length - 10)));
-      const windowVisits = chronological.slice(timelineIndex, timelineIndex + 10);
+      timelineIndex = Math.max(0, Math.min(timelineIndex, Math.max(0, chronological.length - TIMELINE_WINDOW_SIZE)));
+      const windowVisits = chronological.slice(timelineIndex, timelineIndex + TIMELINE_WINDOW_SIZE);
       const positions = new Map();
       const golden = Math.PI * (3 - Math.sqrt(5));
       windowVisits.forEach((visit, index) => {
@@ -302,7 +301,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     const first = [...rows].find(row => row.getBoundingClientRect().bottom > sidebar.getBoundingClientRect().top);
     if (!first) return;
     const firstIndex = Number(first.dataset.timelineIndex) || 0;
-    const next = Math.max(0, Math.min(firstIndex - 9, Math.max(0, visible.length - 10)));
+    const next = Math.max(0, Math.min(firstIndex - TIMELINE_WINDOW_END, Math.max(0, visible.length - TIMELINE_WINDOW_SIZE)));
     if (next !== timelineIndex) { timelineIndex = next; setSceneData(); }
   }
   function focusDate(key) {
@@ -332,7 +331,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     if (mode === "timeline") {
       const chronological = [...visible].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
       const index = chronological.findIndex(visit => visit.id === id);
-      if (index >= 0) timelineIndex = Math.max(0, Math.min(index - 4, Math.max(0, visible.length - 10)));
+      if (index >= 0) timelineIndex = Math.max(0, Math.min(index - TIMELINE_WINDOW_CENTER, Math.max(0, visible.length - TIMELINE_WINDOW_SIZE)));
     }
     if (mode === "universe") pinnedGroup = shape.groupOf.get(id) || null;
     selected = id; day = "visit"; focusGroupId = shape.groupOf.get(id); detailsDismissed = false; refresh(false);
@@ -343,7 +342,16 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       }
     }
   }
-  async function openVisit(id) { if (await browser.openHistory(id)) close(); }
+  let openingVisit = null;
+  let openingTimer = 0;
+  async function openVisit(id) {
+    // A quick double-click should not create two copies of the same page.
+    if (openingVisit === id) return;
+    openingVisit = id;
+    clearTimeout(openingTimer);
+    openingTimer = setTimeout(() => { openingVisit = null; }, 500);
+    if (await browser.openHistory(id)) close();
+  }
   function showDetails() {
     details.replaceChildren(); const visit = visits.find(v => v.id === selected);
     details.hidden = !visit || detailsDismissed; if (!visit || detailsDismissed) return;
@@ -380,6 +388,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
         }
         const button = node("button", "cosmos-info-tab history-timeline-item" + (visit.id === selected ? " active" : ""));
         button.dataset.visitId = visit.id;
+        button.setAttribute("aria-current", String(visit.id === selected));
         button.dataset.timelineIndex = String(indices.get(visit.id) || 0);
         button.classList.toggle("history-context-row", focusIds !== null && !focusIds.has(visit.id));
         button.title = `${visit.title}\n${visit.url}\n${new Date(visit.at).toLocaleString()}`;
@@ -408,6 +417,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       const ids = new Set(group.memberIds);
       for (const visit of visible.filter(v => ids.has(v.id)).sort((a, b) => b.at - a.at)) {
         const button = node("button", "cosmos-info-tab" + (visit.id === selected ? " active" : "")); button.dataset.visitId = visit.id;
+        button.setAttribute("aria-current", String(visit.id === selected));
         button.classList.toggle("history-context-row", focusIds !== null && !focusIds.has(visit.id));
         button.title = `${visit.title}\n${visit.url}\n${new Date(visit.at).toLocaleString()}`;
         const time = node("span", "history-visit-clock");
@@ -468,8 +478,8 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     root.querySelector(".history-fit").hidden = timeline;
     root.querySelector("#history-sidebar").setAttribute("aria-label", timeline ? "Chronological browsing history" : "Navigation journeys");
     root.querySelector(".cosmos-hint").textContent = timeline
-      ? "Scroll either side to move through time · Click a star to inspect · Double-click to reopen"
-      : "Click to inspect · Double-click to reopen · Drag to orbit · Scroll to zoom";
+      ? "Scroll either side to move through time · Click a star to open · Click a sidebar row to inspect"
+      : "Click a star to open · Click a sidebar row to inspect · Drag to orbit · Scroll to zoom";
     refresh(true);
   }
   function setView(searching) {
@@ -533,7 +543,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     setView(true);
     setSceneData();
     root.querySelector(".history-summary").textContent = mode === "timeline"
-      ? `Showing ${Math.min(10, visible.length)} of ${visible.length} visits · scroll either side to move through time`
+      ? `Showing ${Math.min(TIMELINE_WINDOW_SIZE, visible.length)} of ${visible.length} visits · scroll either side to move through time`
       : `Showing ${sceneGroups.length} of ${groups.length} connected journeys · newest first`;
     listeners.forEach(callback => callback()); renderSidebar(); showDetails();
     if (refit) fit();
@@ -632,6 +642,20 @@ export function createHistoryView({ browser, onVisibilityChange }) {
   root.querySelector(".history-close").onclick = close;
   search.oninput = () => { day = "all"; selected = null; focusGroupId = null; pinnedGroup = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); };
   root.addEventListener("keydown", event => {
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && sidebar.contains(event.target)) {
+      const current = event.target.closest("[data-visit-id]");
+      if (current) {
+        const rows = [...sidebar.querySelectorAll("button[data-visit-id]")];
+        const index = rows.indexOf(current);
+        const next = rows[index + (event.key === "ArrowDown" ? 1 : -1)];
+        event.preventDefault();
+        if (next) {
+          next.focus();
+          select(next.dataset.visitId, true);
+        }
+        return;
+      }
+    }
     if (event.key === "Escape" && event.target === search && search.value) {
       event.preventDefault(); event.stopPropagation(); showAllHistory(); return;
     }
