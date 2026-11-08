@@ -1,0 +1,17 @@
+{
+  "application": "Nova",
+  "viewport": {
+    "width": 1600,
+    "height": 1000
+  },
+  "content": "Reserved .example demo pages and sample saved browsing data",
+  "screenshots": [
+    "new-tab",
+    "constellations",
+    "history",
+    "bookmarks",
+    "bookmarks-list",
+    "resources",
+    "assistant"
+  ]
+}

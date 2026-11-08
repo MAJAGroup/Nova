@@ -1,6 +1,45 @@
-# Nova
+<p align="center">
+  <img src="assets/icon.png" alt="Nova's cyan and lavender ringed-planet icon" width="72" height="72">
+</p>
 
-Nova is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, standard browser navigation, and an AI assistant that can use a local Ollama model hosted on Empire AI Alpha, BullsAI, or another compatible chat endpoint.
+<h1 align="center">Nova</h1>
+
+<p align="center"><strong>A little curiosity. Infinite possibility.</strong></p>
+
+<p align="center">A desktop browser that turns your tabs, history, and bookmarks into a universe you can explore.</p>
+
+<p align="center">
+  <a href="#install-and-launch-nova">Get started</a> ·
+  <a href="#built-for-curiosity">Explore Nova</a> ·
+  <a href="#build-a-distributable-app">Build an AppImage</a> ·
+  <a href="docs/screenshots/README.md">Original captures</a>
+</p>
+
+[![Nova's galaxy start page presented in a floating product frame on a dark cyan and lavender space background](docs/images/nova-hero.png)](docs/images/nova-hero.png)
+
+## Built for curiosity
+
+Keep familiar browser controls close and give your browsing a little more perspective. Nova combines Chromium-backed pages with a spatial workspace and an assistant that can help organize your tabs.
+
+| Organize your space | Keep the thread | See what is happening |
+| --- | --- | --- |
+| Group related tabs into constellations and move through a visual overview. | Explore connected history and save the pages you want to return to. | Inspect live tab memory, CPU, and audio status with a hover. |
+
+[![Nova's actual constellation workspace with three groups of tabs and an inset of the assistant grouping pages into Observatory](docs/images/nova-workspace.png)](docs/images/nova-workspace.png)
+
+### A place for every line of thought
+
+Name a constellation for your research, your next build, or the ideas you are collecting. Use the sidebar, select a star, or ask Nova to group named tabs. Connect an AI endpoint for broader organization requests.
+
+[![Nova's history constellation view with framed details showing saved bookmarks and a live resource card reporting memory, CPU, and audio](docs/images/nova-context.png)](docs/images/nova-context.png)
+
+### Context you can come back to
+
+History connects the steps in a browsing journey. Bookmarks keep useful pages across restarts. Resource cards show what a tab is using while the page keeps running. Each view shares Nova's space-inspired visual language.
+
+<sub>Product visuals use captures from the running app with sample browsing data and edited presentation framing. [View the unedited screenshots](docs/screenshots/README.md).</sub>
+
+Nova is an Electron and Three.js desktop browser prototype created for the UB Hacking 2026 deep-space theme. Its assistant supports local Ollama and compatible chat endpoints; the setup guides below cover local and hosted options.
 
 ## What you need
 
@@ -21,11 +60,11 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 1. Open Terminal, PowerShell, or Command Prompt.
 2. Change to the project folder. Replace the example path with the folder where you saved this project:
 
-       cd "/path/to/UB Hackathon"
+       cd "/path/to/Nova"
 
    On Windows, a path might look like:
 
-       cd "C:\path\to\UB Hackathon"
+       cd "C:\path\to\Nova"
 
 3. Install the project dependencies:
 
@@ -64,7 +103,7 @@ Run `npm run test:branding` to check the Nova identity, profile migration, prefe
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
 - **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Nova assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
-Nova uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new Nova tab. Sites that request camera, microphone, location, or notification access show an Nova permission prompt.
+Nova uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new Nova tab. Sites that request camera, microphone, location, or notification access show a Nova permission prompt.
 
 ## Bookmarks
 

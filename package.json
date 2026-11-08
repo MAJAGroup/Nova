@@ -10,6 +10,7 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "appimage": "bash ./build-appimage.sh",
+    "docs:capture": "node scripts/capture-readme.cjs",
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
     "test:newtab": "node --test tests/newtab*.test.cjs",
