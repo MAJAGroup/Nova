@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "description": "A Chromium desktop browser with a built-in AI assistant.",
+  "desktopName": "edu.buffalo.orbit.desktop",
   "main": "desktop-main.js",
   "scripts": {
     "start": "electron .",
@@ -29,6 +30,8 @@
       "assistant-handle-preload.js",
       "tab-groups.js",
       "ai-grouping.js",
+      "linux-desktop.js",
+      "assets/**/*",
       "ui/**/*",
       "README.md",
       "history-store.js",
@@ -53,6 +56,8 @@
     },
     "linux": {
       "target": "AppImage",
+      "icon": "assets/icon.png",
+      "syncDesktopName": true,
       "category": "Network;WebBrowser;"
     }
   },

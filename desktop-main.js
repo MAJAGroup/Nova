@@ -24,6 +24,7 @@ const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
 const { HistoryStore } = require("./history-store");
 const { BookmarkStore } = require("./bookmark-store");
+const { registerLinuxDesktop } = require("./linux-desktop");
 const { trackConnectionSecurity } = require("./connection-security");
 const { localSuggestions, createWebSuggestions } = require("./search-suggestions.cjs");
 const fetchWebSuggestions = createWebSuggestions((url, options) => net.fetch(url, options));
@@ -562,6 +563,7 @@ function createWindow() {
     maximizable: true,
     backgroundColor: "#080d1c",
     title: "ORBIT",
+    icon: path.join(__dirname, "assets", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "desktop-preload.js"),
       backgroundThrottling: process.env.ORBIT_TEST_HIDDEN !== "1",
@@ -1001,7 +1003,18 @@ function applyGroupingPlan(plan, ordered, { resetExistingGroups = false } = {}) 
   return { groups: summary, ungrouped: ungroupedCount, reply: plan.reply };
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  if (process.platform === "linux" && process.env.ORBIT_TEST_HIDDEN !== "1") {
+    const appImage = app.isPackaged ? process.env.APPIMAGE : null;
+    const executable = appImage || process.execPath;
+    const args = appImage && process.env.APPIMAGE_EXTRACT_AND_RUN === "1" ? ["--appimage-extract-and-run"] : app.isPackaged ? [] : [app.getAppPath()];
+    try {
+      await registerLinuxDesktop({
+        dataHome: process.env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share"),
+        iconPath: path.join(__dirname, "assets", "icon.png"), executable, args
+      });
+    } catch (error) { console.error("Could not register the ORBIT desktop icon:", error.message); }
+  }
   try { bookmarks = new BookmarkStore(path.join(app.getPath("userData"), "orbit-bookmarks.json")); }
   catch (error) {
     console.error("Bookmarks could not be loaded:", error.message);

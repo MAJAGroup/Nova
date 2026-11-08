@@ -247,6 +247,8 @@ You can also use `npm run appimage`. The script works from any directory, instal
 
 You can also open that AppImage from your file manager after the build finishes. The first build may download packaging tools and requires internet access.
 
+The app window and Linux AppImage use ORBIT's cyan and lavender ringed-planet icon. Its editable SVG and 512px PNG are in `assets/`. On Linux, launching the app registers its icon and an ORBIT application entry in your user data directory (`$XDG_DATA_HOME`, or `~/.local/share`). The entry shares the app's window identity so Wayland and X11 desktops can associate its taskbar icon correctly; registration needs no administrator access.
+
 When `/dev/fuse` is unavailable, the script prints a launch command with `--appimage-extract-and-run`, which runs the AppImage without mounting it. You can also add that flag manually if you encounter a FUSE error; see the [AppImage fallback instructions](https://docs.appimage.org/user-guide/troubleshooting/fuse.html#extract-and-run-type-2-appimages).
 
 Run these commands from the project folder after installing dependencies:
