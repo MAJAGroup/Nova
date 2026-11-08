@@ -103,7 +103,7 @@
 .star-label.selected .star-label-mark{box-shadow:0 0 0 2px #fff,0 0 0 4px #ffffff55,0 0 14px 3px var(--star-color,#8fe8ff)}
 .cosmos-toggle{font-size:15px}
 .cosmos-toggle.active{color:#8fe8ff;background:#14203a}
-.constellation-label{pointer-events:none}
+.constellation-label{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;pointer-events:none}
 .constellation-name{pointer-events:auto;display:inline-block;padding:3px 10px;border-radius:999px;font:600 10px var(--font);letter-spacing:2.4px;text-transform:uppercase;color:var(--group-color,#8fe8ff);background:rgba(5,8,19,.45);text-shadow:0 0 12px var(--group-color,#8fe8ff);cursor:pointer;white-space:nowrap;outline:0;user-select:none;-webkit-user-select:none}
 .constellation-name.merge-handle{cursor:grab}
 .constellation-label.drop-target .constellation-name{background:rgba(14,22,44,.92);box-shadow:0 0 0 1px var(--group-color,#8fe8ff),0 0 18px var(--group-color,#8fe8ff);transform:scale(1.12)}
@@ -111,6 +111,9 @@
 .constellation-label.merge-target .constellation-name{background:rgba(17,34,51,.98);box-shadow:0 0 0 2px #e8f9ff,0 0 22px 7px var(--group-color,#8fe8ff);transform:scale(1.16)}
 .constellation-name{transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
 .constellation-name:hover,.constellation-name:focus-visible{background:rgba(14,22,44,.85)}
+.constellation-zoom-out{flex:none;pointer-events:auto;margin-left:3px;padding:3px 7px;border:0;border-radius:999px;background:transparent;color:#b9f5ff;font:600 8px var(--font);letter-spacing:2px;text-shadow:0 0 10px #79e9ff,0 0 20px #50caff;cursor:pointer;transition:color .18s ease,text-shadow .18s ease,transform .18s ease}
+.constellation-zoom-out:hover,.constellation-zoom-out:focus-visible{color:#fff;text-shadow:0 0 12px #fff,0 0 24px #54d8ff;transform:scale(1.06);outline:1px solid #a7f4ff66;outline-offset:2px}
+.constellation-zoom-out[hidden]{display:none!important}
 .constellation-label.editing .constellation-name{text-transform:none;letter-spacing:.5px;cursor:text;background:rgba(14,22,44,.95);box-shadow:0 0 0 1px var(--group-color,#8fe8ff)}
 .cosmos-sidebar-hint{flex:none;margin:0;padding:6px 15px 10px;color:#71809c;font-size:9px;line-height:1.5}
 .cosmos-selection{position:relative;z-index:2;flex:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0 10px 12px;padding:9px;border:1px solid #33416a;border-radius:9px;background:rgba(14,20,40,.92);box-shadow:0 10px 30px #0008;color:#c9d3ee;font-size:10px}

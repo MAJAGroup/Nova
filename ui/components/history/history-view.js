@@ -127,7 +127,6 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   let openState = false, openVersion = 0, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop, timelineArt;
   let constellations, explorer, arrows = [], flight = null, lastTime = null;
   let explorationPhase = "idle", explorationBusy = false, draggedHistoryGroupId = null;
-  const zoomOut = root.querySelector(".history-zoom-out");
   const listeners = new Set();
   const store = {
     get tabs() { return sceneVisits.map(v => ({ ...v, groupId: sceneShape?.groupOf.get(v.id) })); },
@@ -165,6 +164,9 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     blackHole = createBlackHole(blackHoleRoot);
     constellations = createConstellations({ scene, camera, tabs: store,
       positionOf: id => stars?.positionOf(id), onFocus: focusGroup,
+      onContextMenu: saved ? undefined : showHistoryGroupMenu,
+      onZoomOut: () => zoomOutFromGroup(),
+      getFocusedGroupId: () => !saved && mode === "universe" && day === "group" ? pinnedGroup : null,
       onGroupDrag: saved ? undefined : id => {
         draggedHistoryGroupId = id;
         if (!id) { blackHole.lure(false); root.classList.remove("history-group-doom"); }
@@ -212,7 +214,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         down = { x: event.clientX, y: event.clientY, scrollTop: sidebar.scrollTop };
         // Keep CSS2D star and group buttons as the pointer target so their
         // native click handlers can focus the corresponding history group.
-        if (!event.target.closest?.(".star-label, .constellation-name")) {
+        if (!event.target.closest?.(".star-label, .constellation-name, .constellation-zoom-out")) {
           try { surface.setPointerCapture(event.pointerId); } catch { /* optional pointer capture */ }
         }
       });
@@ -487,11 +489,6 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     const points = [...sceneShape.positions.values(), new THREE.Vector3(0, 0, 0)];
     const view = viewFor(points);
     flight = view; setOrbit(false);
-    syncZoomOut();
-  }
-  function syncZoomOut() {
-    if (!zoomOut) return;
-    zoomOut.hidden = saved || !openState || root.dataset.view !== "stars" || mode !== "universe" || day !== "group" || !pinnedGroup;
   }
   function focusGroup(id, visitId = null) {
     const group = groups.find(g => g.id === id); if (!group) return;
@@ -509,6 +506,14 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       if (groupId != null && !alreadyFocused) { focusGroup(groupId, id); return; }
     }
     void openVisit(id);
+  }
+  function showHistoryGroupMenu(groupId) {
+    if (saved) return;
+    const group = sceneGroups.find(item => String(item.id) === String(groupId)) || groups.find(item => String(item.id) === String(groupId));
+    if (!group) return;
+    const memberIds = new Set(group.memberIds);
+    const latest = visits.filter(visit => memberIds.has(visit.id)).sort((a, b) => b.at - a.at)[0];
+    if (latest) browser.showHistoryMenu?.(latest.id);
   }
   function startExploration() {
     if (saved || !explorationBusy || !openState || root.dataset.view !== "stars" || !explorer) return;
@@ -641,8 +646,9 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       section.style.setProperty("--group-color", group.color);
       const heading = node("button", "cosmos-group-heading");
       heading.append(node("span", "cosmos-group-dot"), node("span", "cosmos-group-name", group.name), node("span", "cosmos-group-count", String(group.memberIds.length)));
-      heading.title = `${group.name} · ${saved ? "Focus website bookmarks" : "Focus navigation journey"}`;
+      heading.title = `${group.name} · ${saved ? "Focus website bookmarks" : "Focus navigation journey · Right-click for history actions"}`;
       heading.onclick = () => focusGroup(group.id); section.append(heading);
+      if (!saved) heading.oncontextmenu = event => { event.preventDefault(); event.stopPropagation(); showHistoryGroupMenu(group.id); };
       const ids = new Set(group.memberIds);
       for (const visit of visible.filter(v => ids.has(v.id)).sort((a, b) => b.at - a.at)) {
         const button = node("button", "cosmos-info-tab" + (visit.id === selected ? " active" : "")); button.dataset.visitId = visit.id;
@@ -749,7 +755,6 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       cancelAnimationFrame(frame); frame = 0; lastTime = null;
       if (previous === "stars") listView.scrollTop = 0;
     }
-    syncZoomOut();
   }
   function refresh(refit = false) {
     if (!openState) return;
@@ -894,7 +899,6 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   root.querySelectorAll(".history-mode").forEach(button => { button.onclick = () => setMode(button.dataset.mode); });
   sidebar.addEventListener("scroll", syncTimelineWindowFromSidebar, { passive: true });
   root.querySelector(".history-fit").onclick = overview;
-  zoomOut?.addEventListener("click", zoomOutFromGroup);
   clearSearch.onclick = showAllHistory;
   root.querySelector(".history-load-more").onclick = () => { entryLimit += 100; renderEntries(); };
   root.querySelector(".history-close").onclick = close;

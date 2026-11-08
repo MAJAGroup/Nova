@@ -119,6 +119,9 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       positionOf: (id) => stars.positionOf(id),
       onFocus: flyToGroup,
       onRename: (groupId, name) => browser.renameGroup(groupId, name),
+      onContextMenu: showTabGroupMenu,
+      onZoomOut: () => flyHome(),
+      getFocusedGroupId: () => focusedGroupId,
       onMerge: (sourceId, targetId) => {
         const source = tabs.groups.find(group => String(group.id) === String(sourceId));
         const target = tabs.groups.find(group => String(group.id) === String(targetId));
@@ -193,9 +196,6 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   el("cosmos-reset").addEventListener("click", () => {
     if (renderer) flyHome();
   });
-  const zoomOutButton = el("cosmos-zoom-out");
-  zoomOutButton?.addEventListener("click", () => flyHome());
-
   let previousTabIds = null;
   let previousGroupByTab = null;
   tabs.subscribe(() => {
@@ -251,6 +251,11 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     return category;
   }
 
+  function showTabGroupMenu(groupId) {
+    const memberIds = tabs.tabs.filter(tab => String(tab.groupId) === String(groupId)).map(tab => tab.id);
+    if (memberIds.length) browser.showTabMenu(memberIds[0], memberIds);
+  }
+
   // name is null for a plain list of tabs with no group heading.
   function renderSection(name, color, members, groupId) {
     const section = document.createElement("section");
@@ -260,8 +265,13 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     heading.type = "button";
     heading.className = "cosmos-group-heading";
     heading.innerHTML = '<span class="cosmos-group-dot"></span><span class="cosmos-group-name">' + escapeHTML(name) + '</span><span class="cosmos-group-count">' + members.length + '</span>';
-    heading.title = groupId ? "Focus this constellation" : "Tabs without a constellation";
+    heading.title = groupId ? "Focus this constellation · Right-click for group actions" : "Tabs without a constellation";
     if (groupId) heading.addEventListener("click", () => flyToGroup(groupId));
+    if (groupId) heading.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      showTabGroupMenu(groupId);
+    });
     if (name !== null) section.appendChild(heading);
 
     for (const tab of members) {
@@ -577,7 +587,6 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   function flyHome() {
     focusedGroupId = null;
-    if (zoomOutButton) zoomOutButton.hidden = true;
     flight = overview();
   }
 
@@ -585,7 +594,6 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     const center = constellations.centerOf(groupId);
     if (!center) return;
     focusedGroupId = String(groupId);
-    if (zoomOutButton) zoomOutButton.hidden = false;
     const distance = Math.max(10, constellations.radiusOf(groupId) * 3 + 5);
     const direction = camera.position.clone().sub(controls.target).normalize();
     flight = { target: center, camera: center.clone().add(direction.multiplyScalar(distance)) };

@@ -17,9 +17,6 @@
 .history-quiet{border:1px solid #293b55;border-radius:6px;background:#101a2d88;color:#9cb4d3;font:10px var(--font);padding:7px 10px;cursor:pointer}.history-quiet:hover{border-color:#5e9fbe;color:#d6eef9}
 .history-clear{align-self:start;margin:8px 14px 15px;color:#7c90af}
 .history-tools{position:absolute;z-index:3;top:10px;right:14px;display:flex;gap:8px;align-items:center}
-.history-zoom-out,.cosmos-zoom-out{position:absolute;z-index:7;top:50%;left:50%;transform:translate(-50%,-50%);padding:7px 12px;border:1px solid #86eaff44;border-radius:999px;background:transparent;color:#b9f5ff;font:600 9px var(--font);letter-spacing:2.4px;text-shadow:0 0 10px #79e9ff,0 0 20px #50caff;box-shadow:0 0 20px #5adfff20;cursor:pointer;backdrop-filter:blur(2px);transition:border-color .18s ease,color .18s ease,text-shadow .18s ease,box-shadow .18s ease}
-.history-zoom-out:hover,.history-zoom-out:focus-visible,.cosmos-zoom-out:hover,.cosmos-zoom-out:focus-visible{border-color:#a7f4ffad;color:#fff;text-shadow:0 0 12px #fff,0 0 24px #54d8ff;box-shadow:0 0 28px #64e4ff55}
-.history-zoom-out[hidden],.cosmos-zoom-out[hidden]{display:none!important}
 .history-era-title,.history-era-caption,.history-era-date{display:inline-block;padding:4px 9px;border:1px solid #79ddf433;border-radius:999px;background:rgba(5,11,22,.72);color:#d9f8ff;text-shadow:0 0 12px #63dfff88;white-space:nowrap;pointer-events:none;backdrop-filter:blur(5px)}
 .history-era-title{font:600 10px var(--font);letter-spacing:2.1px}
 .history-era-caption{max-width:250px;border-color:#95bbda24;color:#96b9cf;font:8px var(--font);letter-spacing:1.2px;line-height:1.5;text-align:center;white-space:normal}

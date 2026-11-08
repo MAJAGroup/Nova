@@ -27,7 +27,7 @@ function spanningTree(ids, positions) {
 // Draws each tab group as a constellation: lines between its stars, a faint
 // nebula behind them and its name above. In Nova, the name can be dragged to
 // another group to merge them, clicked to focus, or double-clicked to rename.
-export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, onGroupDrag, emphasisFor = () => 1 }) {
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, onGroupDrag, onContextMenu, onZoomOut, getFocusedGroupId = () => null, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
   scene.add(root);
   const items = new Map();
@@ -48,22 +48,34 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
 
     const element = document.createElement("div");
     element.className = "constellation-label";
-    element.innerHTML = '<span class="constellation-name" role="button" tabindex="0" title="Click to focus · Double-click to rename"></span>';
-    const button = element.firstChild;
+    element.innerHTML = '<span class="constellation-name" role="button" tabindex="0" title="Click to focus · Double-click to rename · Right-click for group options"></span><button type="button" class="constellation-zoom-out" hidden aria-label="Zoom out from this group">ZOOM OUT</button>';
+    const button = element.querySelector(".constellation-name");
+    const zoomButton = element.querySelector(".constellation-zoom-out");
     button.dataset.groupId = String(group.id);
     const label = new CSS2DObject(element);
 
     root.add(lines, nebula, label);
-    const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
+    const item = { id: group.id, group, geometry, lines, nebula, label, element, button, zoomButton, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
 
     button.addEventListener("click", () => {
       if (suppressGroupClick) { suppressGroupClick = false; return; }
       if (!item.editing) onFocus(item.id);
     });
+    button.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!item.editing) onContextMenu?.(item.id);
+    });
+    zoomButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      onZoomOut?.(item.id);
+    });
     button.title = [
       onMerge ? "Drag the name onto another group to merge" : null,
       onGroupDrag && !onMerge ? "Drag this journey to the black hole to delete it" : null,
-      onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey"
+      onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey",
+      onContextMenu ? "Right-click for group options" : null
     ].filter(Boolean).join(" · ");
     if (onMerge || onGroupDrag) {
       button.classList.add("merge-handle");
@@ -201,6 +213,8 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
       const screenUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
       for (const item of items.values()) {
         if (item.focusPending && item.element.isConnected) focusName(item);
+        const focusedGroupId = getFocusedGroupId();
+        item.zoomButton.hidden = item.editing || focusedGroupId == null || String(focusedGroupId) !== String(item.id);
         const buffer = item.geometry.getAttribute("position");
         if (buffer) {
           item.edges.forEach(([from, to], index) => {
