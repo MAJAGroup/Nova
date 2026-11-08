@@ -53,13 +53,7 @@
 @media(max-width:1000px){.history-summary,.history-sidebar-label span{display:none}.history-period{max-width:140px}}
 @media(max-width:700px){.history-tools{right:8px;gap:5px}.history-mode{padding:6px 7px}.history-mode-switch{gap:0}.history-page .cosmos-header{max-width:calc(100% - clamp(220px,28%,320px) - 230px)}.history-page.sidebar-hidden .cosmos-header{max-width:calc(100% - 230px)}}
 @media(prefers-reduced-motion:reduce){.history-page *{transition:none!important}}
-/* A focused date changes emphasis, while the chronological context stays in place. */
-.history-date-label{pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:5px;white-space:nowrap;opacity:.5}
-.history-date-label.in-focus{opacity:1}
-.history-date-label button{pointer-events:auto;border:0;border-bottom:1px solid #8ccbdd40;border-radius:0;background:#050b17b3;padding:5px 9px 8px;color:#98b7d3;font-size:10px;letter-spacing:1px;cursor:pointer}
-.history-date-label.in-focus button{color:#c1edf5;border-bottom-color:#9adee2a3}
-.history-date-label small{color:#69809b;font-size:8px;letter-spacing:.8px}
-.history-date-label:hover{opacity:1}
+/* Filtered results stay visible in context while matching history is emphasized. */
 .history-context-row{opacity:.48}.history-context-row:hover,.history-context-row:focus-visible{opacity:1}
 .history-page .star-label.subdued.hovered,.history-page .star-label.subdued:focus-visible{opacity:1!important}
 .history-page .star-label.active .star-label-title{max-width:230px;opacity:1;transform:none}

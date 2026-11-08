@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 import { createConstellations } from "../cosmos/constellations.js";
 import { createBackdrop } from "../cosmos/backdrop.js";
 import { createBlackHole } from "../cosmos/black-hole.js";
@@ -39,6 +39,65 @@ function clearBlackHoleLane(layout) {
   }
 }
 
+function arrangeHistoryOrbits(groups, visits, sourcePositions) {
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const positions = new Map();
+  const groupOf = new Map();
+  const orbitGroups = groups.map((group, index) => {
+    const members = visits.filter(visit => group.memberIds.includes(visit.id))
+      .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+    const points = members.map(visit => sourcePositions.get(visit.id)).filter(Boolean);
+    if (!points.length) return null;
+
+    const minX = Math.min(...points.map(point => point.x));
+    const maxX = Math.max(...points.map(point => point.x));
+    const minY = Math.min(...points.map(point => point.y));
+    const maxY = Math.max(...points.map(point => point.y));
+    const width = Math.min(10, Math.max(3.2, Math.sqrt(members.length) * 2.1));
+    const height = Math.min(9, Math.max(3.2, Math.sqrt(members.length) * 1.9));
+    const angle = index * goldenAngle + Math.PI * .12;
+    const orbitRadius = 20 + (index % 2) * 5;
+    const radialX = Math.cos(angle), radialZ = Math.sin(angle);
+    const tangentX = -radialZ, tangentZ = radialX;
+    const center = { x: radialX * orbitRadius, y: Math.sin(index * 1.4) * 1.6, z: radialZ * orbitRadius };
+
+    members.forEach((visit, memberIndex) => {
+      const point = sourcePositions.get(visit.id);
+      if (!point) return;
+      const progressX = maxX === minX ? 0 : (point.x - minX) / (maxX - minX) - .5;
+      const progressY = maxY === minY ? 0 : (point.y - minY) / (maxY - minY) - .5;
+      // Keep each journey readable as a small branching cluster, oriented along
+      // the orbit around the black hole rather than along a date axis.
+      const localX = progressX * width;
+      const localY = progressY * height + Math.sin(memberIndex * 2.4) * .18;
+      positions.set(visit.id, {
+        x: center.x + tangentX * localX,
+        y: center.y + localY,
+        z: center.z + tangentZ * localX
+      });
+      groupOf.set(visit.id, group.id);
+    });
+
+    const radius = Math.max(4.4, Math.hypot(width, height) / 2 + 1.6);
+    const memberIds = members.map(visit => visit.id);
+    const memberIdSet = new Set(memberIds);
+    return {
+      ...group,
+      center,
+      radius,
+      memberIds,
+      edges: group.edges.filter(([from, to]) => memberIdSet.has(from) && memberIdSet.has(to)),
+      labelPosition: { x: center.x + tangentX * (width / 2 + 1), y: center.y + height / 2 + 2, z: center.z + tangentZ * (width / 2 + 1) },
+      nebulaSize: { x: width + 5, y: height + 4 }
+    };
+  }).filter(Boolean);
+  return {
+    positions,
+    groups: orbitGroups,
+    groupOf
+  };
+}
+
 export function createHistoryView({ browser, onVisibilityChange }) {
   const root = document.getElementById("history");
   const stage = root.querySelector(".history-stage");
@@ -54,11 +113,11 @@ export function createHistoryView({ browser, onVisibilityChange }) {
   let entryLimit = 100;
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   let visits = [], selected = null, day = "all", visible = [], groups = [];
-  let mode = "universe", visualize = false, timelineIndex = 0, pinnedGroup = null;
+  let mode = "universe", visualize = true, timelineIndex = 0, pinnedGroup = null;
   let sceneVisits = [], sceneGroups = [], sceneShape = historyLayout([]), timelineFocusX = 0;
   let shape = historyLayout([]), focusIds = null, focusGroupId = null, detailsDismissed = false;
   let openState = false, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop;
-  let constellations, arrows = [], dateObjects = [], flight = null, lastTime = null;
+  let constellations, arrows = [], flight = null, lastTime = null;
   const listeners = new Set();
   const store = {
     get tabs() { return sceneVisits.map(v => ({ ...v, groupId: sceneShape?.groupOf.get(v.id) })); },
@@ -150,11 +209,6 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       scene.remove(item.line, item.arrow); item.line.geometry.dispose(); item.line.material.dispose(); item.arrow.dispose();
     }
     arrows = [];
-    for (const item of dateObjects) {
-      item.label.removeFromParent(); item.label.element.remove(); scene.remove(item.line);
-      item.line.geometry.dispose(); item.line.material.dispose();
-    }
-    dateObjects = [];
     const chronological = [...sceneVisits].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
     const routes = mode === "timeline"
       ? chronological.slice(1).map((visit, index) => ({
@@ -171,19 +225,8 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       arrow.line.material.visible = false; arrow.cone.material.transparent = true;
       scene.add(line, arrow); arrows.push({ line, arrow, ...route });
     }
-    if (mode === "timeline") return;
-    const ys = [...shape.positions.values()].map(p => p.y);
-    const bottom = ys.length ? Math.min(...ys) - 10 : -10;
-    for (const date of shape.days) {
-      const element = node("div", "history-date-label" + ((focusIds === null || visible.some(v => focusIds.has(v.id) && dateKey(v.at) === date.id)) ? " in-focus" : ""));
-      element.dataset.date = date.id;
-      const button = node("button", "", date.name); button.onclick = () => focusDate(date.id);
-      element.append(button, node("small", "", `${visible.filter(v => dateKey(v.at) === date.id).length} visits`));
-      const label = new CSS2DObject(element); label.position.set((date.start + date.end) / 2, date.y, 0);
-      const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(date.start - 5, bottom, -.2), new THREE.Vector3(date.start - 5, date.y - 7, -.2)]);
-      const line = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: 0x6085a5, transparent: true, opacity: .15, dashSize: 1.2, gapSize: 1.8, depthWrite: false }));
-      line.computeLineDistances(); scene.add(label, line); dateObjects.push({ label, line });
-    }
+    // The universe view is spatial rather than chronological: dates remain
+    // available in the sidebar filters, but are not drawn into the scene.
   }
   function rebuildTimelineBackdrop(count) {
     if (!timelineBackdrop) return;
@@ -245,13 +288,9 @@ export function createHistoryView({ browser, onVisibilityChange }) {
         if (group) recent.splice(4, 1, group);
       }
       const allowed = new Set(recent.map(group => group.id));
-      sceneGroups = recent;
       sceneVisits = visible.filter(visit => allowed.has(shape.groupOf.get(visit.id)));
-      sceneShape = {
-        positions: new Map(sceneVisits.map(visit => [visit.id, shape.positions.get(visit.id)])),
-        groupOf: new Map(sceneVisits.map(visit => [visit.id, shape.groupOf.get(visit.id)])),
-        groups: sceneGroups
-      };
+      sceneShape = arrangeHistoryOrbits(recent, sceneVisits, shape.positions);
+      sceneGroups = sceneShape.groups;
       timelineBackdrop.visible = false;
     }
     listeners.forEach(callback => callback());
@@ -270,16 +309,17 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     day = key; selected = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true);
     sidebar.querySelector(`[data-visit-id="${selected}"]`)?.scrollIntoView({ block: "nearest" });
   }
-  function showList() {
-    day = "all"; selected = null; detailsDismissed = false; search.value = ""; entryLimit = 100; visualize = false; mode = "universe"; refresh(true); search.focus();
+  function showAllHistory() {
+    day = "all"; selected = null; pinnedGroup = null; focusGroupId = null;
+    detailsDismissed = false; search.value = ""; entryLimit = 100; refresh(true); search.focus();
   }
-  function overview() { day = "all"; selected = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); }
+  function overview() { day = "all"; selected = null; pinnedGroup = null; focusGroupId = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); }
   function focusGroup(id) {
     const group = groups.find(g => g.id === id); if (!group) return;
     pinnedGroup = id;
     day = "group"; focusGroupId = id; selected = group.memberIds.at(-1); detailsDismissed = false; refresh(false);
     if (renderer) {
-      const view = viewFor(group.memberIds.map(id => shape.positions.get(id)));
+      const view = viewFor(group.memberIds.map(id => sceneShape.positions.get(id) || shape.positions.get(id)));
       flight = view; setOrbit(false);
     }
   }
@@ -297,7 +337,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     if (mode === "universe") pinnedGroup = shape.groupOf.get(id) || null;
     selected = id; day = "visit"; focusGroupId = shape.groupOf.get(id); detailsDismissed = false; refresh(false);
     if (focus && renderer && mode !== "timeline") {
-      const p = shape.positions.get(id); if (p) {
+      const p = sceneShape.positions.get(id) || shape.positions.get(id); if (p) {
         const distance = Math.min(50, camera.position.distanceTo(controls.target));
         flight = { target: new THREE.Vector3(p.x, p.y, p.z), offset: new THREE.Vector3(0, 0, distance) }; setOrbit(false);
       }
@@ -444,7 +484,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     stage.hidden = !searching; root.querySelector(".cosmos-sidebar").hidden = !searching; listView.hidden = searching;
     clearSearch.hidden = !search.value;
     root.querySelector(".history-view-caption").textContent = searching
-      ? search.value.trim() ? "Search results, connected" : mode === "timeline" ? "History of the Universe" : "Navigation journeys"
+      ? search.value.trim() ? "Search results, connected" : mode === "timeline" || mode === "universe" ? "History of the Universe" : "Navigation journeys"
       : "Your recent browsing";
     if (searching) {
       initializeScene();
@@ -466,7 +506,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     }
     const keys = [...new Set(visits.map(v => dateKey(v.at)))].sort().reverse();
     dates.replaceChildren();
-    const recent = node("button", "history-date", "← Back to history"); recent.onclick = showList; dates.append(recent);
+    const recent = node("button", "history-date", "← Back to history"); recent.onclick = showAllHistory; dates.append(recent);
     const all = node("button", "history-date" + (day === "all" ? " active" : ""), "All dates"); all.onclick = overview; dates.append(all);
     for (const key of keys) {
       const button = node("button", "history-date" + (day === key ? " active" : "")); button.dataset.date = key;
@@ -484,7 +524,9 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     focusIds = day === "all" ? null : new Set(visible.filter(v => focusedDay ? dateKey(v.at) === focusedDay : shape.groupOf.get(v.id) === focusGroupId).map(v => v.id));
     root.dataset.focusMode = day === "all" || day === "visit" || day === "group" ? day : "date";
     root.dataset.focusVisit = selected || "";
-    title.textContent = focusedDay ? dateLabel(focusedDay) : mode === "timeline" ? "History of the Universe" : query ? "Search constellations" : "Navigation journeys";
+    title.textContent = focusedDay ? dateLabel(focusedDay) : query ? "Search constellations" : mode === "timeline" || mode === "universe" ? "History of the Universe" : "Navigation journeys";
+    root.querySelector(".history-sidebar-heading .cosmos-title").textContent = query ? "SEARCH RESULTS" : "BROWSING HISTORY";
+    root.querySelector("#history-sidebar").setAttribute("aria-label", mode === "timeline" ? "Chronological browsing history" : query ? "Matching navigation journeys" : "Browsing history grouped by journey");
     root.querySelector(".history-count").textContent = query ? `${visible.length} of ${filtered.length} visits` : `${visible.length} visits`;
     empty.hidden = visible.length > 0;
     empty.textContent = visits.length ? "No pages match your search. Try a title or website address." : "Your browsing history will appear here.";
@@ -492,7 +534,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     setSceneData();
     root.querySelector(".history-summary").textContent = mode === "timeline"
       ? `Showing ${Math.min(10, visible.length)} of ${visible.length} visits · scroll either side to move through time`
-      : `Showing ${sceneGroups.length} of ${groups.length} journeys · visualization capped at 5`;
+      : `Showing ${sceneGroups.length} of ${groups.length} connected journeys · newest first`;
     listeners.forEach(callback => callback()); renderSidebar(); showDetails();
     if (refit) fit();
   }
@@ -585,13 +627,13 @@ export function createHistoryView({ browser, onVisibilityChange }) {
   root.querySelectorAll(".history-mode").forEach(button => { button.onclick = () => setMode(button.dataset.mode); });
   sidebar.addEventListener("scroll", syncTimelineWindowFromSidebar, { passive: true });
   root.querySelector(".history-fit").onclick = overview;
-  clearSearch.onclick = showList;
+  clearSearch.onclick = showAllHistory;
   root.querySelector(".history-load-more").onclick = () => { entryLimit += 100; renderEntries(); };
   root.querySelector(".history-close").onclick = close;
   search.oninput = () => { day = "all"; selected = null; focusGroupId = null; pinnedGroup = null; detailsDismissed = false; timelineIndex = Number.MAX_SAFE_INTEGER; refresh(true); };
   root.addEventListener("keydown", event => {
     if (event.key === "Escape" && event.target === search && search.value) {
-      event.preventDefault(); event.stopPropagation(); showList(); return;
+      event.preventDefault(); event.stopPropagation(); showAllHistory(); return;
     }
     if (event.key === "Escape" && selected) { event.stopPropagation(); selected = null; day = "all"; detailsDismissed = false; refresh(false); }
     if (root.dataset.view === "stars" && !event.target.matches("input") && event.key.toLowerCase() === "f") { event.preventDefault(); overview(); }
