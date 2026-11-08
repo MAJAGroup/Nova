@@ -850,6 +850,10 @@ function registerIPC() {
     // Snapshot the order now; the plan refers to tabs by position in it.
     const ordered = Array.from(tabs.values()).slice(0, 120);
     if (!ordered.length) return { ok: false, error: "There are no open tabs to group." };
+    const fullReorganization = /^ungroup\b/i.test(instruction) &&
+      /\b(?:all|every|each)\s+(?:of\s+)?(?:the\s+|my\s+)?(?:open\s+)?tabs?\b/i.test(instruction) &&
+      /\b(?:and|then|afterwards?)\b/i.test(instruction) &&
+      /\b(?:group|regroup|organi[sz]e|categori[sz]e|sort|arrange)\b/i.test(instruction);
     const listing = ordered.map((tab) => {
       const group = tab.groupId ? groups.get(tab.groupId) : null;
       return { title: tab.title, url: tab.url, group: group ? group.name : "" };
@@ -858,7 +862,7 @@ function registerIPC() {
     if (!result.ok) return result;
     const plan = parseGroupingPlan(result.text, ordered.length);
     if (!plan) return { ok: false, error: "The model's answer wasn't a grouping plan I could use. Try rephrasing." };
-    return { ok: true, ...applyGroupingPlan(plan, ordered) };
+    return { ok: true, ...applyGroupingPlan(plan, ordered, { resetExistingGroups: fullReorganization && plan.groups.length > 0 }) };
   });
 }
 
@@ -940,9 +944,17 @@ async function chatCompletion(endpoint, messages, { json = false, maxTokens = 10
 
 // Applies a parsed plan to the tabs it was made from. Tabs closed while the
 // model was thinking are skipped. Returns a summary for the assistant.
-function applyGroupingPlan(plan, ordered) {
+function applyGroupingPlan(plan, ordered, { resetExistingGroups = false } = {}) {
   const live = (indexes) => indexes.map((index) => ordered[index]).filter((tab) => tab && tabs.get(tab.id) === tab);
   const summary = [];
+  const previouslyGrouped = new Set();
+  if (resetExistingGroups) {
+    for (const tab of ordered) {
+      if (tabs.get(tab.id) !== tab || !tab.groupId) continue;
+      previouslyGrouped.add(tab.id);
+      tab.groupId = null;
+    }
+  }
   for (const entry of plan.groups) {
     const members = live(entry.indexes);
     if (!members.length) continue;
@@ -954,7 +966,10 @@ function applyGroupingPlan(plan, ordered) {
   const ungrouped = live(plan.ungroup);
   for (const tab of ungrouped) tab.groupId = null;
   sendTabs();
-  return { groups: summary, ungrouped: ungrouped.length, reply: plan.reply };
+  const ungroupedCount = resetExistingGroups
+    ? ordered.filter(tab => tabs.get(tab.id) === tab && previouslyGrouped.has(tab.id) && !tab.groupId).length
+    : ungrouped.length;
+  return { groups: summary, ungrouped: ungroupedCount, reply: plan.reply };
 }
 
 app.whenReady().then(() => {
