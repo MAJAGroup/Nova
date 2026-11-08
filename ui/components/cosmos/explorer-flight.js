@@ -109,6 +109,7 @@ function makePortal(sceneRoot, camera) {
 
   return {
     group,
+    aperture,
     apertureMaterial,
     rings,
     glowMaterial,
