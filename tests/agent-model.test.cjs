@@ -66,3 +66,16 @@ test('open_tabs ends the loop with the reply from openTabs', async () => {
   assert.deepEqual(received, [{ url: 'https://a.test', activate: false }]);
   assert.deepEqual(result, { ok: true, text: 'Opening a. Done.', sideTab: null });
 });
+
+test('says what it is opening even when the model gives no note', async () => {
+  const replies = ['{"action":"open","url":"https://www.kayak.com/flights"}', '{"action":"read"}', '{"action":"answer","text":"Done."}'];
+  const progress = [];
+  await runAgent({
+    prompt: 'x', tabs: [], today: 'today',
+    complete: async () => ({ ok: true, text: replies.shift() }),
+    openSideTab: async (url) => ({ id: '1', title: 'Kayak', url, text: '' }),
+    readSideTab: async () => ({ title: 'Kayak', url: 'https://www.kayak.com/flights', text: 'ok' }),
+    onProgress: (note) => progress.push(note)
+  });
+  assert.deepEqual(progress, ['Let me check kayak.com.', 'Taking another look.']);
+});

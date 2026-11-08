@@ -17,23 +17,32 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   const status = el("ai-status");
   const voice = createVoice({
     browser,
-    onTranscript: (text) => { open(); ask(text, { spoken: true }); },
+    onTranscript: (text) => { open(); return ask(text, { spoken: true }); },
     onStateChange: (state) => {
-      if (state === "recording") status.textContent = "Listening… click the mic to send";
-      else if (state === "transcribing") status.textContent = "Transcribing…";
+      const labels = {
+        listening: "Say “Hey Nova…”",
+        hearing: "Hearing you…",
+        transcribing: "Working…",
+        awaiting: "Yes? Go ahead…"
+      };
+      if (labels[state]) status.textContent = labels[state];
       else showConfigStatus(aiConfig.get());
     }
   });
   let pendingMessage = null;
   let finishCurrentExploration = null;
-  // Orbit is opening a page: end the cosmos animation so the side tab can be
+  // Nova is opening a page: end the cosmos animation so the side tab can be
   // seen loading.
   browser.onAssistantProgress((note) => {
     if (finishCurrentExploration) finishCurrentExploration();
     const name = pendingMessage && pendingMessage.querySelector(".message-name span");
     if (name) name.textContent = String(note).slice(0, 120);
     status.textContent = String(note).slice(0, 80);
+    // Say what Nova is doing ("Let me pull up Google Flights") so a spoken
+    // request isn't met with silence.
+    voice.fill(note, { spoken: currentSpoken });
   });
+  let currentSpoken = false;
 
   function showConfigStatus(config) {
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
@@ -135,8 +144,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const reply = (text) => appendMessage(text, "assistant", { spoken });
 
     const aiAvailable = Boolean(aiConfig.get().url);
-    // Spoken requests often start by addressing Orbit ("Orbit, open github").
-    const command = trimmed.replace(/^(?:hey\s+)?orbit[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
+    // Requests often start by addressing the assistant ("Nova, open github").
+    const command = trimmed.replace(/^(?:(?:hey|hi|ok(?:ay)?)[\s,]+)?(?:nova|orbit)[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
     const intentReply = handleBrowserIntent(command, { browser, tabs, aiAvailable });
     if (intentReply) return reply(intentReply);
     if (isGroupingRequest(command)) return organize(command, aiAvailable, reply);
@@ -144,6 +153,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
 
     const pending = appendPending();
     status.textContent = "Thinking…";
+    currentSpoken = spoken;
+    voice.fill("", { spoken });
     const finishExploration = beginExploration();
     finishCurrentExploration = finishExploration;
     try {
@@ -167,6 +178,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       reply("I couldn’t reach the configured AI endpoint. " + ((error && error.message) || ""));
       status.textContent = "Connection issue";
     } finally {
+      currentSpoken = false;
       finishExploration();
     }
   }

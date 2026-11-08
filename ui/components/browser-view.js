@@ -6,7 +6,7 @@ const SIDE_HEADER_HEIGHT = 34;
 // The area where the web page appears. Pages are native views that the main
 // process draws on top of this document, so we report where they go. Modal
 // and cosmos views hide the pages; the assistant reserves a right-hand lane
-// so both the page and chat stay visible. A side tab that Orbit opened splits
+// so both the page and chat stay visible. A side tab that Nova opened splits
 // the remaining width with the current page. Electron places the assistant
 // handle in a small transparent native view above live web pages.
 export function createBrowserView({ browser, tabs }) {

@@ -21,7 +21,8 @@
       {
         "imports": {
           "three": "../node_modules/three/build/three.module.js",
-          "three/addons/": "../node_modules/three/examples/jsm/"
+          "three/addons/": "../node_modules/three/examples/jsm/",
+          "@picovoice/porcupine-web": "../node_modules/@picovoice/porcupine-web/dist/esm/index.min.js"
         }
       }
     </script>
@@ -62,10 +63,10 @@
             <h2>No page open</h2>
             <p>Enter a web address above to begin.</p>
           </div>
-          <div class="side-pane" id="side-pane" hidden aria-label="Side tab opened by Orbit">
+          <div class="side-pane" id="side-pane" hidden aria-label="Side tab opened by Nova">
             <div class="side-pane-header">
               <img class="side-pane-icon" id="side-pane-icon" alt="" hidden>
-              <span class="side-pane-kicker">ORBIT</span>
+              <span class="side-pane-kicker">NOVA</span>
               <span class="side-pane-title" id="side-pane-title">Side tab</span>
               <button type="button" class="side-pane-button" id="side-pane-promote" title="Make this the main tab" aria-label="Make this the main tab"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 8 8M6.5 3.5h-3v9h9v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button type="button" class="side-pane-button" id="side-pane-close" title="Close side tab" aria-label="Close side tab">×</button>
@@ -175,7 +176,7 @@
               <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
               <textarea id="chat-input" rows="1" placeholder="Ask Nova anything…" aria-label="Message Nova assistant" aria-describedby="chat-input-help" spellcheck="false"></textarea>
               <span class="sr-only" id="chat-input-help">Press Enter to send. Press Shift plus Enter to start a new line.</span>
-              <button type="button" class="composer-tool" id="voice-input" title="Speak to Nova" aria-label="Start voice input" aria-pressed="false"><span class="mic-icon" aria-hidden="true">♩</span></button>
+              <button type="button" class="composer-tool" id="voice-input" title="Turn on voice activation (“Hey Nova”)" aria-label="Turn on voice activation" aria-pressed="false"><span class="mic-icon" aria-hidden="true">♩</span></button>
               <button type="button" class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Enable spoken replies" aria-pressed="false"><span aria-hidden="true">◖))</span></button>
               <button type="button" class="composer-send" id="chat-send" aria-label="Send message" title="Send message" disabled><span aria-hidden="true">➤</span></button>
             </div>
@@ -221,9 +222,11 @@
         <div class="settings-section-label">VOICE <span>ELEVENLABS</span></div>
         <label class="field-label" for="elevenlabs-key">ELEVENLABS API KEY <span id="elevenlabs-key-state">stored securely in the desktop app</span></label>
         <input id="elevenlabs-key" class="settings-input" type="password" placeholder="Paste your ElevenLabs API key" autocomplete="off">
+        <label class="field-label" for="picovoice-key">PICOVOICE ACCESSKEY <span id="picovoice-key-state">optional · detects “Hey Nova” on this computer</span></label>
+        <input id="picovoice-key" class="settings-input" type="password" placeholder="Paste your Picovoice AccessKey" autocomplete="off">
         <label class="field-label" for="elevenlabs-voice">VOICE ID <span>optional</span></label>
         <input id="elevenlabs-voice" class="settings-input" type="text" placeholder="Default voice" autocomplete="off" spellcheck="false">
-        <div class="settings-hint"><span>ⓘ</span> The mic button records until you click it again, then sends the audio to ElevenLabs for transcription. Spoken replies send Orbit's reply text to ElevenLabs.</div>
+        <div class="settings-hint"><span>ⓘ</span> The mic button turns “Hey Nova” voice activation on and off. With a Picovoice AccessKey (free at console.picovoice.ai), the wake phrase is detected on this computer and only your request is sent to ElevenLabs. Without one, everything said while voice is on is transcribed and checked for the phrase. Spoken replies send Nova's reply text to ElevenLabs.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
         <section class="browsing-data" aria-labelledby="browsing-data-title">
           <div class="browsing-data-heading"><div><div class="modal-kicker">BROWSER DATA</div><h3 id="browsing-data-title">Cookies and cache</h3></div><span class="data-device-badge">Saved on this device</span></div>

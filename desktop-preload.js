@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("novaBrowser", {
   promoteSideTab: () => ipcRenderer.invoke("browser:promote-side-tab"),
   getVoiceConfig: () => ipcRenderer.invoke("voice:get-config"),
   saveVoiceConfig: (config) => ipcRenderer.invoke("voice:save-config", config),
+  getWakeWord: () => ipcRenderer.invoke("voice:get-wake-word"),
   transcribe: (audio, mimeType) => ipcRenderer.invoke("voice:transcribe", audio, mimeType),
   speak: (text) => ipcRenderer.invoke("voice:speak", text),
   onAssistantProgress: (callback) => {

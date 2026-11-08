@@ -34,6 +34,8 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
   const voiceKeyInput = el("elevenlabs-key");
   const voiceIdInput = el("elevenlabs-voice");
   const voiceKeyState = el("elevenlabs-key-state");
+  const wakeKeyInput = el("picovoice-key");
+  const wakeKeyState = el("picovoice-key-state");
   let voiceConfig = {};
 
   async function loadVoiceConfig() {
@@ -44,6 +46,13 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
       ? "Using ELEVENLABS_API_KEY from the environment"
       : (voiceConfig.keyConfigured ? "Key stored securely — leave blank to keep" : "Paste your ElevenLabs API key");
     voiceKeyState.textContent = voiceConfig.keyConfigured ? "connected" : "stored securely in the desktop app";
+    wakeKeyInput.value = "";
+    wakeKeyInput.placeholder = voiceConfig.wakeKeyFromEnvironment
+      ? "Using PICOVOICE_ACCESS_KEY from the environment"
+      : (voiceConfig.wakeKeyConfigured ? "Key stored securely — leave blank to keep" : "Paste your Picovoice AccessKey");
+    wakeKeyState.textContent = voiceConfig.wakeKeyConfigured
+      ? "connected · “Hey Nova” is detected on this computer"
+      : "optional · detects “Hey Nova” on this computer";
   }
 
   const clearCookies = el("clear-cookies");
@@ -104,12 +113,15 @@ export function createSettingsModal({ browser, aiConfig, onVisibilityChange }) {
     }
     try {
       const voiceKey = voiceKeyInput.value.trim();
+      const wakeKey = wakeKeyInput.value.trim();
       const voiceId = voiceIdInput.value.trim();
-      if (voiceKey || voiceId !== (voiceConfig.voiceId || "")) {
-        const voiceResult = await browser.saveVoiceConfig({ apiKey: voiceKey, voiceId });
+      if (voiceKey || wakeKey || voiceId !== (voiceConfig.voiceId || "")) {
+        const voiceResult = await browser.saveVoiceConfig({ apiKey: voiceKey, wakeKey, voiceId });
         if (!voiceResult.ok) return showToast(voiceResult.error);
-        voiceConfig = { ...voiceConfig, voiceId, keyConfigured: voiceResult.keyConfigured };
+        voiceConfig = { ...voiceConfig, voiceId, keyConfigured: voiceResult.keyConfigured, wakeKeyConfigured: voiceResult.wakeKeyConfigured };
         voiceKeyInput.value = "";
+        wakeKeyInput.value = "";
+        if (wakeKey) document.dispatchEvent(new CustomEvent("nova:wake-word-changed"));
       }
       const result = await browser.saveAIConfig({ url, model, apiKey });
       if (!result.ok) return showToast(result.error);

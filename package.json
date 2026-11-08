@@ -13,7 +13,7 @@
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
     "test:newtab": "node --test tests/newtab*.test.cjs",
-    "test:agent": "node --test tests/agent*.test.cjs",
+    "test:agent": "node --test tests/agent*.test.cjs tests/wake-*.test.cjs",
     "test:suggestions": "node --test tests/suggestions*.test.cjs",
     "test:bookmarks": "node --test tests/bookmarks*.test.cjs",
     "test:resources": "node --test tests/resources*.test.cjs",
@@ -41,6 +41,7 @@
       "tab-resources-preload.js",
       "assets/**/*",
       "ui/**/*",
+      "vendor/porcupine/**/*",
       "README.md",
       "history-store.js",
       "bookmark-store.js",
@@ -71,6 +72,7 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
+    "@picovoice/porcupine-web": "4.0.1",
     "three": "0.186.1"
   },
   "productName": "Nova"

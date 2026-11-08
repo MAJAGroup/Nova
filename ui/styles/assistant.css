@@ -65,7 +65,12 @@
   .spotlight-footer{gap:3px;padding-inline:7px}
   #context-info{display:none}
 }
-.composer-tool.recording{color:#ff8992;background:#3a1b2a;box-shadow:0 0 0 2px #ff899240;animation:mic-pulse 1.2s ease-in-out infinite}
-.composer-tool.transcribing{color:#91a3ff;background:#1d2450;cursor:progress}
+/* Voice activation: on (listening), speech detected (hearing), waiting for
+   ElevenLabs or the reply (transcribing), wake phrase heard (awaiting). */
+.composer-tool.listening{color:#83e3ed;background:#163642;box-shadow:0 0 0 2px #74e3f033}
+.composer-tool.hearing{color:#ff8992;background:#3a1b2a;box-shadow:0 0 0 2px #ff899240;animation:mic-pulse 1.2s ease-in-out infinite}
+.composer-tool.awaiting{color:#fff;background:#2b5c6b;box-shadow:0 0 0 3px #74e3f066;animation:mic-pulse-cyan 1.2s ease-in-out infinite}
+.composer-tool.transcribing{color:#91a3ff;background:#1d2450;box-shadow:0 0 0 2px #91a3ff33;cursor:progress}
 @keyframes mic-pulse{50%{box-shadow:0 0 0 5px #ff899214}}
-@media (prefers-reduced-motion:reduce){.composer-tool.recording{animation:none}}
+@keyframes mic-pulse-cyan{50%{box-shadow:0 0 0 6px #74e3f018}}
+@media (prefers-reduced-motion:reduce){.composer-tool.hearing,.composer-tool.awaiting{animation:none}}

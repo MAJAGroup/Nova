@@ -507,7 +507,7 @@ function installPermissionPrompts() {
       return Boolean(grant && grant.has(permission));
     });
     ses.setPermissionRequestHandler(async (contents, permission, callback, details) => {
-      // ORBIT's own window may use the microphone for push-to-talk.
+      // Nova's own window may use the microphone for voice activation.
       const shellAudio = mainWindow && contents === mainWindow.webContents && permission === "media" &&
         Array.isArray(details.mediaTypes) && details.mediaTypes.length > 0 && details.mediaTypes.every((type) => type === "audio");
       if (shellAudio) return callback(true);
@@ -916,12 +916,15 @@ function registerIPC() {
     return {
       keyConfigured: Boolean(await getElevenLabsKey()),
       fromEnvironment: Boolean(process.env.ELEVENLABS_API_KEY),
-      voiceId: settings.elevenlabsVoiceId || ""
+      voiceId: settings.elevenlabsVoiceId || "",
+      wakeKeyConfigured: Boolean(await getPicovoiceKey()),
+      wakeKeyFromEnvironment: Boolean(process.env.PICOVOICE_ACCESS_KEY)
     };
   });
   ipcMain.handle("voice:save-config", async (event, config) => {
     if (!fromShell(event)) return { ok: false, error: "Not allowed." };
     const apiKey = String(config && config.apiKey || "").trim();
+    const wakeKey = String(config && config.wakeKey || "").trim();
     const voiceId = String(config && config.voiceId || "").trim();
     if (voiceId && !/^[\w-]{1,64}$/.test(voiceId)) return { ok: false, error: "That doesn't look like an ElevenLabs voice ID." };
     const next = { ...await readSettings() };
@@ -930,13 +933,25 @@ function registerIPC() {
     if (config && config.clearKey) delete next.elevenlabsKeyCiphertext;
     if (apiKey) {
       if (!await hasProtectedSecretStore()) {
-        return { ok: false, error: "OS-backed secret storage is unavailable. Set ELEVENLABS_API_KEY before launching ORBIT." };
+        return { ok: false, error: "OS-backed secret storage is unavailable. Set ELEVENLABS_API_KEY before launching Nova." };
       }
       next.elevenlabsKeyCiphertext = (await safeStorage.encryptStringAsync(apiKey)).toString("base64");
     }
+    if (wakeKey || (config && config.clearWakeKey)) {
+      if (wakeKey && !await hasProtectedSecretStore()) {
+        return { ok: false, error: "OS-backed secret storage is unavailable. Set PICOVOICE_ACCESS_KEY before launching Nova." };
+      }
+      if (wakeKey) next.picovoiceKeyCiphertext = (await safeStorage.encryptStringAsync(wakeKey)).toString("base64");
+      else delete next.picovoiceKeyCiphertext;
+      await fs.rm(wakeWordPath(), { force: true });
+    }
     await writeSettings(next);
-    return { ok: true, keyConfigured: Boolean(await getElevenLabsKey()) };
+    return { ok: true, keyConfigured: Boolean(await getElevenLabsKey()), wakeKeyConfigured: Boolean(await getPicovoiceKey()) };
   });
+  // The on-device wake word engine runs in the window, so it needs the
+  // AccessKey there; Porcupine uses it only to activate the engine.
+  ipcMain.handle("voice:get-wake-word", (event) =>
+    fromShell(event) ? wakeWordConfig() : { ok: false, configured: false });
   ipcMain.handle("voice:transcribe", (event, audio, mimeType) =>
     fromShell(event) ? transcribeAudio(audio, mimeType) : { ok: false, error: "Not allowed." });
   ipcMain.handle("voice:speak", (event, text) =>
@@ -1003,7 +1018,7 @@ const DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb";
 
 function voiceSettings(settings) {
   const kept = {};
-  for (const key of ["elevenlabsKeyCiphertext", "elevenlabsVoiceId"]) {
+  for (const key of ["elevenlabsKeyCiphertext", "elevenlabsVoiceId", "picovoiceKeyCiphertext"]) {
     if (settings && settings[key]) kept[key] = settings[key];
   }
   return kept;
@@ -1018,6 +1033,60 @@ async function getElevenLabsKey() {
   } catch (_) {
     return "";
   }
+}
+
+// Picovoice Porcupine detects "Hey Nova" on the device, so only the
+// request that follows it is sent to ElevenLabs. Optional: without a
+// Picovoice AccessKey, Nova checks each transcript for the phrase instead.
+const WAKE_PHRASE = "hey nova";
+const PORCUPINE_MODEL = path.join(__dirname, "vendor", "porcupine", "porcupine_params.pv");
+
+async function getPicovoiceKey() {
+  if (process.env.PICOVOICE_ACCESS_KEY) return process.env.PICOVOICE_ACCESS_KEY;
+  const settings = await readSettings();
+  if (!settings.picovoiceKeyCiphertext || !await hasProtectedSecretStore()) return "";
+  try {
+    return (await safeStorage.decryptStringAsync(Buffer.from(settings.picovoiceKeyCiphertext, "base64"))).result;
+  } catch (_) {
+    return "";
+  }
+}
+
+function wakeWordPath() {
+  return path.join(app.getPath("userData"), "wake-word", "hey-nova_wasm.ppn");
+}
+
+// The keyword model is trained once from the phrase through Picovoice's API
+// and kept in the profile; a new AccessKey trains it again.
+async function wakeWordConfig() {
+  const accessKey = await getPicovoiceKey();
+  if (!accessKey) return { ok: false, configured: false };
+  let keyword;
+  try {
+    keyword = await fs.readFile(wakeWordPath());
+  } catch (_) {
+    try {
+      const response = await fetch("https://rest.picovoice.ai/en/api/ppn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": accessKey },
+        body: JSON.stringify({ platform: "wasm", phrase: WAKE_PHRASE }),
+        signal: AbortSignal.timeout(60000)
+      });
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => "")).slice(0, 200);
+        return { ok: false, configured: true, error: response.status === 401 || response.status === 403
+          ? "Picovoice rejected the AccessKey."
+          : "Picovoice couldn't train the wake word (" + response.status + (detail ? ": " + detail : "") + ")." };
+      }
+      keyword = Buffer.from(await response.arrayBuffer());
+      await fs.mkdir(path.dirname(wakeWordPath()), { recursive: true });
+      await fs.writeFile(wakeWordPath(), keyword);
+    } catch (error) {
+      return { ok: false, configured: true, error: "Couldn't reach Picovoice to train the wake word: " + (error.message || "network error") };
+    }
+  }
+  const model = await fs.readFile(PORCUPINE_MODEL);
+  return { ok: true, configured: true, accessKey, label: WAKE_PHRASE, keyword: keyword.toString("base64"), model: model.toString("base64") };
 }
 
 async function elevenLabsError(response) {
@@ -1039,7 +1108,7 @@ async function transcribeAudio(audio, mimeType) {
   const type = /^audio\/[\w.+-]+(;.*)?$/.test(String(mimeType)) ? String(mimeType) : "audio/webm";
   const form = new FormData();
   form.append("model_id", "scribe_v1");
-  form.append("file", new Blob([bytes], { type }), "speech.webm");
+  form.append("file", new Blob([bytes], { type }), /wav/.test(type) ? "speech.wav" : "speech.webm");
   try {
     const response = await fetch(ELEVENLABS_API + "/speech-to-text", {
       method: "POST",
@@ -1129,6 +1198,24 @@ function normalizeAssistantWebUrl(value) {
   return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
 }
 
+// The endpoint's own reason for a failed request, such as an invalid key or
+// unknown model, so the message says more than a status code.
+async function aiEndpointError(response) {
+  let detail = "";
+  try {
+    const text = await response.text();
+    try {
+      const data = JSON.parse(text);
+      const error = (Array.isArray(data) ? data[0] : data)?.error;
+      detail = typeof error === "string" ? error : error?.message || data?.message || "";
+    } catch (_) {
+      detail = /^\s*</.test(text) ? "" : text;
+    }
+  } catch (_) {}
+  detail = String(detail).replace(/\s+/g, " ").trim().slice(0, 200);
+  return "The AI endpoint returned " + response.status + (detail ? ": " + detail : ".");
+}
+
 // One OpenAI-style chat completion. With json, asks for JSON output and
 // retries without that option for endpoints that reject it.
 async function chatCompletion(endpoint, messages, { json = false, maxTokens = 1000 } = {}) {
@@ -1149,7 +1236,7 @@ async function chatCompletion(endpoint, messages, { json = false, maxTokens = 10
   try {
     let response = await send(json);
     if (json && (response.status === 400 || response.status === 422)) response = await send(false);
-    if (!response.ok) return { ok: false, error: "The AI endpoint returned " + response.status + "." };
+    if (!response.ok) return { ok: false, error: await aiEndpointError(response) };
     const data = await response.json();
     let answer = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (Array.isArray(answer)) answer = answer.map((part) => part.text || "").join("");
