@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { el, escapeHTML, currentTime } from "../../lib/dom.js";
 import { showToast } from "../toast.js";
-import { createBlackHole } from "../cosmos/black-hole.js";
 import { createExplorerFlight } from "../cosmos/explorer-flight.js";
 import {
   handleBrowserIntent, localAssistantReply, isGroupingRequest, groupBySiteLocally, describeGroupingResult
@@ -22,7 +21,6 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   const chatMenuToggle = el("assistant-chat-menu-toggle");
   const chatList = el("assistant-chat-list");
   const flightFrame = el("assistant-flight-frame");
-  const flightLabel = el("assistant-flight-label");
   const voice = createVoice({
     browser,
     onTranscript: (text) => { open(); return ask(text, { spoken: true }); },
@@ -43,7 +41,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   let archivedChats = readChatArchive();
   let activeChatId = null;
   let activeMessages = [];
-  let assistantRenderer = null, assistantScene = null, assistantCamera = null, assistantFlight = null, assistantBlackHole = null;
+  let assistantRenderer = null, assistantScene = null, assistantCamera = null, assistantFlight = null;
   let assistantFlightFrame = 0, assistantFlightTime = null, assistantFlightBusy = false;
   let assistantFlightRunning = false, assistantFlightReturnPending = false;
   // Keep the explorer attached to the active scene while Nova performs page
@@ -202,29 +200,23 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     assistantRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     assistantRenderer.setClearColor(0x000000, 0);
     assistantScene = new THREE.Scene();
+    assistantScene.background = null;
     assistantCamera = new THREE.PerspectiveCamera(48, 1, .1, 1000);
     assistantCamera.position.set(0, 0, 18); assistantCamera.lookAt(0, 0, 0);
-    const starPositions = [];
-    for (let index = 0; index < 86; index++) {
-      const angle = index * 2.399963229728653, radius = 3 + (index % 11) * .95;
-      starPositions.push(Math.cos(angle) * radius, Math.sin(angle * 1.19) * radius * .42, Math.sin(angle) * radius * .2);
-    }
-    const starGeometry = new THREE.BufferGeometry();
-    starGeometry.setAttribute("position", new THREE.Float32BufferAttribute(starPositions, 3));
-    assistantScene.add(new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0x9bdcf2, size: .055, transparent: true, opacity: .68, depthWrite: false })));
-    assistantBlackHole = createBlackHole(assistantScene);
     const targets = new Map([
-      ["assistant-left", new THREE.Vector3(-11, -0.35, 0)],
-      ["assistant-mid-left", new THREE.Vector3(-5, 0.75, 0)],
-      ["assistant-mid-right", new THREE.Vector3(4, -0.65, 0)],
-      ["assistant-right", new THREE.Vector3(11, 0.25, 0)]
+      ["assistant-left", new THREE.Vector3(-15, -1.25, 0)],
+      ["assistant-mid-left", new THREE.Vector3(-7, 1.35, 0)],
+      ["assistant-mid-right", new THREE.Vector3(6, -1.35, 0)],
+      ["assistant-right", new THREE.Vector3(15, .95, 0)]
     ]);
     const center = targets.get("assistant-mid-left");
     assistantFlight = createExplorerFlight(assistantScene, assistantCamera, {
       getArrivalStar: () => ({ id: "assistant-hub", position: center }),
       getOrbitTargets: () => [...targets].map(([id, position]) => ({ id, position })),
       positionOf: id => String(id) === "assistant-hub" ? center : targets.get(String(id)) || null,
-      orbitRadius: 0.22
+      orbitRadius: 0.28,
+      shipScale: 2.4,
+      trailLength: 54
     });
     new ResizeObserver(resizeAssistantFlight).observe(flightFrame);
     return true;
@@ -236,7 +228,6 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const time = now / 1000;
     const delta = assistantFlightTime === null ? 0 : Math.min(.1, time - assistantFlightTime);
     assistantFlightTime = time;
-    assistantBlackHole?.update(time);
     const ended = assistantFlight.update(time, delta);
     assistantRenderer.render(assistantScene, assistantCamera);
     if (ended) {
@@ -255,7 +246,6 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   function startAssistantIdleFlight() {
     if (assistantFlightBusy || !root.classList.contains("expanded") || !ensureAssistantFlight()) return;
     assistantFlightReturnPending = false;
-    flightLabel.textContent = "EXPLORER ROAMING";
     flightFrame.hidden = false;
     assistantFlight.cancel();
     resizeAssistantFlight();
@@ -278,7 +268,6 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
         assistantFlightTime = null;
         if (!assistantFlightFrame) assistantFlightFrame = requestAnimationFrame(tickAssistantFlight);
       }
-      flightLabel.textContent = "WORMHOLE TRANSIT";
       assistantFlight.finish();
       flightFrame.hidden = false;
       return;

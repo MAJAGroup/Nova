@@ -6,7 +6,7 @@ import { createBackdrop } from "../cosmos/backdrop.js";
 import { createBlackHole } from "../cosmos/black-hole.js";
 import { createExplorerFlight } from "../cosmos/explorer-flight.js";
 import { createTabStars } from "../cosmos/tab-stars.js";
-import { dateKey, dateLabel, clock, historyLayout, navigationRoutes } from "./history-layout.mjs";
+import { dateKey, dateLabel, clock, historyLayout } from "./history-layout.mjs";
 
 function node(tag, className, text) {
   const element = document.createElement(tag); element.className = className;
@@ -204,7 +204,11 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     for (const surface of surfaces) {
       surface.addEventListener("pointerdown", event => {
         down = { x: event.clientX, y: event.clientY, scrollTop: sidebar.scrollTop };
-        try { surface.setPointerCapture(event.pointerId); } catch { /* optional pointer capture */ }
+        // Keep CSS2D star and group buttons as the pointer target so their
+        // native click handlers can focus the corresponding history group.
+        if (!event.target.closest?.(".star-label, .constellation-name")) {
+          try { surface.setPointerCapture(event.pointerId); } catch { /* optional pointer capture */ }
+        }
       });
       surface.addEventListener("pointermove", event => {
         if (mode === "timeline" && down) {
@@ -279,7 +283,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
           from: chronological[index].id, to: visit.id, kind: "timeline",
           points: [sceneShape.positions.get(chronological[index].id), sceneShape.positions.get(visit.id)]
         }))
-      : [...navigationRoutes(sceneVisits, sceneShape.positions).values()];
+      : [];
     for (const route of routes) {
       const points = route.points.filter(Boolean).map(p => new THREE.Vector3(p.x, p.y, p.z));
       if (points.length < 2) continue;
@@ -289,8 +293,8 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
       arrow.line.material.visible = false; arrow.cone.material.transparent = true;
       scene.add(line, arrow); arrows.push({ line, arrow, ...route });
     }
-    // The universe view is spatial rather than chronological: dates remain
-    // available in the sidebar filters, but are not drawn into the scene.
+    // Universe group relationships are shown by constellation edges rather
+    // than separate visit-to-visit routes.
   }
   function disposeGroupContents(group) {
     for (const child of [...group.children]) {

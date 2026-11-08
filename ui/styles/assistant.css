@@ -1,9 +1,12 @@
 /* Right-side assistant dock with a compact edge handle when minimized. */
 .assistant-dock{position:absolute;z-index:10;top:82px;right:0;bottom:0;width:44px;pointer-events:none}
 .assistant-dock.expanded{width:clamp(300px,34vw,380px);pointer-events:auto}
-.assistant-handle{position:absolute;right:0;top:50%;transform:translateY(-50%);width:44px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1px solid #304267;border-right:0;border-radius:10px 0 0 10px;background:linear-gradient(180deg,#192642,#0e1729);color:#aebce0;font:9px var(--font);letter-spacing:.7px;box-shadow:0 6px 20px #0007;pointer-events:auto}
+.assistant-handle{position:absolute;right:0;top:50%;transform:translateY(-50%);width:44px;height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1px solid #304267;border-right:0;border-radius:10px 0 0 10px;background:linear-gradient(180deg,#192642,#0e1729);color:#aebce0;font:9px var(--font);letter-spacing:.7px;box-shadow:0 6px 20px #0007;pointer-events:auto}
 .assistant-handle:hover{color:#fff;border-color:#5a78ac}
-.assistant-handle-orb{color:#8fe8ff;font-size:16px;text-shadow:0 0 12px #65ddeb}
+.assistant-handle-ship{width:29px;height:23px;display:block;overflow:visible;filter:drop-shadow(0 0 5px #65ddeb88);transition:filter .18s ease,transform .18s ease}
+.assistant-handle-ship .handle-ship-hull{fill:#a9cad8;stroke:#d6f7ff;stroke-width:.7}
+.assistant-handle-ship .handle-ship-detail{fill:none;stroke:#4bdfff;stroke-width:.8;stroke-linecap:round;stroke-linejoin:round}
+.assistant-handle:hover .assistant-handle-ship{filter:drop-shadow(0 0 8px #65ddeb);transform:translateY(-1px)}
 .assistant-dock.expanded .assistant-handle{display:none}
 .assistant-panel{height:100%;display:none;flex-direction:column;min-height:0;overflow:hidden;border-left:1px solid #33415e;background:linear-gradient(180deg,#111a2bfa,#0b1120fa);box-shadow:-16px 0 45px #0005}
 .assistant-dock.expanded .assistant-panel{display:flex}
@@ -29,10 +32,9 @@
 .assistant-chat-delete{width:29px;flex:none;border:0;border-radius:5px;background:transparent;color:#7e8da8;font-size:17px}
 .assistant-chat-delete:hover{background:#49232f;color:#ffd0d5}
 .assistant-chat-empty{padding:12px 7px;color:#7184a0;font-size:10px;line-height:1.5}
-.assistant-flight-frame{height:112px;flex:none;position:relative;overflow:hidden;border-top:1px solid #ffffff0c;background:radial-gradient(ellipse at 54% 50%,#17335588,#0c1525 72%,#0b1322)}
+.assistant-flight-frame{height:156px;flex:none;position:relative;overflow:hidden;border-top:0;background:transparent}
 .assistant-flight-frame[hidden]{display:none}
 .assistant-flight-frame canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-.assistant-flight-frame>span{position:absolute;right:12px;top:9px;color:#a9dcf1;font:8px var(--font);letter-spacing:1.5px;text-shadow:0 0 10px #48cfff88;pointer-events:none}
 .spotlight-bar{flex:none;display:flex;align-items:center;gap:10px;padding:12px 11px 12px 14px;border-bottom:1px solid #ffffff0c}
 .assistant-orb{width:24px;height:24px;flex:none;border:1px solid #6576da;border-radius:50%;position:relative;display:grid;place-items:center}
 .assistant-orb:before{content:"";width:30px;height:10px;border:1px solid #66dceb;border-radius:50%;position:absolute;transform:rotate(-33deg)}

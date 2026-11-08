@@ -183,7 +183,7 @@
           </section>
         </section>
         <aside class="assistant-dock" id="assistant" aria-label="Nova AI assistant">
-          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Nova AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Nova · Ctrl+Space"><span class="assistant-handle-orb" aria-hidden="true">✦</span><span aria-hidden="true">AI</span></button>
+          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Nova AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Nova · Ctrl+Space"><svg class="assistant-handle-ship" viewBox="0 0 32 24" aria-hidden="true"><path class="handle-ship-hull" d="M3.4 5.1C7.7 2.5 13 2.8 17.2 5.4l4 2.1h4.2l3.4-2 1.5 1.2-1.9 4-7.2.8v1l7.2.8 1.9 4-1.5 1.2-3.4-2h-4.2l-4 2.1c-4.2 2.6-9.5 2.9-13.8.3L7.7 12 3.4 5.1Z"/><path class="handle-ship-detail" d="M17.2 7.5v2.8h7.1M17.2 13.7v2.8h7.1M8 12h8.2m-3.8-5.3v10.6"/></svg><span aria-hidden="true">AI</span></button>
           <section class="assistant-panel" id="assistant-panel" role="complementary" aria-label="Ask Nova">
             <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><div class="assistant-heading-actions"><button type="button" class="assistant-chat-menu-toggle" id="assistant-chat-menu-toggle" aria-label="Chat history" aria-expanded="false" aria-controls="assistant-chat-menu" title="Chat history">☰</button><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
               <div class="assistant-chat-menu" id="assistant-chat-menu" hidden aria-label="Saved chats"><div class="assistant-chat-menu-actions"><button type="button" id="assistant-new-chat">New chat</button><button type="button" id="assistant-clear-chat">Delete current chat</button></div><div class="assistant-chat-menu-label">RECENT CHATS</div><div id="assistant-chat-list" class="assistant-chat-list"></div></div>
@@ -205,7 +205,7 @@
                 <button class="suggestion-chip" data-prompt="Group my tabs by topic."><span>✦</span> Group my tabs</button>
               </div>
             </div>
-            <div class="assistant-flight-frame" id="assistant-flight-frame" hidden aria-hidden="true"><canvas id="assistant-flight-canvas"></canvas><span id="assistant-flight-label">EXPLORER ROAMING</span></div>
+            <div class="assistant-flight-frame" id="assistant-flight-frame" hidden aria-hidden="true"><canvas id="assistant-flight-canvas"></canvas></div>
             <div class="spotlight-footer">
               <span class="assistant-status" aria-hidden="true"></span><span id="ai-status" role="status" aria-live="polite" aria-atomic="true">Ready to explore</span>
               <span class="spotlight-dot">·</span>

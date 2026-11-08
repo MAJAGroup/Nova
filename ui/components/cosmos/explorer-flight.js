@@ -420,8 +420,7 @@ function makeShip(root) {
   };
 }
 
-function makeTrail(root, color, opacity, offset) {
-  const count = 18;
+function makeTrail(root, color, opacity, offset, count = 18) {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -466,14 +465,14 @@ function makeTimeVortex(root) {
 
 // A camera-facing white wormhole and explorer ship. Its animation never
 // changes the user's camera, so it can play over the existing live scene.
-export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTargets, positionOf, orbitRadius = 0.135 } = {}) {
+export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTargets, positionOf, orbitRadius = 0.135, shipScale = 0.5, trailLength = 18 } = {}) {
   const rig = new THREE.Group();
   rig.renderOrder = 18;
   scene.add(rig);
   const portal = makePortal(rig, camera);
   const ship = makeShip(rig);
   const timeVortex = makeTimeVortex(rig);
-  const trails = [makeTrail(rig, 0xeafaff, 0.82, -0.014), makeTrail(rig, 0x54d8ff, 0.68, 0.014)];
+  const trails = [makeTrail(rig, 0xeafaff, 0.82, -0.014, trailLength), makeTrail(rig, 0x54d8ff, 0.68, 0.014, trailLength)];
   const historyPoints = [new THREE.Vector3(), new THREE.Vector3()];
   const shipLocal = new THREE.Vector3();
 
@@ -563,7 +562,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTa
   function showShip(point, depth = DEPTH, scale = 1, angle = 0) {
     ship.group.visible = true;
     ship.group.position.copy(localFromNdc(point, depth, shipLocal));
-    ship.group.scale.setScalar(scale * 0.5);
+    ship.group.scale.setScalar(scale * shipScale);
     ship.group.rotation.z = angle;
     heading = angle;
     ship.flame.scale.y = 0.86 + Math.sin(time * 24) * 0.18;
