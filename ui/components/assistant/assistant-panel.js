@@ -386,7 +386,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const aiAvailable = Boolean(aiConfig.get().url);
     // Requests often start by addressing the assistant ("Nova, open github").
     const command = trimmed.replace(/^(?:(?:hey|hi|ok(?:ay)?)[\s,]+)?(?:nova|orbit)[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
-    const intentReply = handleBrowserIntent(command, { browser, tabs, aiAvailable });
+    const intentReply = await handleBrowserIntent(command, { browser, tabs, aiAvailable });
     if (intentReply) return reply(intentReply);
     if (isGroupingRequest(command)) return organize(command, aiAvailable, reply);
     if (!aiAvailable) return reply(localAssistantReply(trimmed, { tabs }));

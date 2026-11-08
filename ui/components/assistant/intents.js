@@ -2,7 +2,7 @@ import { domainOf } from "../../lib/url.js";
 
 // Plain-language browser commands the assistant handles itself, without a
 // model. Returns the reply text, or "" when the prompt isn't a command.
-export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false }) {
+export async function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false }) {
   const text = prompt.trim();
   const lower = text.toLowerCase();
   let match;
@@ -18,6 +18,12 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
   if (/^(reload|refresh)( this page| the page)?$/.test(lower)) {
     browser.reload();
     return "Reloading the current page.";
+  }
+
+  const clearHistory = /^(?:(?:please|can you|could you)\s+)*(?:clear|delete|erase|remove)\s+(?:(?:my|the)\s+)?(?:(?:all|every|entire|whole|everything)\s+)?(?:(?:my|the)\s+)?(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?[.!?]*$/i;
+  if (clearHistory.test(text)) {
+    const cleared = await browser.clearHistory();
+    return cleared ? "Cleared your browsing history." : "I couldn’t clear your browsing history.";
   }
 
   match = text.match(/^(?:search(?: the web)?(?: for)?|google)\s+(.+)$/i);
@@ -59,6 +65,19 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
   }
 
   // "ungroup Research" (a whole constellation) or "ungroup github" (one tab)
+  const followUpGrouping = /\b(?:and|then|afterwards?|before)\b[\s\S]*\b(?:group|regroup|organi[sz]e|categori[sz]e|sort|arrange)\b/i.test(lower);
+  const ungroupAll = !/\bhistory\b/i.test(lower) && (
+    /\bungroup\s+(?:everything|all|every|each)(?:\s+(?:of\s+)?(?:(?:my|the)\s+)?(?:tabs?|groups?|constellations?))?\b/i.test(text) ||
+    /\b(?:remove|delete|clear)\s+(?:(?:all|every|each)\s+)?(?:tab\s+)?groups?\b/i.test(text)
+  );
+  if (ungroupAll && !followUpGrouping) {
+    const groups = [...(tabs.groups || [])];
+    if (!groups.length) return "There are no tab groups to ungroup.";
+    const groupedTabIds = tabs.tabs.filter(tab => tabs.groupOf(tab)).map(tab => tab.id);
+    await browser.ungroupTabs(groupedTabIds);
+    return "Ungrouped all tabs from " + groups.length + (groups.length === 1 ? " group." : " groups.");
+  }
+
   match = text.match(/^ungroup\s+(.+)$/i);
   if (match) {
     // Compound reorganisation commands must reach the grouping planner; a
@@ -66,13 +85,15 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
     if (aiAvailable && isGroupingRequest(text)) return "";
     const group = tabs.findGroup(match[1]);
     if (group) {
-      browser.removeGroup(group.id);
+      await browser.removeGroup(group.id);
       return "Ungrouped “" + group.name + "”.";
     }
     const target = tabs.findTab(match[1]);
-    if (!target || !tabs.groupOf(target)) return "I couldn’t find a constellation or grouped tab matching “" + match[1] + "”.";
-    browser.ungroupTabs([target.id]);
-    return "Took “" + (target.title || domainOf(target.url)) + "” out of “" + tabs.groupOf(target).name + "”.";
+    const targetGroup = target && tabs.groupOf(target);
+    if (!target || !targetGroup) return "I couldn’t find a constellation or grouped tab matching “" + match[1] + "”.";
+    const targetTitle = target.title || domainOf(target.url);
+    await browser.ungroupTabs([target.id]);
+    return "Took “" + targetTitle + "” out of “" + targetGroup.name + "”.";
   }
 
   match = text.match(/^close (?:the )?tab\s+(?:called\s+|named\s+)?(.+)$/i);
@@ -150,5 +171,5 @@ export function localAssistantReply(prompt, { tabs }) {
   if (text.includes("plan") || text.includes("hour")) {
     return "A simple next-hour plan:\n1. Pick one tab as your focus.\n2. Close anything unrelated.\n3. Spend 40 minutes on the main task, then take a short reset.\n\nConnect an AI endpoint for a plan tailored to your open pages.";
   }
-  return "I can help with your open tabs. Connect an AI endpoint for model-powered answers and requests to open several websites. You can still say “open <site>”, “search for <topic>”, “switch to <name> tab”, “close tab <name>”, “group <tabs> as <name>”, “group my tabs by site”, “ungroup <name>”, “back”, or “reload”.";
+  return "I can help with your open tabs. Connect an AI endpoint for model-powered answers and requests to open several websites. You can still say “open <site>”, “search for <topic>”, “switch to <name> tab”, “close tab <name>”, “group <tabs> as <name>”, “group my tabs by site”, “ungroup all tabs”, “clear history”, “back”, or “reload”.";
 }

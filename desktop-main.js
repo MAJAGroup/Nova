@@ -1855,6 +1855,7 @@ function registerIPC() {
     })) : [];
     const sender = event.sender;
     let assistantTargetTabId = null;
+    const historySearchIds = new Set();
     return runAgent({
       prompt,
       tabs: context,
@@ -1869,6 +1870,36 @@ function registerIPC() {
       },
       readSideTab: async () => (assistantTargetTabId ? readTabText(assistantTargetTabId, { settle: 1500 }) : null),
       openTabs: (requested, reply) => openRequestedTabs(prompt, requested, reply),
+      searchHistory: async (query) => {
+        const normalized = String(query || "").trim().toLowerCase().slice(0, 240);
+        const ignored = new Set(["a", "an", "the", "my", "this", "that", "from", "about", "history", "page", "pages", "site", "website", "entry", "entries", "delete", "remove", "clear", "matching"]);
+        const terms = normalized.split(/[^\p{L}\p{N}.-]+/u).filter(term => term.length > 1 && !ignored.has(term));
+        if (!terms.length) return { query: normalized, total: 0, entries: [] };
+        const matches = visitHistory.snapshot(tabs).filter(visit => {
+          const text = `${visit.title || ""} ${visit.url || ""}`.toLowerCase();
+          return terms.every(term => text.includes(term));
+        }).sort((a, b) => b.at - a.at);
+        const entries = matches.slice(0, 100).map(({ id, title, url, at }) => ({ id, title, url, at }));
+        historySearchIds.clear();
+        for (const entry of entries) historySearchIds.add(entry.id);
+        return { query: normalized, total: matches.length, entries };
+      },
+      deleteHistory: async ({ ids = [], all = false } = {}) => {
+        if (all) {
+          const explicitAll = /\b(?:clear|delete|remove|erase)\b[\s\S]*\b(?:all|entire|whole|everything|every)\b[\s\S]*\b(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*$/i.test(prompt) ||
+            /^\s*(?:(?:please|can you|could you)\s+)*(?:clear|delete|remove|erase)\s+(?:(?:my|the)\s+)?(?:browsing\s+)?history(?:\s+(?:in|from)\s+(?:the\s+)?history\s+section)?\s*(?:please)?[.!?]*\s*$/i.test(prompt);
+          if (!explicitAll) return { ok: false, error: "The request didn't explicitly ask to clear all browsing history, so I left it unchanged." };
+          const removed = visitHistory.snapshot(tabs).length;
+          visitHistory.clear(tabs);
+          sendTabs();
+          return { ok: true, removed, all: true };
+        }
+        const safeIds = [...new Set(ids.filter(id => typeof id === "string" && historySearchIds.has(id)))].slice(0, 100);
+        if (!safeIds.length) return { ok: true, removed: 0 };
+        const removed = visitHistory.removeMany(safeIds, tabs);
+        if (removed) sendTabs();
+        return { ok: true, removed };
+      },
       onProgress: (note) => { if (!sender.isDestroyed()) sender.send("ai:progress", note); }
     });
   });
