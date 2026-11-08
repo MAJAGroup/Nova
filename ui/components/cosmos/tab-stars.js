@@ -58,14 +58,10 @@ function labelHTML(tab) {
 // tabs are grouped or ungrouped. onLayout receives each new layout so the
 // constellations can follow.
 //
-// A closed tab's star isn't just removed: it spirals into the black hole
-// (sink), stretching and heating up as it goes, and the disk flares when it
-// crosses the horizon. That only plays while the cosmos is on screen
-// (isVisible); otherwise the star goes at once.
-export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect, onPress, onContextMenu, onLayout }) {
+// A closed tab spirals into the black hole while the cosmos is visible.
+export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect, onPress, onContextMenu, onLayout, layout = createStarLayout(), reducedMotion = () => REDUCED_MOTION.matches }) {
   const group = new THREE.Group();
   scene.add(group);
-  const layout = createStarLayout();
   const stars = new Map();
   const selected = new Set();
   const falling = new Set();
@@ -119,6 +115,7 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
   // element out of the label layer (CSS2DObject only cleans up when it is
   // removed itself), so that has to go explicitly.
   function disposeStar(star) {
+    star.label.removeFromParent();
     group.remove(star.root);
     star.element.remove();
     star.halo.material.dispose();
@@ -134,7 +131,7 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
 
   function removeStar(star) {
     detach(star);
-    if (!sink || !isVisible || !isVisible() || REDUCED_MOTION.matches) {
+    if (!sink || !isVisible || !isVisible() || reducedMotion()) {
       disposeStar(star);
       return;
     }
@@ -284,13 +281,13 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
     update(time) {
       const delta = lastTime === null ? 0 : Math.min(0.1, time - lastTime);
       lastTime = time;
-      const glide = 1 - Math.exp(-delta * GLIDE_RATE);
+      const glide = reducedMotion() ? 1 : 1 - Math.exp(-delta * GLIDE_RATE);
       let active = null;
       for (const star of Array.from(falling)) updateFalling(star, time);
       for (const star of stars.values()) {
         if (!star.held) star.root.position.lerp(star.target, glide);
         if (star.born === null) star.born = time;
-        const grow = Math.min(1, (time - star.born) / APPEAR_SECONDS);
+        const grow = reducedMotion() ? 1 : Math.min(1, (time - star.born) / APPEAR_SECONDS);
         const eased = 1 - Math.pow(1 - grow, 3);
         const isActive = tabs.isActive(star.tab);
         if (isActive) active = star;
@@ -300,7 +297,7 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
         // Shrinks smoothly while dragged over the black hole.
         star.doom = (star.doom || 0) + ((star.doomed ? 1 : 0) - (star.doom || 0)) * Math.min(1, delta * 8);
         size *= 1 - 0.55 * star.doom;
-        size *= 1 + Math.sin(time * 1.7 + star.phase) * 0.07;
+        if (!reducedMotion()) size *= 1 + Math.sin(time * 1.7 + star.phase) * 0.07;
         star.halo.scale.setScalar(size * eased);
         const labelScale = THREE.MathUtils.clamp(LABEL_REFERENCE / camera.position.distanceTo(star.root.position), LABEL_MIN, LABEL_MAX);
         if (Math.abs(labelScale - star.labelScale) > 0.01) {
@@ -315,7 +312,7 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
       if (active) {
         activeRing.position.copy(active.root.position);
         activeRing.quaternion.copy(camera.quaternion);
-        activeRing.scale.setScalar(1 + Math.sin(time * 2.2) * 0.06);
+        activeRing.scale.setScalar(reducedMotion() ? 1 : 1 + Math.sin(time * 2.2) * 0.06);
       }
     },
     pick(raycaster) {

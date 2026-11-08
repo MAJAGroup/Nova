@@ -9,8 +9,10 @@
 .address-bar input::placeholder{color:#73809e}
 .toolbar-actions{grid-column:3;justify-self:end;display:flex;align-items:center;gap:5px}
 #new-tab{font-size:17px}
+.history-toggle svg{width:19px;height:19px}
+.history-toggle.active{color:#8fe8ff;background:#14203a}
 
 @media(max-width:680px){
-  .browser-toolbar{grid-template-columns:minmax(72px,1fr) minmax(150px,48vw) minmax(64px,1fr);gap:6px;padding:0 6px}
+  .browser-toolbar{grid-template-columns:minmax(72px,1fr) minmax(100px,1.8fr) minmax(94px,1fr);gap:6px;padding:0 6px}
   .browser-nav .icon-button{width:24px}
 }

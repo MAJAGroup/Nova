@@ -58,6 +58,20 @@ ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to brin
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
+## History atlas
+
+Select the **History** clock icon in the upper-right toolbar, or press **Ctrl+H / Command+H**. History shares Orbit's 3D star and constellation renderers, dark sky, icon labels, and collapsible atlas sidebar.
+
+Each navigation journey forms a constellation named after its first retained page. Actual page transitions, branches after going back, and links opened in new tabs connect its stars; independent journeys stay separate, even when they visit the same site or date. History initially shows **All dates**, preserving journeys across days. Dates and search in the sidebar filter visits without inventing connections across hidden pages. Click a constellation name or sidebar heading to focus it, or use the sidebar toggle for the full canvas.
+
+Select a star or a sidebar row to inspect the page title, full address, date/time, and linked visits. Arrows represent actual navigation; violet trails represent opening a new tab. Select a connected visit to jump to its date. Double-click a star, or use **Reopen this page**, to revisit it. The camera gently orbits like Orbit view; use Pause orbit to stop it. Dragging also pauses rotation. Reduced-motion preferences disable automatic rotation. Drag to orbit, right-drag to pan, scroll to zoom, and press **F / Fit journeys** to frame the visible history. The sidebar also works when 3D graphics are unavailable.
+
+Each star uses the page’s favicon as its nucleus, with a domain initial when no icon is available. Favicons are retained with visit metadata. History records top-level HTTP(S) visits and preserves navigation branches and closed-tab trails across restarts. It retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The scene shows the latest 300 matching visits; use a date filter or search to reach older entries. Back/forward returns to existing visit nodes; new navigation keeps the earlier branch. Reopening a historical page loads its current contents rather than an archived copy. Browsing from before recording was introduced cannot be reconstructed.
+
+**Clear history…** asks for confirmation and deletes saved visit metadata without closing current tabs or clearing website cookies. Website titles and addresses are displayed as text. History is not sent to the assistant's model.
+
+Run `npm run test:history` to verify date layout and actual desktop navigation with temporary profiles and local fixture pages. Tests save a preview to `artifacts/navigation-history-atlas.png`.
+
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 
 This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the ORBIT desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using ORBIT.

@@ -1,0 +1,37 @@
+/* History uses Orbit's canvas, constellation labels, stars and sidebar rows. */
+.history-page{right:var(--assistant-width,0px)}
+.history-page .cosmos-sidebar{background:linear-gradient(90deg,#050813ed,#050813c9 85%,#05081300)}
+.history-sidebar-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:20px 16px 4px}
+.history-count{font:9px var(--font);color:#7789a8;white-space:nowrap}
+.history-search-wrap{padding:12px 14px 8px}
+.history-search{width:100%;border:1px solid #293b55;border-radius:6px;background:#101a2d66;padding:9px 10px;color:#d2def2;font-size:11px;outline:none}
+.history-search:focus{border-color:#70c9e7}.history-search::placeholder{color:#7485a1}
+.history-dates{max-height:20%;min-height:43px;overflow:auto;padding:0 10px 12px;scrollbar-width:thin;scrollbar-color:#31415d transparent}
+.history-date{width:100%;display:flex;justify-content:space-between;gap:8px;border:1px solid transparent;border-radius:6px;background:none;color:#889cba;font:10px var(--font);padding:8px 10px;text-align:left;cursor:pointer}
+.history-date small{font-size:9px;color:#627b9f}.history-date:hover{background:#ffffff08;color:#d9e6f8}.history-date.active{border-color:#77cbe52e;background:linear-gradient(100deg,#1531498c,#111b2aab);color:#a7e6f4}
+.history-sidebar-label{padding:10px 15px 2px;border-top:1px solid #ffffff0a;font:9px var(--font);letter-spacing:1px;color:#b0bdd3;display:flex;justify-content:space-between;gap:5px}.history-sidebar-label span{color:#5f718e;font-size:8px}
+.history-page .history-visits{padding-top:8px}
+.history-page .cosmos-group-name{font-size:9px;letter-spacing:.7px}
+.history-visit-clock{flex:none;width:48px;display:flex;flex-direction:column;gap:4px;color:#8faaca;font:9px var(--font);font-variant-numeric:tabular-nums}
+.history-visit-clock small{font-size:8px;color:#627b9d}
+.history-quiet{border:1px solid #293b55;border-radius:6px;background:#101a2d88;color:#9cb4d3;font:10px var(--font);padding:7px 10px;cursor:pointer}.history-quiet:hover{border-color:#5e9fbe;color:#d6eef9}
+.history-clear{align-self:start;margin:8px 14px 15px;color:#7c90af}
+.history-tools{position:absolute;z-index:3;top:10px;right:14px;display:flex;gap:8px;align-items:center}
+.history-page .cosmos-header{max-width:calc(100% - clamp(220px,28%,320px) - 180px)}
+.history-period{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+.history-page.sidebar-hidden .cosmos-header{max-width:calc(100% - 190px)}
+.history-page .cosmos-hint{bottom:14px;font-size:9px;width:calc(100% - 40px);white-space:normal;text-align:center;line-height:1.8}
+.history-legend{position:absolute;z-index:1;bottom:44px;left:calc(clamp(220px,28%,320px) + 16px);right:15px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;pointer-events:none;color:#8095b3;font-size:9px;transition:left .28s ease}
+.history-page.sidebar-hidden .history-legend{left:16px}
+.history-legend>span{display:flex;align-items:center;gap:6px}.history-legend i{width:18px;height:1px;background:#82cddd;position:relative}.history-legend i:after{content:"";position:absolute;right:0;top:-2px;border-left:4px solid #82cddd;border-top:2px solid transparent;border-bottom:2px solid transparent}
+.history-legend>span:nth-child(2) i{background:#b8a2de}.history-legend>span:nth-child(2) i:after{border-left-color:#b8a2de}
+.history-page .constellation-name{max-width:260px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.history-details{position:relative;flex:none;max-height:35%;margin:4px 10px;padding:12px;border:1px solid #39577566;border-radius:7px;background:linear-gradient(145deg,#101c2ef5,#0a1221f0);overflow:auto;scrollbar-width:thin;scrollbar-color:#31415d transparent;color-scheme:dark}
+.history-details[hidden]{display:none}.history-detail-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}.history-detail-heading button{padding:2px 6px}.history-details h2{font-size:14px;font-weight:500;line-height:1.5;color:#dfebfc;margin:9px 0 5px;overflow-wrap:anywhere}
+.history-detail-url{font-size:10px;color:#7e9cbf;line-height:1.6;overflow-wrap:anywhere;margin:0}.history-detail-time{font-size:10px;color:#9dd7e6;margin:11px 0}.history-open{padding:8px 11px;width:100%;border:1px solid #5b9bb766;background:#1c3f5266;color:#bde8f5;border-radius:6px;font-size:11px;text-align:left;cursor:pointer}
+.history-details h3{margin:19px 0 7px;font-size:9px}.history-related{width:100%;padding:7px 0;text-align:left;border:0;border-bottom:1px solid #ffffff09;background:none;color:#91abc9;font-size:10px;line-height:1.5;cursor:pointer}.history-related:hover{color:#c5edfc}.history-note{font-size:9px;line-height:1.7;color:#617997;margin:12px 0 0}
+.history-empty{position:absolute;inset:40% 15% auto;color:#859bb8;text-align:center;font-size:12px;line-height:1.8;pointer-events:none}.history-empty[hidden]{display:none}.history-webgl-note{display:none}.history-no-webgl .history-webgl-note{display:block;position:absolute;top:25%;left:35%;right:15%;color:#90a8c7;text-align:center;font-size:11px}
+.history-clear-confirm{position:absolute;z-index:20;left:50%;top:30%;transform:translateX(-50%);max-width:90%;width:340px;padding:22px;border:1px solid #526c8b;border-radius:10px;background:#101b2d;box-shadow:0 0 0 100vmax #000a}.history-clear-confirm[hidden]{display:none}.history-clear-confirm p{font-size:12px;line-height:1.7;margin-top:0;color:#becde2}.history-clear-confirm button{margin-right:7px}
+.history-page button:focus-visible{outline:2px solid #9dddf5;outline-offset:2px}
+@media(max-width:1000px){.history-summary,.history-sidebar-label span{display:none}.history-period{max-width:140px}}
+@media(prefers-reduced-motion:reduce){.history-page *{transition:none!important}}

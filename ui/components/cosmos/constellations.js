@@ -53,7 +53,13 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
 
     button.addEventListener("click", () => { if (!item.editing) onFocus(item.id); });
-    button.addEventListener("dblclick", () => editName(item.id));
+    button.title = onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey";
+    button.addEventListener("dblclick", () => { if (onRename) editName(item.id); });
+    button.addEventListener("keydown", (event) => {
+      if (!item.editing && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault(); onFocus(item.id);
+      }
+    });
     button.addEventListener("keydown", (event) => {
       if (!item.editing) return;
       event.stopPropagation();
@@ -127,7 +133,7 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         item.group = group;
         item.radius = shape.radius;
         item.memberIds = shape.memberIds;
-        item.edges = spanningTree(shape.memberIds, layout.stars);
+        item.edges = shape.edges ?? spanningTree(shape.memberIds, layout.stars);
         item.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(item.edges.length * 6), 3));
         const color = new THREE.Color(group.color);
         item.lines.material.color.copy(color);

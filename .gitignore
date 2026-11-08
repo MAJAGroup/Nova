@@ -2,3 +2,6 @@ node_modules/
 dist/
 release/
 .DS_Store
+.desktop-build/
+artifacts/
+data/
