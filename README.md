@@ -37,7 +37,7 @@ Name a constellation for your research, your next build, or the ideas you are co
 
 History connects the steps in a browsing journey. Bookmarks keep useful pages across restarts. Resource cards show what a tab is using while the page keeps running. Each view shares Nova's space-inspired visual language.
 
-<sub>Product visuals use captures from the running app with sample browsing data and edited presentation framing. [View the unedited screenshots](docs/screenshots/README.md).</sub>
+[View the unedited screenshots](docs/screenshots/README.md)
 
 Nova is an Electron and Three.js desktop browser prototype created for the UB Hacking 2026 deep-space theme. Its assistant supports local Ollama and compatible chat endpoints; the setup guides below cover local and hosted options.
 
@@ -46,7 +46,6 @@ Nova is an Electron and Three.js desktop browser prototype created for the UB Ha
 - A computer running macOS, Windows, or Linux.
 - Node.js with npm. Electron recommends the current Node.js LTS release for development. Install it from https://nodejs.org/en/download/.
 - An internet connection for installing Electron and for visiting websites.
-- To run the AI locally on Empire AI, an active Empire AI Alpha account, an approved project Slurm account, and an SSH key registered with Empire AI. The walkthrough below uses the `su_cwang1_worlds` project account as an example; use an account listed for your own user by Slurm.
 
 Check that Node.js and npm are installed by opening a terminal and running:
 
@@ -144,11 +143,11 @@ Run `npm run test:suggestions` for autocomplete filtering, local ranking, stale-
 
 Run `npm run test:resources` for real CPU load, memory allocation, audible/muted/silent audio, renderer sharing, keyboard access, hover cleanup and closed tabs. The card preview is saved to `artifacts/tab-resources.png`.
 
-## Run Ollama Qwen3.8:27b on Empire AI Alpha
+## Run Ollama Qwen3.8:27b
 
-This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the Nova desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using Nova.
+This setup runs Ollama and Qwen3.8 on a GPU node, then uses an SSH tunnel so the Nova desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using Nova.
 
-The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, with a maximum context window of 256K. A single Alpha GPU is a reasonable starting point; the scheduler routes single-GPU jobs to the RTX PRO 6000 Blackwell pool (about 96 GB VRAM). The model weights and context cache both use memory, so begin with a moderate context if you encounter memory errors. Empire AI Beta requires at least four GPUs per job and is unnecessary for this setup. See the [Ollama model details](https://ollama.com/library/qwen3.8:27b) and [Empire AI Alpha QoS guide](https://empireai.freshdesk.com/support/solutions/articles/157000374474-alpha-job-submission-and-qos-overview).
+The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, with a maximum context window of 256K. A single Alpha GPU is a reasonable starting point; the scheduler routes single-GPU jobs to the RTX PRO 6000 Blackwell pool (about 96 GB VRAM). The model weights and context cache both use memory, so begin with a moderate context if you encounter memory errors. See the [Ollama model details](https://ollama.com/library/qwen3.8:27b).
 
 #### If your terminal shows the NVL72 Beta banner
 
@@ -158,9 +157,7 @@ The banner's `aarch64` means this Beta management node uses ARM64. Alpha uses x8
 
 ### 1. Connect to Alpha and check your project account
 
-From Terminal on your Mac, connect with the SSH key registered with Empire AI. The current Alpha login host is `alpha.empire-ai.org`. This example assumes your username is `jshin` and the key is `~/.ssh/id_empireai`; adjust these if yours differ:
-
-    ssh -i ~/.ssh/id_empireai -o IdentitiesOnly=yes jshin@alpha.empire-ai.org
+From Terminal on your Mac, connect with the SSH key registered with the AI model. The current Alpha login host is on a VRAM. 
 
 On Alpha, confirm the account and QoS available to your user:
 
@@ -181,7 +178,7 @@ If the complete package or its `lib/ollama/llama-server` runtime is missing, ins
     curl -fsSL https://ollama.com/download/ollama-linux-amd64.tar.zst | tar --zstd -xf - -C "$HOME/.local/ollama-alpha"
     export PATH="$HOME/.local/ollama-alpha/bin:$HOME/.local/bin:$PATH"
 
-The examples use `$HOME/ollama-models`, which already contains the downloaded Qwen model for this account. The model cache is about 17 GB. Empire AI home directories have a 100 GB quota, so keep an eye on space; project storage is preferable when your account has a project path that is readable and writable.
+The examples use `$HOME/ollama-models`, which already contains the downloaded Qwen model for this account. The model cache is about 17 GB. Loal home directories have a 100 GB quota, so keep an eye on space; project storage is preferable when your account has a project path that is readable and writable.
 
 ### 3. Check or download the model before reserving a GPU
 
@@ -215,7 +212,7 @@ Once Slurm starts the job, you are on the allocated GPU node. Confirm the device
     nvidia-smi
     hostname -f
 
-Empire AI Alpha routes a one-GPU request to its RTX PRO 6000 pool. Interactive `test` jobs are billed at half the standard service-unit rate; one GPU for one hour is nominally 0.5 SU. The project is charged for the allocated GPU time. See the current [QoS and service-unit rules](https://empireai.freshdesk.com/support/solutions/articles/157000374474-alpha-job-submission-and-qos-overview).
+This routes a one-GPU request to its RTX PRO 6000 pool. Interactive `test` jobs are billed at half the standard service-unit rate; one GPU for one hour is nominally 0.5 SU. The project is charged for the allocated GPU time. See the current.
 
 ### 5. Start Ollama on the GPU node
 
