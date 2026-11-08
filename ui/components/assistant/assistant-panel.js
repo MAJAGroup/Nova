@@ -431,9 +431,16 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       });
       if (voiceReply) return reply(voiceReply);
     }
-    const intentReply = await handleBrowserIntent(command, { browser, tabs, aiAvailable });
+    const intentReply = await handleBrowserIntent(command, {
+      browser, tabs, aiAvailable,
+      onBookmarkAction: async operation => {
+        const finish = beginExploration();
+        try { return await operation(); }
+        finally { finish(); }
+      }
+    });
     if (intentReply) return reply(intentReply);
-    if (isGroupingRequest(command)) return organize(command, aiAvailable, reply);
+    if (isGroupingRequest(command) && !/\bbookmarks?\b/i.test(command)) return organize(command, aiAvailable, reply);
     if (!aiAvailable) return reply(localAssistantReply(trimmed, { tabs }));
 
     const pending = appendPending();
@@ -444,6 +451,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     try {
       const result = await browser.askAssistant({
         prompt: trimmed,
+        view: document.getElementById("bookmarks")?.hidden === false ? "bookmarks" : "",
         context: tabs.tabs.map((tab) => {
           const group = tabs.groupOf(tab);
           return { title: tab.title || "Untitled tab", url: tab.url, ...(group ? { group: group.name } : {}) };
@@ -518,7 +526,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     button.addEventListener("click", () => ask(button.dataset.prompt));
   });
   el("context-info").addEventListener("click", () => {
-    showToast("When you ask Nova, it shares open tab titles and URLs with your configured AI endpoint.");
+    showToast("Nova shares open tab titles and URLs with your configured AI endpoint. It looks up bookmark titles and URLs only when you ask about bookmarks.");
   });
   el("assistant-menu").addEventListener("click", () => { close({ restoreFocus: false }); onOpenSettings(); });
   chatMenuToggle.addEventListener("click", () => {

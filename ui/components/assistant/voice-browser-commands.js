@@ -1,4 +1,4 @@
-const HELP_TEXT = "You can go back or forward; refresh or stop a page; scroll up or down, by a screen, or to the top or bottom; search this page and move through matches; close page search; zoom in, out, or reset; read a page in short parts, continue reading, or read selected text; repeat my last reply; open a named link; open or close a tab; switch tabs; mute or unmute a tab; or ask for voice help.";
+const HELP_TEXT = "You can go back or forward; refresh or stop a page; scroll up or down, by a screen, or to the top or bottom; search this page and move through matches; close page search; zoom in, out, or reset; read a page in short parts, continue reading, or read selected text; repeat my last reply; open a named link; open or close a tab; switch tabs; mute or unmute a tab; summarize, search, open, save, edit, or remove bookmarks; or ask for voice help.";
 
 function clean(value) {
   return String(value || "").trim().replace(/[.!?]+$/, "").replace(/\s+/g, " ").toLowerCase();

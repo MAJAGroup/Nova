@@ -108,6 +108,7 @@ function start() {
       browserView.cover("bookmarks", open);
       const button = document.getElementById("bookmarks-tab");
       button.classList.toggle("active", open); button.setAttribute("aria-pressed", String(open));
+      if (open) queueMicrotask(() => { if (aiTaskBusy) { aiSceneStartedForTask = true; bookmarks.setExploring(true); } });
     },
     onEditorVisibilityChange: open => browserView.cover("bookmark-editor", open)
   });
@@ -153,15 +154,15 @@ function start() {
       clearTimeout(aiSceneTransferTimer); aiSceneTransferTimer = 0;
       if (aiTaskBusy) {
         aiSceneStartedForTask = false;
-        bookmarks.close();
         aiSceneTransferTimer = setTimeout(() => {
           aiSceneTransferTimer = 0;
           if (!aiTaskBusy) return;
           if (cosmos.isOpen()) { aiSceneStartedForTask = true; cosmos.setExploring(true); }
           else if (history.isOpen()) { aiSceneStartedForTask = true; history.setExploring(true); }
+          else if (bookmarks.isOpen()) { aiSceneStartedForTask = true; bookmarks.setExploring(true); }
         }, 950);
       } else {
-        const scene = cosmos.isOpen() ? cosmos : history.isOpen() ? history : null;
+        const scene = cosmos.isOpen() ? cosmos : history.isOpen() ? history : bookmarks.isOpen() ? bookmarks : null;
         const shouldPlayBriefReturn = Boolean(scene && transferWasPending && !aiSceneStartedForTask);
         aiSceneTransferTimer = 0;
         if (shouldPlayBriefReturn) {
@@ -170,6 +171,7 @@ function start() {
         } else {
           cosmos.setExploring(false);
           history.setExploring(false);
+          bookmarks.setExploring(false);
         }
         aiSceneStartedForTask = false;
       }

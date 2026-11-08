@@ -205,7 +205,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     if (!press.dragging) return;
     suppressBookmarkClick = true;
     setTimeout(() => { suppressBookmarkClick = false; }, 0);
-    const over = event.type !== "pointercancel" && overBookmarkBlackHole(event);
+    const over = event.type !== "pointercancel" && overBlackHole(event);
     stars.setDoomed(press.star, false);
     stars.release(press.star, { stay: over });
     if (!over) return;
@@ -601,7 +601,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     if (latest) browser.showHistoryMenu?.(latest.id);
   }
   function startExploration() {
-    if (saved || !explorationBusy || !openState || root.dataset.view !== "stars" || !explorer) return;
+    if (!explorationBusy || !openState || root.dataset.view !== "stars" || !explorer) return;
     if (explorationPhase === "active") return;
     if (explorationPhase === "exiting") { explorer.cancel(); root.classList.remove("history-exploration-exiting"); }
     explorationPhase = "active";
@@ -799,9 +799,10 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   }
   function setMode(next) {
     if (next !== mode) { day = "all"; selected = null; pinnedGroup = null; focusGroupId = null; detailsDismissed = false; }
-    if (next === "list") { mode = "universe"; visualize = false; }
+    if (saved) { mode = "universe"; visualize = true; }
+    else if (next === "list") { mode = "universe"; visualize = false; }
     else { mode = next === "timeline" ? "timeline" : "universe"; visualize = true; }
-    timelineIndex = next === "timeline" ? Number.MAX_SAFE_INTEGER : 0;
+    timelineIndex = mode === "timeline" ? Number.MAX_SAFE_INTEGER : 0;
     root.classList.toggle("timeline-mode", mode === "timeline" && visualize);
     root.querySelectorAll(".history-mode").forEach(button => {
       const active = button.dataset.mode === (visualize ? mode : "list");

@@ -2,10 +2,15 @@ import { domainOf } from "../../lib/url.js";
 
 // Plain-language browser commands the assistant handles itself, without a
 // model. Returns the reply text, or "" when the prompt isn't a command.
-export async function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false }) {
+export async function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false, onBookmarkAction = operation => operation() }) {
   const text = prompt.trim();
   const lower = text.toLowerCase();
   let match;
+
+  if (!aiAvailable) {
+    const bookmarkIntent = await handleBookmarkIntent(text, browser, onBookmarkAction);
+    if (bookmarkIntent) return bookmarkIntent;
+  }
 
   if (/^(go back|back)$/.test(lower)) {
     browser.goBack();
@@ -107,6 +112,118 @@ export async function handleBrowserIntent(prompt, { browser, tabs, aiAvailable =
   return "";
 }
 
+async function handleBookmarkIntent(prompt, browser, onBookmarkAction) {
+  const text = prompt.trim();
+  const run = operation => onBookmarkAction(operation);
+  const loadBookmarks = async () => typeof browser.getBookmarks === "function" ? browser.getBookmarks() : [];
+  const matchBookmarks = (items, query) => {
+    const terms = String(query || "").toLowerCase().split(/[^\p{L}\p{N}.-]+/u).filter(term => term.length > 1 && !["the", "my", "bookmark", "bookmarks", "saved", "page", "site", "website", "from", "in", "on"].includes(term));
+    return items.filter(item => {
+      let site = "";
+      try { site = new URL(item.url).hostname.replace(/^www\./i, ""); } catch { /* malformed bookmarks cannot be queried by host */ }
+      const haystack = `${item.title || ""} ${item.url || ""} ${site}`.toLowerCase();
+      return terms.length > 0 && terms.every(term => haystack.includes(term));
+    });
+  };
+  const clearAll = /^(?:(?:please|can you|could you)\s+)*(?:clear|delete|remove|erase)\s+(?:(?:all|every|entire|whole|everything)\s+)?(?:(?:my|the)\s+)?(?:saved\s+)?bookmarks?[.!?]*$/i.test(text);
+  if (clearAll) {
+    return run(async () => {
+      const result = await browser.clearBookmarks?.();
+      return result?.ok === false ? `I couldn't clear bookmarks: ${result.error}` : "Cleared all saved bookmarks.";
+    });
+  }
+
+  if (/^(?:(?:please|can you|could you)\s+)*(?:bookmark|save|add)\s+(?:(?:this|the current|current)\s+)?(?:page|website|site|tab)(?:\s+to\s+(?:my\s+)?bookmarks?)?[.!?]*$/i.test(text)) {
+    return run(async () => {
+      const result = await browser.saveBookmark?.();
+      return result?.ok ? `Saved ${result.bookmark?.title || "this page"} to bookmarks.` : `I couldn't save that page: ${result?.error || "Open a website first."}`;
+    });
+  }
+
+  if (/\b(?:group|organize|organise|sort|categorize|categorise)\b[\s\S]*\bbookmarks?\b/i.test(text) && /\b(?:by|into|as|website|site|domain|group|category|type)\b/i.test(text)) {
+    return run(async () => "Your Bookmark universe already groups saved pages by website.");
+  }
+
+  const removeMatch = text.match(/^(?:please\s+)?(?:delete|remove|erase|unbookmark)\s+(?:(?:the|my)\s+)?(?:bookmark|bookmarked page)(?:\s+(?:for|named|called))?\s+(.+?)[.!?]*$/i)
+    || text.match(/^(?:please\s+)?(?:delete|remove|erase)\s+(.+?)\s+bookmark[.!?]*$/i);
+  if (removeMatch) {
+    return run(async () => {
+      const items = matchBookmarks(await loadBookmarks(), removeMatch[1]);
+      if (!items.length) return `I couldn't find a bookmark matching “${removeMatch[1]}”.`;
+      if (items.length > 1) return `I found ${items.length} bookmarks matching “${removeMatch[1]}”. Please include a more specific title or website.`;
+      const result = await browser.removeBookmark?.(items[0].id);
+      return result?.ok === false ? `I couldn't remove that bookmark: ${result.error}` : `Removed ${items[0].title || "the bookmark"} from bookmarks.`;
+    });
+  }
+
+  const removeGroupMatch = text.match(/^(?:please\s+)?(?:delete|remove|erase|clear)\s+(?:(?:all|every)\s+)?(?:the\s+)?bookmarks?\s+(?:from|for|in|under)\s+(.+?)[.!?]*$/i)
+    || text.match(/^(?:please\s+)?(?:delete|remove|erase|clear)\s+(?:the\s+)?bookmark group\s+(.+?)[.!?]*$/i);
+  if (removeGroupMatch) {
+    return run(async () => {
+      const items = matchBookmarks(await loadBookmarks(), removeGroupMatch[1]);
+      if (!items.length) return `I couldn't find a website group matching “${removeGroupMatch[1]}”.`;
+      for (const item of items) await browser.removeBookmark?.(item.id);
+      return `Removed ${items.length} ${items.length === 1 ? "bookmark" : "bookmarks"} from the “${removeGroupMatch[1]}” group.`;
+    });
+  }
+
+  const renameMatch = text.match(/^(?:please\s+)?(?:rename|edit|update|change)\s+(?:(?:the|my)\s+)?bookmark(?:\s+(?:for|named|called))?\s+(.+?)\s+(?:to|as)\s+(.+?)[.!?]*$/i);
+  if (renameMatch) {
+    return run(async () => {
+      const items = matchBookmarks(await loadBookmarks(), renameMatch[1]);
+      if (!items.length) return `I couldn't find a bookmark matching “${renameMatch[1]}”.`;
+      if (items.length > 1) return `I found ${items.length} bookmarks matching “${renameMatch[1]}”. Please include a more specific title or website.`;
+      const result = await browser.saveBookmark?.({ id: items[0].id, title: renameMatch[2], url: items[0].url });
+      return result?.ok ? `Renamed the bookmark to “${result.bookmark?.title || renameMatch[2]}”.` : `I couldn't update that bookmark: ${result?.error || "Unknown error."}`;
+    });
+  }
+
+  const searchMatch = text.match(/^(?:search|find)\s+(?:(?:my|the)\s+)?bookmarks?\s+(?:for\s+)?(.+?)[.!?]*$/i)
+    || text.match(/^(?:find|search for)\s+(.+?)\s+(?:in|among|from)\s+(?:(?:my|the)\s+)?bookmarks?[.!?]*$/i)
+    || text.match(/^find\s+(?:the\s+)?(.+?)\s+(?:bookmark|bookmarked page)[.!?]*$/i);
+  if (searchMatch) {
+    return run(async () => {
+      const items = matchBookmarks(await loadBookmarks(), searchMatch[1]);
+      if (!items.length) return `I couldn't find a bookmark matching “${searchMatch[1]}”.`;
+      return `Found ${items.length} ${items.length === 1 ? "bookmark" : "bookmarks"} matching “${searchMatch[1]}”:\n` +
+        items.slice(0, 10).map(item => `• ${item.title || item.url} — ${item.url}`).join("\n");
+    });
+  }
+
+  const openMatch = text.match(/^(?:open|visit|go to|navigate to)\s+(?:(?:my|the)\s+)?(.+?)\s+(?:bookmark|bookmarked page|from bookmarks)[.!?]*$/i)
+    || text.match(/^(?:open|visit|go to)\s+(?:(?:my|the)\s+)?bookmark(?:\s+(?:for|named|called))\s+(.+?)[.!?]*$/i)
+    || text.match(/^(?:open|visit)\s+(?:the\s+)?bookmarked\s+page\s+(.+?)[.!?]*$/i);
+  if (openMatch) {
+    return run(async () => {
+      const items = matchBookmarks(await loadBookmarks(), openMatch[1]);
+      if (!items.length) return `I couldn't find a bookmark matching “${openMatch[1]}”.`;
+      if (items.length > 1) return `I found ${items.length} bookmarks matching “${openMatch[1]}”. Please include a more specific title or website.`;
+      const opened = await browser.openBookmark?.(items[0].id);
+      return opened ? `Opening ${items[0].title || "the saved page"}.` : `I couldn't open ${items[0].title || "that bookmark"}.`;
+    });
+  }
+
+  if (/\b(?:summari[sz]e|list|show|count|how many|what are|which)\b[\s\S]*\bbookmarks?\b/i.test(text)) {
+    return run(async () => {
+      const items = await loadBookmarks();
+      const sites = new Map();
+      for (const item of items) {
+        try {
+          const site = new URL(item.url).hostname.replace(/^www\./i, "");
+          sites.set(site, (sites.get(site) || 0) + 1);
+        } catch { /* ignore malformed legacy entries */ }
+      }
+      const groups = [...sites].sort((a, b) => b[1] - a[1]);
+      const head = `You have ${items.length} saved ${items.length === 1 ? "page" : "pages"} across ${sites.size} website ${sites.size === 1 ? "group" : "groups"}.`;
+      if (/\b(?:count|how many)\b/i.test(text)) return head;
+      const list = items.slice(0, 8).map(item => `• ${item.title || item.url}`).join("\n");
+      const popular = groups.slice(0, 5).map(([site, count]) => `${site} (${count})`).join(", ");
+      return `${head}${popular ? ` Largest groups: ${popular}.` : ""}${list ? `\n${list}` : ""}`;
+    });
+  }
+  return "";
+}
+
 // Free-form requests to organise tabs ("group my tabs by project", "put the
 // shopping tabs together"), which go to the AI grouping planner.
 export function isGroupingRequest(prompt) {
@@ -171,5 +288,5 @@ export function localAssistantReply(prompt, { tabs }) {
   if (text.includes("plan") || text.includes("hour")) {
     return "A simple next-hour plan:\n1. Pick one tab as your focus.\n2. Close anything unrelated.\n3. Spend 40 minutes on the main task, then take a short reset.\n\nConnect an AI endpoint for a plan tailored to your open pages.";
   }
-  return "I can help with your open tabs. Connect an AI endpoint for model-powered answers and requests to open several websites. You can still say “open <site>”, “search for <topic>”, “switch to <name> tab”, “close tab <name>”, “group <tabs> as <name>”, “group my tabs by site”, “ungroup all tabs”, “clear history”, “back”, or “reload”.";
+  return "I can help with your open tabs and saved bookmarks. Connect an AI endpoint for model-powered answers, research, and flexible bookmark tasks. You can say “summarize my bookmarks”, “open the Wikipedia bookmark”, “save this page”, “remove the bookmark for GitHub”, “open <site>”, “search for <topic>”, “group my tabs by site”, “clear history”, “back”, or “reload”.";
 }

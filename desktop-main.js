@@ -1921,6 +1921,7 @@ function registerIPC() {
       url: String(tab.url || "").slice(0, 1000),
       ...(tab.group ? { group: String(tab.group).slice(0, 60) } : {})
     })) : [];
+    const bookmarkViewActive = request.view === "bookmarks";
     const sender = event.sender;
     let assistantTargetTabId = null;
     const historySearchIds = new Set();
@@ -1947,9 +1948,28 @@ function registerIPC() {
       const date = new Date(value);
       return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
     };
+    const bookmarkSearchIds = new Set();
+    const bookmarkStopWords = new Set(["a", "an", "the", "my", "this", "that", "from", "about", "bookmark", "bookmarks", "saved", "page", "pages", "site", "sites", "website", "websites", "find", "search", "show", "list", "summarize", "summary", "review", "count", "open", "visit", "delete", "remove", "erase", "clear", "all", "every", "recent", "latest", "most", "by", "for", "in", "on", "to", "and", "or"]);
+    const bookmarkTerms = query => String(query || "").trim().toLowerCase().slice(0, 240)
+      .split(/[^\p{L}\p{N}.-]+/u).filter(term => term.length > 1 && !bookmarkStopWords.has(term));
+    const explicitlyRequestsBookmarks = /^\s*(?:(?:please|can you|could you)\s+)*bookmark\b/i.test(prompt) ||
+      /\b(?:my|the|all|saved|bookmarked)\s+bookmarks?\b|\bbookmarks?\s+(?:section|tab|list|universe|collection)\b|\b(?:what|which|how many|recent|latest|most recent)\b[\s\S]{0,80}\bbookmarks?\b|\b(?:search|find|show|list|summari[sz]e|review|count|open|visit|delete|remove|erase|clear|edit|rename|update|save|add)\b[\s\S]{0,100}\b(?:bookmarks?|saved pages?|saved sites?)\b|\b(?:bookmark|save)\s+(?:this|current)\s+(?:page|site|website|tab)\b/i.test(prompt) ||
+      (bookmarkViewActive && /\b(?:search|find|show|list|summari[sz]e|review|count|open|visit|delete|remove|erase|clear|edit|rename|update)\b/i.test(prompt) && /\b(?:these|those|them|that|this|one|here|shown|visible|current)\b/i.test(prompt));
+    const bookmarkSite = item => {
+      try { return new URL(item.url).hostname.replace(/^www\./i, ""); }
+      catch { return "Unknown website"; }
+    };
+    const currentBookmarkMatches = query => {
+      const terms = bookmarkTerms(query);
+      return bookmarks.snapshot(tabs).filter(item => {
+        const text = `${item.title || ""} ${item.url || ""} ${bookmarkSite(item)}`.toLowerCase();
+        return terms.every(term => text.includes(term));
+      }).sort((a, b) => b.at - a.at);
+    };
     return runAgent({
       prompt,
       tabs: context,
+      view: bookmarkViewActive ? "bookmarks" : "",
       today: localDate(),
       complete: (messages) => chatCompletion(endpoint, messages, { json: true, maxTokens: 800 }),
       openSideTab: async (url) => {
@@ -2053,6 +2073,93 @@ function registerIPC() {
         const removed = visitHistory.removeMany(ids, tabs);
         if (removed) sendTabs();
         return { ok: true, removed };
+      },
+      searchBookmarks: async query => {
+        if (!explicitlyRequestsBookmarks) return { query: "", total: 0, entries: [] };
+        const matches = currentBookmarkMatches(query);
+        const entries = matches.slice(0, 100).map(({ id, title, url, at, liveTabId }) => ({ id, title, url, at, website: bookmarkSite({ url }), open: Boolean(liveTabId) }));
+        bookmarkSearchIds.clear();
+        for (const entry of entries) bookmarkSearchIds.add(entry.id);
+        return { query: String(query || "").slice(0, 240), total: matches.length, entries };
+      },
+      bookmarkReport: async ({ mode = "summary", query = "", limit = 20 } = {}) => {
+        if (!explicitlyRequestsBookmarks) return { ok: false, error: "I only review saved bookmarks when you ask me about them." };
+        const matches = currentBookmarkMatches(query);
+        const sites = new Map();
+        for (const item of matches) sites.set(bookmarkSite(item), (sites.get(bookmarkSite(item)) || 0) + 1);
+        const topSites = [...sites].map(([website, count]) => ({ website, count })).sort((a, b) => b.count - a.count || a.website.localeCompare(b.website)).slice(0, 20);
+        const entryLimit = mode === "summary" ? Math.min(12, limit) : Math.min(50, limit);
+        const entries = matches.slice(0, entryLimit).map(({ id, title, url, at, liveTabId }) => ({ id, title: String(title || "Untitled").slice(0, 180), url: String(url || "").slice(0, 500), website: bookmarkSite({ url }), savedAt: at, open: Boolean(liveTabId) }));
+        bookmarkSearchIds.clear();
+        for (const entry of entries) bookmarkSearchIds.add(entry.id);
+        const fallbackText = !matches.length
+          ? `I couldn't find saved bookmarks${query ? ` matching “${query}”` : ""}.`
+          : mode === "recent"
+            ? `Here are your ${Math.min(entryLimit, matches.length)} most recently saved bookmarks.`
+            : mode === "search"
+              ? `I found ${matches.length} matching saved ${matches.length === 1 ? "page" : "pages"}${query ? ` for “${query}”` : ""}.`
+              : mode === "by-site"
+                ? `Your ${matches.length} saved ${matches.length === 1 ? "page is" : "pages are"} grouped across ${sites.size} websites: ${topSites.slice(0, 8).map(item => `${item.website} (${item.count})`).join(", ")}.`
+                : `You have ${matches.length} saved ${matches.length === 1 ? "page" : "pages"} across ${sites.size} website groups. Largest groups: ${topSites.slice(0, 5).map(item => `${item.website} (${item.count})`).join(", ") || "none"}.`;
+        return { ok: true, mode, query: String(query || "").slice(0, 240), total: matches.length, websiteCount: sites.size, topSites, entries, fallbackText };
+      },
+      openBookmarks: async ({ ids = [] } = {}) => {
+        if (!explicitlyRequestsBookmarks || !/\b(?:open|visit|go to|navigate to)\b/i.test(prompt)) return { ok: false, error: "I only open a saved page when you ask me to open or visit it." };
+        const safeIds = [...new Set(ids.filter(id => typeof id === "string" && bookmarkSearchIds.has(id)))].slice(0, 3);
+        const matches = safeIds.map(id => bookmarks.snapshot(tabs).find(item => item.id === id)).filter(Boolean);
+        if (!matches.length) return { ok: false, error: "I couldn't find matching saved bookmarks to open." };
+        const opened = [];
+        for (const [index, item] of matches.entries()) {
+          if (item.liveTabId) {
+            if (index === 0) setActiveTab(item.liveTabId);
+          } else {
+            const id = createTab(item.url, { activate: index === 0 });
+            if (id) opened.push(item);
+          }
+          if (item.liveTabId) opened.push(item);
+        }
+        if (!opened.length) return { ok: false, error: "I couldn't open those saved pages." };
+        return { ok: true, text: `Opened ${opened.map(item => item.title || bookmarkSite(item)).join(", ")}.` };
+      },
+      deleteBookmarks: async ({ ids = [], all = false } = {}) => {
+        if (!explicitlyRequestsBookmarks || !/\b(?:delete|remove|erase|clear|unbookmark)\b/i.test(prompt)) return { ok: false, error: "I left your bookmarks unchanged because you didn't ask me to remove them." };
+        if (all) {
+          const explicitAll = /\b(?:all|every|entire|whole|everything)\b/i.test(prompt) && /\b(?:bookmarks?|saved pages?|saved sites?)\b/i.test(prompt);
+          const explicitVisibleAll = bookmarkViewActive && /\b(?:all|every|entire|whole|everything)\b/i.test(prompt) && /\b(?:these|those|them|shown|visible|current)\b/i.test(prompt);
+          const clearAll = /^\s*(?:(?:please|can you|could you)\s+)*(?:clear|delete|remove|erase)\s+(?:(?:my|the)\s+)?(?:saved\s+)?bookmarks?\s*[.!?]*\s*$/i.test(prompt);
+          if (!explicitAll && !explicitVisibleAll && !clearAll) return { ok: false, error: "I left your bookmarks unchanged because the request didn't clearly ask to clear them all." };
+          const removed = bookmarks.items.length;
+          if (removed) { bookmarks.clear(); sendTabs(); }
+          return { ok: true, removed, all: true };
+        }
+        const safeIds = [...new Set(ids.filter(id => typeof id === "string" && bookmarkSearchIds.has(id) && bookmarks.items.some(item => item.id === id)))].slice(0, 100);
+        for (const id of safeIds) bookmarks.remove(id);
+        if (safeIds.length) sendTabs();
+        return { ok: true, removed: safeIds.length, all: false };
+      },
+      saveBookmark: async ({ url = "", title = "" } = {}) => {
+        if (!explicitlyRequestsBookmarks || !/\b(?:save|add|bookmark)\b/i.test(prompt)) return { ok: false, error: "I only save a page to bookmarks when you ask me to." };
+        const currentTab = tabs.get(activeTabId);
+        const destination = String(url || currentTab?.url || "");
+        if (!isWebUrl(destination)) return { ok: false, error: "Open a website first, or tell me its full http or https address." };
+        try {
+          const input = { url: destination, title: title || (currentTab?.url === destination ? currentTab.title : "") };
+          if (currentTab?.url === destination) input.favicon = currentTab.favicon;
+          const item = bookmarks.save(input);
+          sendTabs();
+          return { ok: true, text: `Saved ${item.title || bookmarkSite(item)} to bookmarks.` };
+        } catch (error) { return { ok: false, error: error.message }; }
+      },
+      updateBookmark: async ({ id, title = "", url = "" } = {}) => {
+        if (!explicitlyRequestsBookmarks || !/\b(?:edit|rename|update|change)\b/i.test(prompt)) return { ok: false, error: "I left your bookmarks unchanged because you didn't ask me to edit one." };
+        if (typeof id !== "string" || !bookmarkSearchIds.has(id)) return { ok: false, error: "I couldn't verify which saved page you wanted to edit." };
+        const existing = bookmarks.items.find(item => item.id === id);
+        if (!existing) return { ok: false, error: "That bookmark no longer exists." };
+        try {
+          const item = bookmarks.save({ id, title: title || existing.title, url: url || existing.url });
+          sendTabs();
+          return { ok: true, text: `Updated the bookmark for ${item.title || bookmarkSite(item)}.` };
+        } catch (error) { return { ok: false, error: error.message }; }
       },
       onProgress: (note) => { if (!sender.isDestroyed()) sender.send("ai:progress", note); }
     });
