@@ -1,17 +1,23 @@
 {
-  "name": "orbit-spatial-browser",
+  "name": "nova-browser",
   "version": "0.2.0",
   "private": true,
-  "description": "A Chromium desktop browser with a built-in AI assistant.",
+  "description": "Nova: a Chromium desktop browser with a built-in AI assistant.",
+  "desktopName": "edu.buffalo.nova.desktop",
   "main": "desktop-main.js",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
+    "appimage": "bash ./build-appimage.sh",
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
     "test:newtab": "node --test tests/newtab*.test.cjs",
-    "test:agent": "node --test tests/agent*.test.cjs"
+    "test:agent": "node --test tests/agent*.test.cjs",
+    "test:suggestions": "node --test tests/suggestions*.test.cjs",
+    "test:bookmarks": "node --test tests/bookmarks*.test.cjs",
+    "test:resources": "node --test tests/resources*.test.cjs",
+    "test:branding": "node --test tests/profile-migration.test.cjs tests/linux-desktop.test.cjs tests/nova-desktop.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -19,8 +25,8 @@
     "playwright": "1.65.0"
   },
   "build": {
-    "appId": "edu.buffalo.orbit",
-    "productName": "ORBIT",
+    "appId": "edu.buffalo.nova",
+    "productName": "Nova",
     "files": [
       "desktop-main.js",
       "desktop-preload.js",
@@ -28,10 +34,19 @@
       "tab-groups.js",
       "ai-grouping.js",
       "ai-agent.js",
+      "linux-desktop.js",
+      "profile-migration.js",
+      "tab-resources.js",
+      "tab-resources-view.js",
+      "tab-resources-preload.js",
+      "assets/**/*",
       "ui/**/*",
       "README.md",
       "history-store.js",
+      "bookmark-store.js",
       "connection-security.js",
+      "search-suggestions.cjs",
+      "search-preload.js",
       {
         "from": "node_modules/three/examples/jsm",
         "to": "node_modules/three/examples/jsm",
@@ -49,11 +64,14 @@
     },
     "linux": {
       "target": "AppImage",
+      "icon": "assets/icon.png",
+      "syncDesktopName": true,
       "category": "Network;WebBrowser;"
     }
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",
     "three": "0.186.1"
-  }
+  },
+  "productName": "Nova"
 }

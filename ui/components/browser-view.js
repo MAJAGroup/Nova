@@ -16,6 +16,8 @@ export function createBrowserView({ browser, tabs }) {
   const sideIcon = el("side-pane-icon");
   const coveredBy = new Set();
   let assistantOpen = false;
+  let suggestionGeneration = 0;
+  const suggestionPreview = el("browser-suggestion-preview");
 
   function syncBounds() {
     const assistantWidth = assistantOpen ? Math.min(380, Math.max(300, window.innerWidth * 0.34)) : 0;
@@ -64,6 +66,18 @@ export function createBrowserView({ browser, tabs }) {
   requestAnimationFrame(syncBounds);
 
   return {
+    async setSuggestionsOpen(open) {
+      const generation = ++suggestionGeneration;
+      if (!open) {
+        suggestionPreview.hidden = true; suggestionPreview.removeAttribute("src");
+        coveredBy.delete("suggestions"); syncBounds(); return;
+      }
+      const activeId = tabs.activeId;
+      const preview = coveredBy.size ? null : await browser.capturePage().catch(() => null);
+      if (generation !== suggestionGeneration || activeId !== tabs.activeId) return;
+      if (preview) { suggestionPreview.src = preview; suggestionPreview.hidden = false; }
+      coveredBy.add("suggestions"); syncBounds();
+    },
     // reason: a name for what is covering the page; the page shows again
     // once nothing covers it.
     cover(reason, covered) {

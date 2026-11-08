@@ -61,6 +61,9 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
   // "ungroup Research" (a whole constellation) or "ungroup github" (one tab)
   match = text.match(/^ungroup\s+(.+)$/i);
   if (match) {
+    // Compound reorganisation commands must reach the grouping planner; a
+    // greedy local match would treat the whole sentence as one group name.
+    if (aiAvailable && isGroupingRequest(text)) return "";
     const group = tabs.findGroup(match[1]);
     if (group) {
       browser.removeGroup(group.id);
@@ -87,7 +90,11 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
 // shopping tabs together"), which go to the AI grouping planner.
 export function isGroupingRequest(prompt) {
   const text = prompt.toLowerCase();
-  if (/^ungroup\b/.test(text)) return false;
+  if (/^ungroup\b/.test(text)) {
+    const ungroupAll = /^ungroup\s+(?:all|every|each)\b/.test(text);
+    const followUpGrouping = /\b(?:and|then|afterwards?|before)\b[\s\S]*\b(?:group|regroup|organi[sz]e|categori[sz]e|sort|arrange)\b/.test(text);
+    return ungroupAll || followUpGrouping;
+  }
   if (/\b(group|regroup|organi[sz]e|reorgani[sz]e|split|separate|cluster|categori[sz]e|sort|arrange|tidy( up)?)\b/.test(text) &&
     /\b(tabs?|pages?|constellations?|groups?|them|everything|by|into|together)\b/.test(text)) return true;
   return /\b(put|move|gather|collect|bundle)\b.+\b(together|into (a |one )?(group|constellation))\b/.test(text) ||

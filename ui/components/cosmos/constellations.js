@@ -25,14 +25,17 @@ function spanningTree(ids, positions) {
 }
 
 // Draws each tab group as a constellation: lines between its stars, a faint
-// nebula behind them and its name above. The name can be clicked (focus the
-// camera) or double-clicked (rename).
-export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, emphasisFor = () => 1 }) {
+// nebula behind them and its name above. In Nova, the name can be dragged to
+// another group to merge them, clicked to focus, or double-clicked to rename.
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
   scene.add(root);
   const items = new Map();
   let pendingEdit = null;
   let highlighted = null;
+  let draggedGroupId = null;
+  let suppressGroupClick = false;
+  const GROUP_DRAG_TYPE = "application/x-nova-constellation";
 
   function createItem(group) {
     const geometry = new THREE.BufferGeometry();
@@ -47,13 +50,55 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     element.className = "constellation-label";
     element.innerHTML = '<span class="constellation-name" role="button" tabindex="0" title="Click to focus · Double-click to rename"></span>';
     const button = element.firstChild;
+    button.dataset.groupId = String(group.id);
     const label = new CSS2DObject(element);
 
     root.add(lines, nebula, label);
     const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
 
-    button.addEventListener("click", () => { if (!item.editing) onFocus(item.id); });
-    button.title = onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey";
+    button.addEventListener("click", () => {
+      if (suppressGroupClick) { suppressGroupClick = false; return; }
+      if (!item.editing) onFocus(item.id);
+    });
+    button.title = [
+      onMerge ? "Drag the name onto another group to merge" : null,
+      onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey"
+    ].filter(Boolean).join(" · ");
+    if (onMerge) {
+      button.classList.add("merge-handle");
+      button.draggable = true;
+      button.addEventListener("pointerdown", () => { suppressGroupClick = false; });
+      button.addEventListener("dragstart", event => {
+        if (item.editing || !event.dataTransfer) { event.preventDefault(); return; }
+        draggedGroupId = String(item.id);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(GROUP_DRAG_TYPE, draggedGroupId);
+        event.dataTransfer.setData("text/plain", draggedGroupId);
+        item.element.classList.add("dragging");
+      });
+      button.addEventListener("dragover", event => {
+        if (!draggedGroupId || String(item.id) === draggedGroupId) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        item.element.classList.add("merge-target");
+      });
+      button.addEventListener("dragleave", event => {
+        if (!button.contains(event.relatedTarget)) item.element.classList.remove("merge-target");
+      });
+      button.addEventListener("drop", event => {
+        event.preventDefault();
+        const sourceId = event.dataTransfer?.getData(GROUP_DRAG_TYPE) || draggedGroupId;
+        item.element.classList.remove("merge-target");
+        if (sourceId && String(sourceId) !== String(item.id)) onMerge(sourceId, item.id);
+      });
+      button.addEventListener("dragend", () => {
+        item.element.classList.remove("dragging");
+        for (const candidate of items.values()) candidate.element.classList.remove("merge-target");
+        draggedGroupId = null;
+        suppressGroupClick = true;
+        setTimeout(() => { suppressGroupClick = false; }, 500);
+      });
+    }
     button.addEventListener("dblclick", () => { if (onRename) editName(item.id); });
     button.addEventListener("keydown", (event) => {
       if (!item.editing && (event.key === "Enter" || event.key === " ")) {

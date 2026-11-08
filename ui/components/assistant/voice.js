@@ -111,7 +111,7 @@ export function createVoice({ browser, onTranscript, onStateChange = () => {} })
     el("voice-reply").setAttribute("aria-pressed", String(speakReplies));
     el("voice-reply").setAttribute("aria-label", speakReplies ? "Disable spoken replies" : "Enable spoken replies");
     if (!speakReplies) stopSpeaking();
-    showToast(speakReplies ? "Orbit will speak its replies." : "Spoken replies are off.");
+    showToast(speakReplies ? "Nova will speak its replies." : "Spoken replies are off.");
   }
 
   micButton.addEventListener("click", toggleListening);

@@ -37,6 +37,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   let flight = null;
   let lastTime = null;
   let suppressClick = false;
+  let selectionAnchorId = null;
   const hint = el("cosmos-hint");
 
   let renderer;
@@ -110,7 +111,14 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       tabs,
       positionOf: (id) => stars.positionOf(id),
       onFocus: flyToGroup,
-      onRename: (groupId, name) => browser.renameGroup(groupId, name)
+      onRename: (groupId, name) => browser.renameGroup(groupId, name),
+      onMerge: (sourceId, targetId) => {
+        const source = tabs.groups.find(group => String(group.id) === String(sourceId));
+        const target = tabs.groups.find(group => String(group.id) === String(targetId));
+        if (!source || !target || String(source.id) === String(target.id)) return;
+        const memberIds = tabs.tabs.filter(tab => String(tab.groupId) === String(source.id)).map(tab => tab.id);
+        if (memberIds.length) browser.groupTabs(memberIds, { groupId: target.id });
+      }
     });
     stars = createTabStars({
       scene,
@@ -130,7 +138,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   // The tab list can be tucked away to give the cosmos the whole width;
   // the choice is remembered on this device.
-  const SIDEBAR_KEY = "orbit.cosmos.sidebarHidden";
+  const SIDEBAR_KEY = "nova.cosmos.sidebarHidden";
   const sidebarToggle = el("cosmos-sidebar-toggle");
   function setSidebarHidden(hidden) {
     container.classList.toggle("sidebar-hidden", hidden);
@@ -146,7 +154,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   sidebarToggle.addEventListener("click", () => setSidebarHidden(!container.classList.contains("sidebar-hidden")));
 
   const stayToggle = el("cosmos-stay-toggle");
-  const STAY_ON_NEW_TAB_KEY = "orbit.cosmos.stayOnNewTab";
+  const STAY_ON_NEW_TAB_KEY = "nova.cosmos.stayOnNewTab";
   let stayOnNewTab = false;
   try { stayOnNewTab = localStorage.getItem(STAY_ON_NEW_TAB_KEY) === "1"; } catch (_) { /* storage unavailable */ }
   function setStayOnNewTab(enabled) {
@@ -155,7 +163,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       stayToggle.setAttribute("aria-checked", String(stayOnNewTab));
       stayToggle.classList.toggle("active", stayOnNewTab);
       stayToggle.title = stayOnNewTab
-        ? "New tabs opened with + keep Orbit visible"
+        ? "New tabs opened with + keep Nova visible"
         : "New tabs opened with + switch to the web page";
     }
     try { localStorage.setItem(STAY_ON_NEW_TAB_KEY, stayOnNewTab ? "1" : "0"); } catch (_) { /* storage unavailable */ }
@@ -167,9 +175,20 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (renderer) flyHome();
   });
 
+  let previousTabIds = null;
+  let previousGroupByTab = null;
   tabs.subscribe(() => {
-    if (stars) updateSelectionBar();
+    const groupByTab = new Map(tabs.tabs.map(tab => [String(tab.id), String(tab.groupId || "")]));
+    const tabIds = new Set(groupByTab.keys());
+    const tabAdded = previousTabIds !== null && Array.from(tabIds).some(id => !previousTabIds.has(id));
+    const groupFormed = previousGroupByTab !== null && Array.from(groupByTab).some(([id, groupId]) =>
+      groupId && previousGroupByTab.has(id) && previousGroupByTab.get(id) !== groupId
+    );
+    previousTabIds = tabIds;
+    previousGroupByTab = groupByTab;
     renderTabList();
+    if (stars) updateSelectionBar();
+    if (isOpen && (tabAdded || groupFormed)) flyHome();
   });
 
   function renderTabList() {
@@ -193,10 +212,11 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (!sections.length) {
       const empty = document.createElement("div");
       empty.className = "cosmos-list-empty";
-      empty.innerHTML = '<span class="cosmos-empty-orbit">✦</span><span>No tabs in orbit yet</span><small>Open a page to add its star to the atlas.</small>';
+      empty.innerHTML = '<span class="cosmos-empty-nova">✦</span><span>No tabs in Nova yet</span><small>Open a page to add its star to the atlas.</small>';
       sections.push(empty);
     }
     tabList.replaceChildren(...sections);
+    if (stars) updateSelectionBar();
   }
 
   function renderCategory(title, count, children) {
@@ -230,9 +250,11 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
         : escapeHTML(domain.slice(0, 1).toUpperCase() || "✦");
       item.type = "button";
       item.className = "cosmos-info-tab" + (tabs.isActive(tab) ? " active" : "");
+      item.dataset.tabId = String(tab.id);
+      item.setAttribute("aria-pressed", String(stars?.selectedIds().includes(String(tab.id)) || false));
       item.title = (tab.title || "New tab") + "\n" + (tab.url || "No address");
       item.innerHTML = '<span class="cosmos-info-favicon">' + mark + '</span><span class="cosmos-info-copy"><span class="cosmos-info-title">' + escapeHTML(tab.title || "New tab") + '</span><span class="cosmos-info-url">' + escapeHTML(tab.url || domain || "New tab") + '</span></span><span class="cosmos-info-active"></span>';
-      item.addEventListener("click", () => browser.activateTab(tab.id));
+      item.addEventListener("click", (event) => selectSidebarTab(tab, event));
       item.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         browser.showTabMenu(tab.id);
@@ -244,21 +266,72 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   el("cosmos-group").addEventListener("click", async () => {
     const ids = stars.selectedIds();
-    if (!ids.length) return;
+    if (ids.length < 2) return;
     const groupId = await browser.groupTabs(ids);
     stars.clearSelection();
+    selectionAnchorId = null;
     updateSelectionBar();
     if (groupId) constellations.editName(groupId);
   });
+  el("cosmos-close-selected").addEventListener("click", async () => {
+    const ids = stars.selectedIds();
+    if (!ids.length) return;
+    stars.clearSelection();
+    selectionAnchorId = null;
+    updateSelectionBar();
+    await Promise.all(ids.map((id) => browser.closeTab(id)));
+  });
   el("cosmos-clear-selection").addEventListener("click", () => {
     stars.clearSelection();
+    selectionAnchorId = null;
     updateSelectionBar();
   });
 
+  function selectSidebarTab(tab, event) {
+    const id = String(tab.id);
+    const additive = event.ctrlKey || event.metaKey;
+    if (event.shiftKey) {
+      const rows = Array.from(tabList.querySelectorAll(".cosmos-info-tab[data-tab-id]"));
+      const targetIndex = rows.findIndex((row) => row.dataset.tabId === id);
+      const anchorIndex = rows.findIndex((row) => row.dataset.tabId === selectionAnchorId);
+      if (targetIndex >= 0 && anchorIndex >= 0) {
+        const selected = new Set(additive ? stars.selectedIds() : []);
+        rows.slice(Math.min(targetIndex, anchorIndex), Math.max(targetIndex, anchorIndex) + 1)
+          .forEach((row) => selected.add(row.dataset.tabId));
+        stars.clearSelection();
+        for (const selectedId of selected) stars.toggleSelected(selectedId);
+      } else {
+        if (!stars.selectedIds().includes(id)) stars.toggleSelected(id);
+        selectionAnchorId = id;
+      }
+      updateSelectionBar();
+      return;
+    }
+    if (additive) {
+      stars.toggleSelected(id);
+      selectionAnchorId = id;
+      updateSelectionBar();
+      return;
+    }
+    stars.clearSelection();
+    selectionAnchorId = id;
+    updateSelectionBar();
+    select(tab, event);
+  }
+
   function updateSelectionBar() {
-    const count = stars.selectedIds().length;
+    const selectedIds = stars ? stars.selectedIds() : [];
+    const selected = new Set(selectedIds);
+    if (selectionAnchorId && !tabs.tabs.some((tab) => String(tab.id) === selectionAnchorId)) selectionAnchorId = null;
+    for (const row of tabList.querySelectorAll(".cosmos-info-tab[data-tab-id]")) {
+      const isSelected = selected.has(row.dataset.tabId);
+      row.classList.toggle("selected", isSelected);
+      row.setAttribute("aria-pressed", String(isSelected));
+    }
+    const count = selectedIds.length;
     selectionBar.hidden = count === 0;
     el("cosmos-selection-count").textContent = count + (count === 1 ? " tab selected" : " tabs selected");
+    el("cosmos-group").disabled = count < 2;
   }
 
   function bindPointer(canvas) {
@@ -363,7 +436,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   function startPress(star, event) {
     if (!renderer || event.button !== 0 || event.shiftKey || press) return;
-    press = { star, x: event.clientX, y: event.clientY, dragging: false, over: false, join: null, offset: new THREE.Vector3() };
+    press = { star, x: event.clientX, y: event.clientY, dragging: false, over: false, join: null, joinTarget: null, offset: new THREE.Vector3() };
     controls.enabled = false;
     window.addEventListener("pointermove", movePress);
     window.addEventListener("pointerup", endPress);
@@ -394,18 +467,36 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       stars.setDoomed(star, over);
       blackHole.lure(over);
     }
-    // The black hole wins if both are under the pointer.
-    const join = over ? null : constellationUnder(event, star);
-    const group = join ? tabs.groups.find((item) => String(item.id) === String(join)) : null;
-    if (join !== press.join) {
+    // The black hole wins; otherwise a star under the pointer takes priority
+    // over its constellation so a drop can create or join a group directly.
+    rayFrom(event);
+    const joinTarget = over ? null : stars.pick(dragRay, star.id);
+    const targetGroup = joinTarget && joinTarget.tab.groupId
+      ? tabs.groups.find((item) => String(item.id) === String(joinTarget.tab.groupId))
+      : null;
+    const join = over ? null : targetGroup ? targetGroup.id : joinTarget ? null : constellationUnder(event, star);
+    const group = targetGroup || (join ? tabs.groups.find((item) => String(item.id) === String(join)) : null);
+    const previousTarget = press.joinTarget;
+    if (joinTarget !== press.joinTarget) {
+      if (press.joinTarget) stars.setDropTarget(press.joinTarget, false);
+      press.joinTarget = joinTarget;
+      if (joinTarget) stars.setDropTarget(joinTarget, true);
+    }
+    if (join !== press.join || joinTarget !== previousTarget) {
       press.join = join;
       constellations.setHighlighted(join);
-      stars.setJoining(star, group ? group.color : null);
+      const targetColor = group?.color || (joinTarget ? joinTarget.element.style.getPropertyValue("--star-color") : null);
+      stars.setJoining(star, targetColor || null);
     }
     const title = "“" + (star.tab.title || "this tab") + "”";
+    const targetTitle = joinTarget && (joinTarget.tab.title || "this tab");
     if (over) showHint("Release to close " + title, true);
+    else if (joinTarget && String(joinTarget.tab.groupId || "") === String(star.tab.groupId || "") && star.tab.groupId) {
+      showHint("“" + (star.tab.title || "This tab") + "” and “" + targetTitle + "” are already in the same constellation");
+    } else if (joinTarget && targetGroup) showHint("Release to add " + title + " to " + targetGroup.name);
+    else if (joinTarget) showHint("Release to create a constellation with " + title + " and “" + targetTitle + "”");
     else if (group) showHint("Release to add " + title + " to " + group.name);
-    else showHint("Drop on a constellation to add it · on the black hole to close it");
+    else showHint("Drop on a star or constellation to group it · on the black hole to close it");
   }
 
   function endPress() {
@@ -413,7 +504,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     window.removeEventListener("pointerup", endPress);
     window.removeEventListener("pointercancel", endPress);
     if (!press) return;
-    const { star, dragging, over, join } = press;
+    const { star, dragging, over, join, joinTarget } = press;
     press = null;
     controls.enabled = true;
     if (!dragging) return;
@@ -423,9 +514,17 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     showHint(null);
     blackHole.lure(false);
     constellations.setHighlighted(null);
+    if (joinTarget) stars.setDropTarget(joinTarget, false);
+    stars.setJoining(star, null);
     stars.release(star, { stay: over });
     if (over) browser.closeTab(star.tab.id);
-    else if (join) browser.groupTabs([star.tab.id], { groupId: join });
+    else if (joinTarget) {
+      if (star.tab.groupId && String(star.tab.groupId) === String(joinTarget.tab.groupId)) return;
+      if (joinTarget.tab.groupId) browser.groupTabs([star.tab.id], { groupId: joinTarget.tab.groupId });
+      else browser.groupTabs([star.tab.id, joinTarget.tab.id]).then((groupId) => {
+        if (groupId) constellations.editName(groupId);
+      });
+    } else if (join) browser.groupTabs([star.tab.id], { groupId: join });
   }
 
   function resize() {
@@ -518,7 +617,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       explorationPhase = "active";
       container.classList.add("exploring");
       container.classList.remove("exploration-exiting");
-      showExplorationStatus("ORBIT AI · EXPLORING", "Charting a course through space…");
+      showExplorationStatus("Nova AI · EXPLORING", "Charting a course through space…");
       if (explorer) explorer.start();
       return;
     }

@@ -4,10 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#080d1c">
-    <title>ORBIT</title>
+    <title>Nova</title>
     <link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/opsz.css">
     <link rel="stylesheet" href="styles/base.css">
     <link rel="stylesheet" href="styles/toolbar.css">
+    <link rel="stylesheet" href="styles/search-suggestions.css">
     <link rel="stylesheet" href="styles/tab-strip.css">
     <link rel="stylesheet" href="styles/browser-view.css">
     <link rel="stylesheet" href="styles/assistant.css">
@@ -15,6 +16,7 @@
     <link rel="stylesheet" href="styles/toast.css">
     <link rel="stylesheet" href="styles/cosmos.css">
     <link rel="stylesheet" href="styles/history.css">
+    <link rel="stylesheet" href="styles/bookmarks.css">
     <script type="importmap">
       {
         "imports": {
@@ -33,25 +35,30 @@
             <button class="icon-button" id="go-back" title="Back" aria-label="Go back">‹</button>
             <button class="icon-button" id="go-forward" title="Forward" aria-label="Go forward">›</button>
             <button class="icon-button" id="reload-page" title="Reload" aria-label="Reload page">↻</button>
+            <button type="button" class="icon-button" id="go-home" title="Home" aria-label="Go to home page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m2.5 9 7.5-6.5L17.5 9M4.5 7.5v9h4v-5h3v5h4v-9"/></svg></button>
           </div>
           <div class="address-bar">
             <span id="connection-status" class="connection-status" role="img" aria-label="Connection security has not been verified" title="Connection security has not been verified" data-state="unknown"><svg class="connection-lock" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="8.5" width="11" height="8" rx="2"/><path d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5M10 12v1.5"/></svg><svg class="connection-info" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6v.2"/></svg><span class="connection-label">Not secure</span></span>
             <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
+            <button type="button" class="bookmark-page" id="bookmark-page" title="Bookmark this page (Ctrl+D)" aria-label="Bookmark this page" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button>
+            <div id="address-suggestions" class="search-suggestions" hidden></div>
           </div>
           <div class="toolbar-actions">
-            <button type="button" class="icon-button assistant-toolbar-open" id="assistant-toolbar-open" title="Ask Orbit (Ctrl+Space)" aria-label="Open Orbit AI assistant"><span class="assistant-toolbar-orb" aria-hidden="true">✦</span><span class="assistant-toolbar-label" aria-hidden="true">AI</span></button>
+            <button type="button" class="icon-button assistant-toolbar-open" id="assistant-toolbar-open" title="Ask Nova (Ctrl+Space)" aria-label="Open Nova AI assistant"><span class="assistant-toolbar-orb" aria-hidden="true">✦</span><span class="assistant-toolbar-label" aria-hidden="true">AI</span></button>
             <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
             <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
+            <button type="button" class="icon-button history-toggle bookmarks-toggle" id="bookmarks-tab" title="Bookmarks (Ctrl+Shift+B)" aria-label="Bookmarks" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4-6 4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <button type="button" class="icon-button history-toggle" id="history-tab" title="History (Ctrl+H)" aria-label="History" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10a8.5 8.5 0 1 1 1.7 7.5M3.5 4.5V10H9M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           </div>
         </div>
         <div class="tab-row" aria-label="Open tabs">
-          <button type="button" class="cosmos-tab" id="cosmos-tab" title="Orbit view (Ctrl+Shift+O)" aria-label="Orbit view" aria-pressed="false"><svg class="orbit-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><radialGradient id="orbit-planet" cx="38%" cy="35%" r="70%"><stop offset="0" stop-color="#e8fdff"/><stop offset=".45" stop-color="#74e3f0"/><stop offset="1" stop-color="#6a5cff"/></radialGradient></defs><g transform="rotate(-22 12 12)"><path class="orbit-ring" d="M2 12a10 3.6 0 0 1 20 0"/><circle class="orbit-moon" r="1.5"><animateMotion dur="5s" repeatCount="indefinite" path="M22 12a10 3.6 0 1 1 -20 0a10 3.6 0 1 1 20 0"/></circle><circle class="orbit-planet" cx="12" cy="12" r="5" fill="url(#orbit-planet)"/><path class="orbit-ring" d="M22 12a10 3.6 0 0 1 -20 0"/></g></svg></button>
+          <button type="button" class="cosmos-tab" id="cosmos-tab" title="Nova view (Ctrl+Shift+O)" aria-label="Nova view" aria-pressed="false"><svg class="nova-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><radialGradient id="nova-planet" cx="38%" cy="35%" r="70%"><stop offset="0" stop-color="#e8fdff"/><stop offset=".45" stop-color="#74e3f0"/><stop offset="1" stop-color="#6a5cff"/></radialGradient></defs><g transform="rotate(-22 12 12)"><path class="nova-ring" d="M2 12a10 3.6 0 0 1 20 0"/><circle class="nova-moon" r="1.5"><animateMotion dur="5s" repeatCount="indefinite" path="M22 12a10 3.6 0 1 1 -20 0a10 3.6 0 1 1 20 0"/></circle><circle class="nova-planet" cx="12" cy="12" r="5" fill="url(#nova-planet)"/><path class="nova-ring" d="M22 12a10 3.6 0 0 1 -20 0"/></g></svg></button>
           <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
         </div>
         <section id="browser-content" class="browser-content" aria-label="Current web page">
+          <img id="browser-suggestion-preview" class="browser-suggestion-preview" alt="" aria-hidden="true" hidden>
           <div class="browser-placeholder" id="browser-placeholder">
-            <span class="placeholder-orbit">✦</span>
+            <span class="placeholder-nova">✦</span>
             <h2>No page open</h2>
             <p>Enter a web address above to begin.</p>
           </div>
@@ -91,50 +98,88 @@
             </aside>
             <div class="cosmos-stage history-stage" hidden>
               <div class="cosmos-header"><div class="cosmos-header-row"><button type="button" class="cosmos-icon-button history-sidebar-toggle" title="Hide history list" aria-label="Hide history list" aria-controls="history-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.3"/></svg></button><span class="cosmos-title history-period"></span></div><button type="button" class="cosmos-icon-button history-fit" title="Fit matching constellations (F or double-click empty space)" aria-label="Fit journeys"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button></div>
-              <div class="history-tools"><button class="history-orbit history-quiet" aria-pressed="false">Resume orbit</button></div>
+              <div class="history-tools"><button class="history-rotation history-quiet" aria-pressed="false">Resume rotation</button></div>
               <p class="history-empty"></p>
               <p class="history-webgl-note">3D graphics are unavailable. Browse the matching visits in the results list.</p>
               <div class="history-legend"><span><i></i>Navigation</span><span><i></i>Opened in new tab</span><span class="history-summary"></span></div>
-              <div class="cosmos-hint">Click to inspect · Double-click to reopen · Drag to orbit · Scroll to zoom</div>
+              <div class="cosmos-hint">Click to inspect · Double-click to reopen · Drag to rotate · Scroll to zoom</div>
             </div>
             <div class="history-clear-confirm" hidden role="alertdialog" aria-modal="true" aria-label="Delete browsing history"><p>Delete saved page visits and their trails? Your open tabs and website cookies will stay.</p><button class="history-cancel history-quiet">Cancel</button><button class="history-delete history-quiet">Delete history</button></div>
+          </section>
+          <section id="bookmarks" class="cosmos history-page bookmarks-page" hidden aria-label="Saved bookmarks" data-view="list">
+            <header class="history-topbar">
+              <div class="history-page-heading"><h1>Bookmarks</h1><span class="history-view-caption">Your bookmark universe</span></div>
+              <div class="history-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input class="history-search" type="search" placeholder="Search bookmarks" aria-label="Search bookmarks" autocomplete="off"><button class="history-search-clear" aria-label="Clear bookmark search" title="Clear search" hidden>×</button></div>
+              <div class="history-mode-switch" role="group" aria-label="Bookmarks view">
+                <button type="button" class="history-mode" data-mode="list" aria-pressed="false">List</button>
+                <button type="button" class="history-mode active" data-mode="universe" aria-pressed="true">Universe</button>
+                <button type="button" class="history-mode" data-mode="timeline" aria-pressed="false">Timeline</button>
+              </div>
+              <button type="button" class="bookmarks-save-current history-quiet">Save current page</button>
+              <button class="history-clear history-quiet">Clear bookmarks…</button>
+              <button class="history-close cosmos-icon-button" aria-label="Close bookmarks">×</button>
+            </header>
+            <div class="history-list-view">
+              <div class="history-list-heading"><span>SAVED PAGES</span><span class="history-list-count" role="status"></span></div>
+              <div class="history-entry-list" aria-label="Bookmark entries"></div>
+              <button class="history-load-more history-quiet" hidden>Show more bookmarks</button>
+              <p class="history-list-empty" hidden>Save a page with the address-bar star or Ctrl+D.</p>
+            </div>
+            <aside class="cosmos-sidebar" id="bookmarks-sidebar" aria-label="Saved bookmarks grouped by website" hidden>
+              <div class="history-sidebar-heading"><span class="cosmos-title">SAVED BOOKMARKS</span><span class="history-count" role="status"></span></div>
+              <nav class="history-dates" aria-label="Focus a matching date"></nav>
+              <div class="history-sidebar-label">CONSTELLATIONS <span>WEBSITES</span></div>
+              <div class="cosmos-tab-list history-visits" aria-label="Matching bookmarks"></div>
+              <section class="history-details" aria-label="Selected bookmark" hidden></section>
+            </aside>
+            <div class="cosmos-stage history-stage" hidden>
+              <div class="cosmos-header"><div class="cosmos-header-row"><button type="button" class="cosmos-icon-button history-sidebar-toggle" title="Hide bookmarks list" aria-label="Hide bookmarks list" aria-controls="bookmarks-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.3"/></svg></button><span class="cosmos-title history-period"></span></div><button type="button" class="cosmos-icon-button history-fit" title="Fit matching constellations (F or double-click empty space)" aria-label="Fit bookmarks"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button></div>
+              <div class="history-tools"><button class="history-rotation history-quiet" aria-pressed="false">Resume rotation</button></div>
+              <p class="history-empty"></p>
+              <p class="history-webgl-note">3D graphics are unavailable. Browse the matching bookmarks in the results list.</p>
+              <div class="history-legend"><span><i></i>Same website</span><span class="history-summary"></span></div>
+              <div class="cosmos-hint">Click to inspect · Double-click to reopen · Drag to rotate · Scroll to zoom</div>
+            </div>
+            <div class="history-clear-confirm" hidden role="alertdialog" aria-modal="true" aria-label="Delete all bookmarks"><p>Remove all saved bookmarks? Your open tabs and browsing history will stay.</p><button class="history-cancel history-quiet">Cancel</button><button class="history-delete history-quiet">Remove bookmarks</button></div>
           </section>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
             <aside class="cosmos-sidebar" id="cosmos-sidebar" aria-label="Tab information">
               <div class="cosmos-tab-list" id="cosmos-tab-list"></div>
+              <p class="cosmos-sidebar-hint" id="cosmos-sidebar-hint">Shift-click or Ctrl/⌘-click tabs to select multiple</p>
+              <div class="cosmos-selection" id="cosmos-selection" hidden>
+                <span id="cosmos-selection-count" role="status" aria-live="polite">0 tabs selected</span>
+                <button type="button" class="cosmos-selection-group" id="cosmos-group">Group tabs</button>
+                <button type="button" class="cosmos-selection-close" id="cosmos-close-selected">Close selected</button>
+                <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear selection</button>
+              </div>
             </aside>
             <div class="cosmos-stage" id="cosmos-stage">
               <div class="cosmos-header">
-                <div class="cosmos-header-row"><button type="button" class="cosmos-icon-button" id="cosmos-sidebar-toggle" title="Hide tab list" aria-label="Hide tab list" aria-controls="cosmos-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button><button type="button" id="cosmos-stay-toggle" class="cosmos-stay-toggle" role="switch" aria-checked="false" title="New tabs opened with + switch to the web page"><span class="cosmos-switch-track" aria-hidden="true"><i></i></span><span>Keep Orbit open on +</span></button></div>
+                <div class="cosmos-header-row"><button type="button" class="cosmos-icon-button" id="cosmos-sidebar-toggle" title="Hide tab list" aria-label="Hide tab list" aria-controls="cosmos-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button><button type="button" id="cosmos-stay-toggle" class="cosmos-stay-toggle" role="switch" aria-checked="false" title="New tabs opened with + switch to the web page"><span class="cosmos-switch-track" aria-hidden="true"><i></i></span><span>Keep Nova open on +</span></button></div>
                 <button type="button" class="cosmos-icon-button" id="cosmos-reset" title="Reset view: show every tab (or double-click empty space)" aria-label="Reset view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 5.5V2.6c0-.4.4-.8.8-.8h2.9M10.5 1.8h2.9c.4 0 .8.4.8.8v2.9M14.2 10.5v2.9c0 .4-.4.8-.8.8h-2.9M5.5 14.2H2.6c-.4 0-.8-.4-.8-.8v-2.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button>
               </div>
               <div class="cosmos-hint" id="cosmos-hint" hidden></div>
               <div class="cosmos-exploration" id="cosmos-exploration" hidden role="status" aria-live="polite">
-                <span class="cosmos-exploration-kicker">ORBIT AI · EXPLORING</span>
+                <span class="cosmos-exploration-kicker">Nova AI · EXPLORING</span>
                 <span class="cosmos-exploration-title">Charting a course through space…</span>
                 <span class="cosmos-exploration-progress" aria-hidden="true"><i></i></span>
-              </div>
-              <div class="cosmos-selection" id="cosmos-selection" hidden>
-                <span id="cosmos-selection-count">0 tabs selected</span>
-                <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
-                <button type="button" class="cosmos-selection-clear" id="cosmos-clear-selection">Clear</button>
               </div>
             </div>
           </section>
         </section>
-        <aside class="assistant-dock" id="assistant" aria-label="Orbit AI assistant">
-          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Orbit AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Orbit · Ctrl+Space"><span class="assistant-handle-orb" aria-hidden="true">✦</span><span aria-hidden="true">AI</span></button>
-          <section class="assistant-panel" id="assistant-panel" role="complementary" aria-label="Ask Orbit">
+        <aside class="assistant-dock" id="assistant" aria-label="Nova AI assistant">
+          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Nova AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Nova · Ctrl+Space"><span class="assistant-handle-orb" aria-hidden="true">✦</span><span aria-hidden="true">AI</span></button>
+          <section class="assistant-panel" id="assistant-panel" role="complementary" aria-label="Ask Nova">
             <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
             <div class="spotlight-bar">
               <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
-              <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" aria-describedby="chat-input-help" spellcheck="false"></textarea>
+              <textarea id="chat-input" rows="1" placeholder="Ask Nova anything…" aria-label="Message Nova assistant" aria-describedby="chat-input-help" spellcheck="false"></textarea>
               <span class="sr-only" id="chat-input-help">Press Enter to send. Press Shift plus Enter to start a new line.</span>
-              <button type="button" class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Start voice input" aria-pressed="false"><span class="mic-icon" aria-hidden="true">♩</span></button>
+              <button type="button" class="composer-tool" id="voice-input" title="Speak to Nova" aria-label="Start voice input" aria-pressed="false"><span class="mic-icon" aria-hidden="true">♩</span></button>
               <button type="button" class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Enable spoken replies" aria-pressed="false"><span aria-hidden="true">◖))</span></button>
               <button type="button" class="composer-send" id="chat-send" aria-label="Send message" title="Send message" disabled><span aria-hidden="true">➤</span></button>
             </div>
-            <div class="spotlight-body" id="chat-scroll" role="log" aria-label="Conversation with Orbit" aria-live="polite" aria-relevant="additions">
+            <div class="spotlight-body" id="chat-scroll" role="log" aria-label="Conversation with Nova" aria-live="polite" aria-relevant="additions">
               <div class="spotlight-suggestions" id="assistant-suggestions">
                 <div class="suggestion-label">SUGGESTIONS</div>
                 <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
@@ -159,9 +204,9 @@
     <div class="modal-backdrop" id="settings-modal" hidden>
       <section class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <button class="modal-close" data-close-modal aria-label="Close">×</button>
-        <div class="modal-kicker">AI SETTINGS <span>✦</span></div>
-        <h2 id="settings-title">Connect an AI model</h2>
-        <p class="modal-intro">Connect an OpenAI-compatible chat endpoint. Ollama Kimi K3.1 Pro is available through Ollama Cloud; choose a preset below.</p>
+        <div class="modal-kicker">Nova SETTINGS <span>✦</span></div>
+        <h2 id="settings-title">Settings</h2>
+        <p class="modal-intro">Configure the Nova assistant and manage website cookies and cached files. Ollama Kimi K3.1 Pro is available through Ollama Cloud.</p>
         <div class="settings-actions">
           <button type="button" class="text-button" data-ollama-preset="local">Local Ollama API</button>
           <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
@@ -180,8 +225,29 @@
         <input id="elevenlabs-voice" class="settings-input" type="text" placeholder="Default voice" autocomplete="off" spellcheck="false">
         <div class="settings-hint"><span>ⓘ</span> The mic button records until you click it again, then sends the audio to ElevenLabs for transcription. Spoken replies send Orbit's reply text to ElevenLabs.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
+        <section class="browsing-data" aria-labelledby="browsing-data-title">
+          <div class="browsing-data-heading"><div><div class="modal-kicker">BROWSER DATA</div><h3 id="browsing-data-title">Cookies and cache</h3></div><span class="data-device-badge">Saved on this device</span></div>
+          <p class="browsing-data-intro">Cookies and website storage keep you signed in and remember preferences. Cached files help pages load faster.</p>
+          <label class="data-option"><input id="clear-cookies" type="checkbox" checked><span><strong>Cookies and other site data</strong><small>Includes site storage and service workers. May sign you out of websites.</small></span></label>
+          <label class="data-option"><input id="clear-cache" type="checkbox" checked><span><strong>Cached images and files</strong><small>Pages may load more slowly the next time you visit.</small></span></label>
+          <button type="button" class="text-button data-clear-trigger" id="clear-browsing-data">Clear selected data…</button>
+          <div class="data-clear-confirm" id="browsing-data-confirm" hidden role="group" aria-labelledby="browsing-data-confirm-text">
+            <p id="browsing-data-confirm-text"></p>
+            <div><button type="button" class="text-button" id="cancel-clear-browsing-data">Cancel</button><button type="button" class="data-clear-confirm-button" id="confirm-clear-browsing-data">Clear data</button></div>
+          </div>
+          <p class="browsing-data-footnote">Saved browsing history is kept separately.</p>
+        </section>
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog id="bookmark-editor" class="bookmark-editor" aria-labelledby="bookmark-editor-title">
+      <form id="bookmark-editor-form">
+        <header><h2 id="bookmark-editor-title">Edit bookmark</h2><button type="button" id="bookmark-editor-close" class="history-quiet" aria-label="Close bookmark editor">×</button></header>
+        <label for="bookmark-title">Name</label><input id="bookmark-title" name="title" maxlength="512" autocomplete="off">
+        <label for="bookmark-url">Address</label><input id="bookmark-url" name="url" type="url" maxlength="8192" required autocomplete="off" spellcheck="false">
+        <p id="bookmark-editor-error" role="alert" hidden></p>
+        <footer><button type="button" id="bookmark-editor-remove" class="history-quiet">Remove</button><span></span><button type="button" id="bookmark-editor-cancel" class="history-quiet">Cancel</button><button type="submit" class="history-quiet bookmark-editor-save">Save</button></footer>
+      </form>
+    </dialog>
   </body>
 </html>

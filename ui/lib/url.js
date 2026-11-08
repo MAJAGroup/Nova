@@ -1,4 +1,4 @@
-export const HOME_URL = "orbit://newtab";
+export const HOME_URL = "nova://newtab";
 
 // Display-only elision. Preserve paths, queries, fragments, ports and every
 // other subdomain; never rewrite the URL that is loaded, edited or copied.

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; base-uri 'none'">
+  <link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/opsz.css">
+  <link rel="stylesheet" href="styles/tab-resources.css">
+  <title>Tab resources</title>
+</head>
+<body>
+  <section class="resource-card" role="tooltip" aria-label="Tab resource usage">
+    <div class="resource-heading"><span class="resource-nova" aria-hidden="true">✦</span><span>TAB RESOURCES</span><span class="resource-live">LIVE</span></div>
+    <h1 id="resource-title">Loading tab…</h1>
+    <p id="resource-domain"></p>
+    <dl class="resource-metrics" aria-live="polite">
+      <div><dt>Memory</dt><dd id="resource-memory">Measuring…</dd></div>
+      <div><dt>CPU</dt><dd id="resource-cpu">Measuring…</dd></div>
+      <div><dt>Audio</dt><dd id="resource-audio">Checking…</dd></div>
+    </dl>
+    <p id="resource-scope">Page processes · CPU: 100% = one core</p>
+    <p class="resource-refresh">Updates every second while open</p>
+  </section>
+  <script src="tab-resources.js"></script>
+</body>
+</html>

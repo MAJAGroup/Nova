@@ -36,8 +36,8 @@ test('a spoken request opens a side tab beside the page and answers from it', { 
   });
   await new Promise((resolve) => server.listen(0, resolve));
   const url = 'http://localhost:' + server.address().port;
-  const profile = await mkdtemp(path.join(os.tmpdir(), 'orbit-agent-'));
-  await writeFile(path.join(profile, 'orbit-settings.json'), JSON.stringify({ bullsaiUrl: url + '/v1/chat/completions', model: 'test' }));
+  const profile = await mkdtemp(path.join(os.tmpdir(), 'nova-agent-'));
+  await writeFile(path.join(profile, 'nova-settings.json'), JSON.stringify({ bullsaiUrl: url + '/v1/chat/completions', model: 'test' }));
   let app;
   const until = async (check, label) => {
     const end = Date.now() + 20000;
@@ -49,15 +49,15 @@ test('a spoken request opens a side tab beside the page and answers from it', { 
   try {
     app = await electron.launch({
       args: ['--use-fake-device-for-media-stream', path.resolve('.')],
-      env: { ...process.env, ORBIT_USER_DATA: profile, ORBIT_START_URL: url + '/home', ORBIT_TEST_HIDDEN: '1', ELEVENLABS_API_KEY: 'test-key', BULLSAI_API_KEY: 'test-chat-key' }
+      env: { ...process.env, NOVA_USER_DATA: profile, NOVA_START_URL: url + '/home', NOVA_TEST_HIDDEN: '1', ELEVENLABS_API_KEY: 'test-key', BULLSAI_API_KEY: 'test-chat-key' }
     });
     const shell = await app.firstWindow();
     shell.setDefaultTimeout(15000);
     const errors = [];
     shell.on('pageerror', (error) => errors.push(error.message));
-    await until(() => shell.evaluate(() => document.documentElement.dataset.orbitReady === 'true'), 'UI');
+    await until(() => shell.evaluate(() => document.documentElement.dataset.novaReady === 'true'), 'UI');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
-    const tabsNow = () => shell.evaluate(() => window.orbitBrowser.getTabs());
+    const tabsNow = () => shell.evaluate(() => window.novaBrowser.getTabs());
     await until(async () => (await tabsNow()).tabs.some((tab) => tab.title === 'Home page' && !tab.loading), 'home page');
 
     // Mock ElevenLabs inside the main process.

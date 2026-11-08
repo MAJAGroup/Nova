@@ -17,7 +17,10 @@ const SYSTEM_PROMPT = [
   "Rules:",
   "- \"groups\" lists the groups to create or update. Use 1 to 3 word names. Reuse an existing group's exact name to add tabs to it.",
   "- Each tab number appears in at most one group. Only use numbers from the list.",
-  "- A group may hold a single tab only if the user asked for it.",
+  "- A group may hold a single tab only if the user asked for it, including when they ask to categorize all tabs by type.",
+  "- When asked to group tabs by type or category, infer each tab's kind from its title and URL. Use only categories supported by the open pages, such as news, research, video, shopping, social, work, or developer tools; don't group only by website domain unless requested.",
+  "- If the user asks to ungroup all tabs and then group or reorganize them, treat it as a full reorganization: classify every tab into a suitable group or list it in \"ungroup\". Do not leave any previous group assignments in place for tabs omitted from the plan.",
+  "- If the user asks only to ungroup every tab, list every tab number in \"ungroup\" and return no groups.",
   "- \"ungroup\" lists tabs that should end up in no group (for example tabs that fit no group when the user asked to reorganise everything). Leave out tabs the instruction doesn't concern; they stay as they are.",
   "- If the instruction can't be carried out, return empty lists and explain why in \"reply\"."
 ].join("\n");

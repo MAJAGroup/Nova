@@ -11,6 +11,7 @@
 .browser-tab-favicon{width:15px;height:15px;border-radius:4px;background:#303d67;color:#bcd0ff;display:grid;place-items:center;font-size:8px;flex:none;overflow:hidden}
 .browser-tab-favicon img{width:15px;height:15px;object-fit:contain}
 .browser-tab.grouped{box-shadow:inset 0 -2px 0 var(--group-color)}
+.tab-resource-description{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
 @container (max-width:112px){
   .browser-tab-title{display:none}
   .browser-tab-close{width:14px}
@@ -22,14 +23,14 @@
 .tab-singularity{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:radial-gradient(circle,#000 0 30%,#fff1d8 33%,#ffab5c 39%,rgba(255,122,48,.45) 50%,rgba(255,110,40,.12) 62%,transparent 70%);box-shadow:0 0 14px 3px rgba(255,138,60,.35)}
 .tab-singularity::before{content:"";position:absolute;z-index:1;left:-75%;right:-75%;top:45%;height:10%;border-radius:50%;background:linear-gradient(90deg,transparent,#ff8a3d 22%,#fff3dc 48%,#ffd0a0 55%,#ff8a3d 78%,transparent);filter:blur(.5px)}
 .tab-singularity::after{content:"";position:absolute;inset:31%;border-radius:50%;background:#000;box-shadow:0 0 0 1px #ffe0b0aa}
-/* Orbit view button: a small glowing planet with a tilted ring and a moon
+/* Nova view button: a small glowing planet with a tilted ring and a moon
    circling it, so it stands apart from the web tabs. */
 .cosmos-tab{position:relative;width:40px;height:29px;display:grid;place-items:center;padding:0;border:1px solid #2d4a66;border-radius:8px;background:radial-gradient(circle at 50% 55%,#1b3350 0,#0f1a2e 70%);box-shadow:0 0 12px -2px #5fd6ff55,inset 0 0 8px #5fd6ff1f;transition:box-shadow .2s ease,border-color .2s ease,transform .2s ease}
 .cosmos-tab:hover{border-color:#4b80a8;box-shadow:0 0 16px 0 #5fd6ff77,inset 0 0 10px #5fd6ff33;transform:translateY(-1px)}
 .cosmos-tab.active{border-color:#7fe9f5;background:radial-gradient(circle at 50% 55%,#21456a 0,#122440 70%);box-shadow:0 0 18px 1px #5fd6ffaa,inset 0 0 10px #8ff3ff44}
-.orbit-icon{width:24px;height:24px;overflow:visible;filter:drop-shadow(0 0 3px #6fe6ff99)}
-.orbit-ring{fill:none;stroke:#9eefff;stroke-width:1.3;stroke-linecap:round}
-.orbit-moon{fill:#ffd27a;filter:drop-shadow(0 0 2px #ffd27a)}
-.cosmos-tab:hover .orbit-ring,.cosmos-tab.active .orbit-ring{stroke:#d8fbff}
-@media (prefers-reduced-motion:reduce){.orbit-moon{display:none}}
+.nova-icon{width:24px;height:24px;overflow:visible;filter:drop-shadow(0 0 3px #6fe6ff99)}
+.nova-ring{fill:none;stroke:#9eefff;stroke-width:1.3;stroke-linecap:round}
+.nova-moon{fill:#ffd27a;filter:drop-shadow(0 0 2px #ffd27a)}
+.cosmos-tab:hover .nova-ring,.cosmos-tab.active .nova-ring{stroke:#d8fbff}
+@media (prefers-reduced-motion:reduce){.nova-moon{display:none}}
 .browser-tab.side{border-color:#2f5a6b;border-style:dashed;color:#cfe9f2}

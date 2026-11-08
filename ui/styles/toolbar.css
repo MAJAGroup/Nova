@@ -1,8 +1,11 @@
 /* Navigation and address controls occupy their own, centered top row. */
-.browser-toolbar{height:44px;flex:none;display:grid;grid-template-columns:minmax(76px,1fr) minmax(220px,min(560px,48vw)) minmax(76px,1fr);align-items:center;gap:12px;padding:0 10px;border-bottom:1px solid var(--line);background:#0b1020}
+.browser-toolbar{height:44px;flex:none;display:grid;grid-template-columns:minmax(116px,1fr) minmax(220px,min(560px,48vw)) minmax(76px,1fr);align-items:center;gap:12px;padding:0 10px;border-bottom:1px solid var(--line);background:#0b1020}
 .browser-nav{grid-column:1;display:flex;align-items:center;gap:1px;min-width:0}
+.browser-toolbar{position:relative;z-index:10}
+.address-bar{position:relative}
 .browser-nav .icon-button{font-size:20px;color:#95a2bf}
 .browser-nav #reload-page{font-size:16px}
+.browser-nav #go-home svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .address-bar{grid-column:2;height:30px;min-width:0;display:flex;align-items:center;padding:0 11px;border:1px solid #202a43;background:#0c1323;border-radius:8px;transition:.2s}
 .address-bar:focus-within{border-color:#5e75dc;box-shadow:0 0 0 3px #6d87ff16}
 .address-bar input{background:transparent;border:0;outline:0;color:#e8edff;font-size:12px;flex:1;min-width:0}
@@ -26,6 +29,6 @@
 .history-toggle.active{color:#8fe8ff;background:#14203a}
 
 @media(max-width:680px){
-  .browser-toolbar{grid-template-columns:minmax(72px,1fr) minmax(100px,1.8fr) minmax(94px,1fr);gap:6px;padding:0 6px}
+  .browser-toolbar{grid-template-columns:minmax(100px,1fr) minmax(100px,1.8fr) minmax(94px,1fr);gap:6px;padding:0 6px}
   .browser-nav .icon-button{width:24px}
 }

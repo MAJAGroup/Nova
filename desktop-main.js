@@ -10,6 +10,7 @@ const {
   safeStorage,
   screen,
   shell,
+  net,
   session
 } = require("electron");
 const fs = require("node:fs/promises");
@@ -23,9 +24,17 @@ const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 const { runAgent } = require("./ai-agent");
 
 const { HistoryStore } = require("./history-store");
+const { BookmarkStore } = require("./bookmark-store");
+const { registerLinuxDesktop } = require("./linux-desktop");
+const { createTabResourceView } = require("./tab-resources-view");
+const { configureNovaProfile } = require("./profile-migration");
 const { trackConnectionSecurity } = require("./connection-security");
-if (process.env.ORBIT_USER_DATA) app.setPath("userData", process.env.ORBIT_USER_DATA);
+const { localSuggestions, createWebSuggestions } = require("./search-suggestions.cjs");
+const fetchWebSuggestions = createWebSuggestions((url, options) => net.fetch(url, options));
+const suggestionRequests = new Map();
+const launch = configureNovaProfile(app);
 let visitHistory;
+let bookmarks;
 
 const tabs = new Map();
 const groups = createTabGroups();
@@ -33,6 +42,7 @@ const permissionGrants = new Map();
 const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
 let mainWindow = null;
 let assistantHandleView = null;
+let tabResourceView = null;
 let activeTabId = null;
 // A tab the assistant opened beside the current page. It is an ordinary tab
 // shown next to the active one until it is closed or switched to.
@@ -45,7 +55,7 @@ let settingsCache = null;
 
 function normalizeDestination(input) {
   const value = String(input || "").trim();
-  if (!value || value === "orbit://newtab" || value === "orbit://newtab/" || isStartPage(value)) return START_PAGE_URL;
+  if (!value || value === "nova://newtab" || value === "nova://newtab/" || isStartPage(value)) return START_PAGE_URL;
 
   const looksLikeHost = /^(localhost(?::\d+)?|[\w-]+(?:\.[\w-]+)+(?:\/[^\s]*)?)$/i.test(value);
   if (looksLikeHost) {
@@ -75,8 +85,9 @@ function tabSnapshot(tab) {
   return {
     id: tab.id,
     title: tab.title || "New tab",
-    url: isStartPage(tab.url) ? "orbit://newtab" : tab.url || "",
+    url: isStartPage(tab.url) ? "nova://newtab" : tab.url || "",
     isStartPage: isStartPage(tab.url),
+    bookmarked: bookmarks.has(tab.url),
     favicon: tab.favicon || "",
     active: tab.id === activeTabId,
     side: tab.id === sideTabId,
@@ -85,7 +96,7 @@ function tabSnapshot(tab) {
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
     currentVisit: tab.currentVisit,
-    connection: isStartPage(tab.url) ? { state: "local", message: "Orbit start page — stored on this device" } : tab.connection?.snapshot(tab.url),
+    connection: isStartPage(tab.url) ? { state: "local", message: "Nova start page — stored on this device" } : tab.connection?.snapshot(tab.url),
     groupId: tab.groupId || null
   };
 }
@@ -102,8 +113,10 @@ function tabsPayload() {
 
 function sendTabs() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  tabResourceView?.refresh();
   mainWindow.webContents.send("browser:tabs-updated", tabsPayload());
   mainWindow.webContents.send("browser:history-updated", visitHistory.snapshot(tabs));
+  mainWindow.webContents.send("browser:bookmarks-updated", bookmarks.snapshot(tabs));
 }
 
 // Puts tabs into a group: an existing one (groupId) or a new one (optional
@@ -148,6 +161,18 @@ function showTabMenu(id) {
   }
   if (current) {
     template.push(
+      ...(others.length ? [{
+        label: "Merge all tabs into…",
+        submenu: others.map((group) => ({
+          label: group.name,
+          click: () => {
+            const memberIds = Array.from(tabs.values())
+              .filter((member) => String(member.groupId) === String(current.id))
+              .map((member) => member.id);
+            groupTabs(memberIds, { groupId: group.id });
+          }
+        }))
+      }] : []),
       { type: "separator" },
       { label: "Remove from " + current.name, click: () => ungroupTabs([tab.id]) },
       { label: "Rename " + current.name + "…", click: () => sendCommand("rename-group", { focusUI: true, arg: current.id }) },
@@ -185,6 +210,7 @@ function updateWebViewVisibility() {
     assistantHandleView.setVisible(shouldShow);
     if (shouldShow) mainWindow.contentView.addChildView(assistantHandleView);
   }
+  tabResourceView?.raise();
 }
 
 // After the active tab goes away: the most recent remaining tab, preferring
@@ -290,6 +316,7 @@ function attachWebContentsHandlers(tab) {
     sendTabs();
   });
   contents.on("destroyed", () => {
+    suggestionRequests.get(contents.id)?.abort(); suggestionRequests.delete(contents.id);
     if (!tabs.has(tab.id)) return;
     tabs.delete(tab.id);
     if (sideTabId === tab.id) sideTabId = null;
@@ -310,7 +337,8 @@ function createTab(url, { groupId = null, openerVisit = null, activate = true, s
   const id = String(nextTabId++);
   const view = new WebContentsView({
     webPreferences: {
-      partition: "persist:orbit",
+      partition: "persist:nova",
+      preload: path.join(__dirname, "search-preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -375,7 +403,7 @@ function closeTab(id) {
 }
 
 async function settingsPath() {
-  return path.join(app.getPath("userData"), "orbit-settings.json");
+  return path.join(app.getPath("userData"), "nova-settings.json");
 }
 
 async function hasProtectedSecretStore() {
@@ -494,7 +522,7 @@ function installPermissionPrompts() {
         midi: "use MIDI devices",
         "clipboard-read": "read clipboard content"
       };
-      const displayOrigin = origin === "file://" ? "ORBIT desktop" : origin;
+      const displayOrigin = origin === "file://" ? "Nova desktop" : origin;
       const answer = await dialog.showMessageBox(mainWindow, {
         type: "question",
         buttons: ["Allow", "Block"],
@@ -512,7 +540,7 @@ function installPermissionPrompts() {
     });
   };
   configureSession(session.defaultSession);
-  configureSession(session.fromPartition("persist:orbit"));
+  configureSession(session.fromPartition("persist:nova"));
 }
 
 function sendCommand(command, { focusUI = false, arg } = {}) {
@@ -524,7 +552,7 @@ function sendCommand(command, { focusUI = false, arg } = {}) {
 function createApplicationMenu() {
   const template = [
     {
-      label: "ORBIT",
+      label: "Nova",
       submenu: [
         { role: "about" },
         { type: "separator" },
@@ -537,6 +565,7 @@ function createApplicationMenu() {
       label: "File",
       submenu: [
         { label: "New Tab", accelerator: "CommandOrControl+T", click: () => sendCommand("new-tab") },
+        { label: "Bookmark This Page", accelerator: "CommandOrControl+D", click: () => sendCommand("bookmark-page", { focusUI: true }) },
         { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => sendCommand("close-tab") },
         { type: "separator" },
         { role: "quit" }
@@ -549,8 +578,9 @@ function createApplicationMenu() {
         { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
         { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
         { label: "History constellation", accelerator: "CommandOrControl+H", click: () => sendCommand("history", { focusUI: true }) },
+        { label: "Bookmarks", accelerator: "CommandOrControl+Shift+B", click: () => sendCommand("bookmarks", { focusUI: true }) },
         { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
-        { label: "Ask Orbit", accelerator: "Control+Space", click: () => sendCommand("assistant", { focusUI: true }) },
+        { label: "Ask Nova", accelerator: "Control+Space", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
         { role: "toggleDevTools" }
       ]
@@ -569,7 +599,7 @@ function createWindow() {
   const width = Math.max(minWidth, Math.min(1500, Math.round(workArea.width * 0.75)));
   const height = Math.max(minHeight, Math.min(940, Math.round(workArea.height * 0.75)));
   const win = new BrowserWindow({
-    show: process.env.ORBIT_TEST_HIDDEN !== "1",
+    show: !launch.testHidden,
     width,
     height,
     minWidth,
@@ -578,10 +608,11 @@ function createWindow() {
     resizable: true,
     maximizable: true,
     backgroundColor: "#080d1c",
-    title: "ORBIT",
+    title: "Nova",
+    icon: path.join(__dirname, "assets", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "desktop-preload.js"),
-      backgroundThrottling: process.env.ORBIT_TEST_HIDDEN !== "1",
+      backgroundThrottling: !launch.testHidden,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -589,6 +620,7 @@ function createWindow() {
     }
   });
   mainWindow = win;
+  tabResourceView = createTabResourceView({ window: win, tabs, getMetrics: () => app.getAppMetrics() });
   browserBounds = { ...hiddenBounds };
   assistantExpanded = false;
   assistantHandleView = new WebContentsView({
@@ -616,10 +648,11 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
-    if (mainWindow === win && tabs.size === 0) createTab(process.env.ORBIT_START_URL);
+    if (mainWindow === win && tabs.size === 0) createTab(launch.startUrl);
   });
   win.on("closed", () => {
     if (mainWindow === win) {
+      tabResourceView?.dispose(); tabResourceView = null;
       mainWindow = null;
       browserBounds = { ...hiddenBounds };
       for (const tab of tabs.values()) {
@@ -649,6 +682,66 @@ function clampBounds(bounds) {
 
 function registerIPC() {
   const fromShell = event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  ipcMain.on("browser:show-tab-resources", (event, payload) => {
+    if (fromShell(event) && typeof payload?.id === "string") tabResourceView?.show(payload.id, payload.anchor);
+  });
+  ipcMain.on("browser:hide-tab-resources", (event, immediate) => {
+    if (!fromShell(event)) return;
+    if (immediate === true) tabResourceView?.hide(); else tabResourceView?.scheduleHide();
+  });
+  ipcMain.on("tab-resources:pointer", (event, inside) => { if (tabResourceView?.owns(event)) tabResourceView.pointer(inside === true); });
+  ipcMain.on("tab-resources:dismiss", event => { if (tabResourceView?.owns(event)) tabResourceView.hide(); });
+  ipcMain.handle("browser:get-bookmarks", event => fromShell(event) ? bookmarks.snapshot(tabs) : []);
+  const changeBookmark = (event, operation) => {
+    if (!fromShell(event)) return { ok: false, error: "Bookmarks can only be changed in Nova." };
+    try { const bookmark = operation(); sendTabs(); return { ok: true, bookmark }; }
+    catch (error) { return { ok: false, error: error.message }; }
+  };
+  ipcMain.handle("browser:save-bookmark", (event, input) => changeBookmark(event, () => {
+    if (input?.id) {
+      if (typeof input.id !== "string") throw Error("Invalid bookmark.");
+      return bookmarks.save({ id: input.id, title: input.title, url: input.url });
+    }
+    const tab = tabs.get(activeTabId);
+    if (!tab || !isWebUrl(tab.url)) throw Error("Open a website to bookmark it.");
+    return bookmarks.save({ url: tab.url, title: tab.title, favicon: tab.favicon });
+  }));
+  ipcMain.handle("browser:remove-bookmark", (event, id) => changeBookmark(event, () => bookmarks.remove(id)));
+  ipcMain.handle("browser:clear-bookmarks", event => changeBookmark(event, () => bookmarks.clear()));
+  ipcMain.handle("browser:open-bookmark", (event, id) => {
+    if (!fromShell(event)) return false;
+    const bookmark = bookmarks.items.find(item => item.id === id); if (!bookmark) return false;
+    const live = bookmarks.snapshot(tabs).find(item => item.id === id)?.liveTabId;
+    return live ? setActiveTab(live) : createTab(bookmark.url);
+  });
+  const fromSearchUI = event => fromShell(event) || (event.senderFrame === event.sender.mainFrame && isStartPage(event.sender.getURL()) && Array.from(tabs.values()).some(tab => tab.view.webContents === event.sender));
+  ipcMain.handle("browser:suggest-local", (event, query) => {
+    if (!fromSearchUI(event) || typeof query !== "string" || query.length > 8192) return [];
+    return localSuggestions(query, { visits: visitHistory.nodes, bookmarks: bookmarks.items, tabs: Array.from(tabs.values()).map(tab => ({ id: tab.id, title: tab.title, url: tab.url, lastAccessed: tab.lastAccessed })), activeId: activeTabId });
+  });
+  ipcMain.handle("browser:suggest-web", async (event, query) => {
+    if (!fromSearchUI(event) || typeof query !== "string" || query.length > 100) return [];
+    const id = event.sender.id;
+    suggestionRequests.get(id)?.abort();
+    const controller = new AbortController(); suggestionRequests.set(id, controller);
+    try { return await fetchWebSuggestions(query, AbortSignal.any([controller.signal, AbortSignal.timeout(2500)])); }
+    finally { if (suggestionRequests.get(id) === controller) suggestionRequests.delete(id); }
+  });
+  ipcMain.on("browser:suggest-cancel", event => {
+    if (!fromSearchUI(event)) return;
+    suggestionRequests.get(event.sender.id)?.abort(); suggestionRequests.delete(event.sender.id);
+  });
+  ipcMain.handle("browser:choose-suggestion", (event, suggestion) => {
+    if (!fromSearchUI(event) || !suggestion || typeof suggestion.value !== "string" || suggestion.value.length > 8192) return false;
+    if (suggestion.kind === "tab") return setActiveTab(suggestion.tabId);
+    if (suggestion.kind !== "url" && suggestion.kind !== "search") return false;
+    const value = suggestion.value.trim(); if (!value) return false;
+    const url = suggestion.kind === "search" ? "https://www.google.com/search?q=" + encodeURIComponent(value) : value;
+    if (!isWebUrl(url) && url !== "nova://newtab") return false;
+    const tab = tabs.get(activeTabId);
+    if (!tab) return createTab(url);
+    tab.freshNavigation = true; tab.view.webContents.loadURL(normalizeDestination(url)).catch(() => {}); return true;
+  });
   ipcMain.handle("browser:get-history", event => fromShell(event) ? visitHistory.snapshot(tabs) : []);
   ipcMain.handle("browser:open-history", (event, id) => {
     if (!fromShell(event)) return false;
@@ -663,6 +756,26 @@ function registerIPC() {
     visitHistory.clear(tabs);
     sendTabs();
     return true;
+  });
+  ipcMain.handle("browser:clear-browsing-data", async (event, options = {}) => {
+    if (!fromShell(event)) return { ok: false, error: "This action is only available in Nova settings." };
+    options = options && typeof options === "object" ? options : {};
+    const cookies = options.cookies === true;
+    const cache = options.cache === true;
+    if (!cookies && !cache) return { ok: false, error: "Choose cookies/site data, cached files, or both." };
+
+    const dataTypes = [];
+    if (cookies) dataTypes.push("cookies", "backgroundFetch", "fileSystems", "indexedDB", "localStorage", "serviceWorkers", "webSQL");
+    if (cache) dataTypes.push("cache");
+    const browserSession = session.fromPartition("persist:nova");
+    try {
+      await browserSession.clearData({ dataTypes });
+      if (cookies) await browserSession.clearStorageData({ storages: ["cachestorage"] });
+      return { ok: true, cookies, cache };
+    } catch (error) {
+      console.error("Could not clear browsing data:", error.message);
+      return { ok: false, error: "Nova could not clear the selected browsing data." };
+    }
   });
   ipcMain.handle("browser:get-tabs", () => tabsPayload());
   ipcMain.handle("browser:group-tabs", (_event, tabIds, options) => groupTabs(tabIds, {
@@ -751,7 +864,7 @@ function registerIPC() {
     const origin = endpointOrigin(url);
     if (apiKey) {
       if (!await hasProtectedSecretStore()) {
-        return { ok: false, error: "OS-backed secret storage is unavailable. Set OLLAMA_API_KEY or BULLSAI_API_KEY before launching ORBIT." };
+        return { ok: false, error: "OS-backed secret storage is unavailable. Set OLLAMA_API_KEY or BULLSAI_API_KEY before launching Nova." };
       }
       const encrypted = await safeStorage.encryptStringAsync(apiKey);
       next.apiKeyCiphertext = encrypted.toString("base64");
@@ -776,7 +889,7 @@ function registerIPC() {
     const endpoint = await resolveAIEndpoint();
     if (!endpoint.ok) return endpoint;
     const prompt = String(request && request.prompt || "").trim().slice(0, 6000);
-    if (!prompt) return { ok: false, error: "Type a question for Orbit." };
+    if (!prompt) return { ok: false, error: "Type a question for Nova." };
     const context = Array.isArray(request.context) ? request.context.slice(0, 80).map((tab) => ({
       title: String(tab.title || "Untitled").slice(0, 300),
       url: String(tab.url || "").slice(0, 1000),
@@ -838,6 +951,10 @@ function registerIPC() {
     // Snapshot the order now; the plan refers to tabs by position in it.
     const ordered = Array.from(tabs.values()).slice(0, 120);
     if (!ordered.length) return { ok: false, error: "There are no open tabs to group." };
+    const fullReorganization = /^ungroup\b/i.test(instruction) &&
+      /\b(?:all|every|each)\s+(?:of\s+)?(?:the\s+|my\s+)?(?:open\s+)?tabs?\b/i.test(instruction) &&
+      /\b(?:and|then|afterwards?)\b/i.test(instruction) &&
+      /\b(?:group|regroup|organi[sz]e|categori[sz]e|sort|arrange)\b/i.test(instruction);
     const listing = ordered.map((tab) => {
       const group = tab.groupId ? groups.get(tab.groupId) : null;
       return { title: tab.title, url: tab.url, group: group ? group.name : "" };
@@ -846,7 +963,7 @@ function registerIPC() {
     if (!result.ok) return result;
     const plan = parseGroupingPlan(result.text, ordered.length);
     if (!plan) return { ok: false, error: "The model's answer wasn't a grouping plan I could use. Try rephrasing." };
-    return { ok: true, ...applyGroupingPlan(plan, ordered) };
+    return { ok: true, ...applyGroupingPlan(plan, ordered, { resetExistingGroups: fullReorganization && plan.groups.length > 0 }) };
   });
 }
 
@@ -1045,9 +1162,17 @@ async function chatCompletion(endpoint, messages, { json = false, maxTokens = 10
 
 // Applies a parsed plan to the tabs it was made from. Tabs closed while the
 // model was thinking are skipped. Returns a summary for the assistant.
-function applyGroupingPlan(plan, ordered) {
+function applyGroupingPlan(plan, ordered, { resetExistingGroups = false } = {}) {
   const live = (indexes) => indexes.map((index) => ordered[index]).filter((tab) => tab && tabs.get(tab.id) === tab);
   const summary = [];
+  const previouslyGrouped = new Set();
+  if (resetExistingGroups) {
+    for (const tab of ordered) {
+      if (tabs.get(tab.id) !== tab || !tab.groupId) continue;
+      previouslyGrouped.add(tab.id);
+      tab.groupId = null;
+    }
+  }
   for (const entry of plan.groups) {
     const members = live(entry.indexes);
     if (!members.length) continue;
@@ -1059,11 +1184,32 @@ function applyGroupingPlan(plan, ordered) {
   const ungrouped = live(plan.ungroup);
   for (const tab of ungrouped) tab.groupId = null;
   sendTabs();
-  return { groups: summary, ungrouped: ungrouped.length, reply: plan.reply };
+  const ungroupedCount = resetExistingGroups
+    ? ordered.filter(tab => tabs.get(tab.id) === tab && previouslyGrouped.has(tab.id) && !tab.groupId).length
+    : ungrouped.length;
+  return { groups: summary, ungrouped: ungroupedCount, reply: plan.reply };
 }
 
-app.whenReady().then(() => {
-  try { visitHistory = new HistoryStore(path.join(app.getPath("userData"), "orbit-history.json")); }
+app.whenReady().then(async () => {
+  if (process.platform === "win32") app.setAppUserModelId("edu.buffalo.nova");
+  if (process.platform === "linux" && !launch.testHidden) {
+    const appImage = app.isPackaged ? process.env.APPIMAGE : null;
+    const executable = appImage || process.execPath;
+    const args = appImage && process.env.APPIMAGE_EXTRACT_AND_RUN === "1" ? ["--appimage-extract-and-run"] : app.isPackaged ? [] : [app.getAppPath()];
+    try {
+      await registerLinuxDesktop({
+        dataHome: process.env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share"),
+        iconPath: path.join(__dirname, "assets", "icon.png"), executable, args
+      });
+    } catch (error) { console.error("Could not register the Nova desktop icon:", error.message); }
+  }
+  try { bookmarks = new BookmarkStore(path.join(app.getPath("userData"), "nova-bookmarks.json")); }
+  catch (error) {
+    console.error("Bookmarks could not be loaded:", error.message);
+    bookmarks = new BookmarkStore(null);
+    dialog.showErrorBox("Bookmarks unavailable", "Your bookmarks file could not be read. It has been left untouched; new bookmarks will only last for this session.");
+  }
+  try { visitHistory = new HistoryStore(path.join(app.getPath("userData"), "nova-history.json")); }
   catch (error) {
     // Preserve an unreadable file instead of overwriting the user's history.
     console.error("History could not be loaded:", error.message);

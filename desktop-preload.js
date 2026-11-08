@@ -2,10 +2,32 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("orbitBrowser", {
+contextBridge.exposeInMainWorld("novaBrowser", {
+  showTabResources: (id, anchor) => ipcRenderer.send("browser:show-tab-resources", { id, anchor }),
+  hideTabResources: immediate => ipcRenderer.send("browser:hide-tab-resources", immediate === true),
+  onTabResourcesUpdated: callback => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("browser:tab-resources-updated", listener);
+    return () => ipcRenderer.removeListener("browser:tab-resources-updated", listener);
+  },
+  getBookmarks: () => ipcRenderer.invoke("browser:get-bookmarks"),
+  saveBookmark: bookmark => ipcRenderer.invoke("browser:save-bookmark", bookmark),
+  removeBookmark: id => ipcRenderer.invoke("browser:remove-bookmark", id),
+  openBookmark: id => ipcRenderer.invoke("browser:open-bookmark", id),
+  clearBookmarks: () => ipcRenderer.invoke("browser:clear-bookmarks"),
+  onBookmarksUpdated: callback => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("browser:bookmarks-updated", listener);
+    return () => ipcRenderer.removeListener("browser:bookmarks-updated", listener);
+  },
+  getLocalSuggestions: query => ipcRenderer.invoke("browser:suggest-local", query),
+  getWebSuggestions: query => ipcRenderer.invoke("browser:suggest-web", query),
+  cancelSuggestions: () => ipcRenderer.send("browser:suggest-cancel"),
+  chooseSuggestion: suggestion => ipcRenderer.invoke("browser:choose-suggestion", suggestion),
   getHistory: () => ipcRenderer.invoke("browser:get-history"),
   openHistory: (id) => ipcRenderer.invoke("browser:open-history", id),
   clearHistory: () => ipcRenderer.invoke("browser:clear-history"),
+  clearBrowsingData: (options) => ipcRenderer.invoke("browser:clear-browsing-data", options),
   onHistoryUpdated: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("browser:history-updated", listener);

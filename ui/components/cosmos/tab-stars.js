@@ -45,7 +45,7 @@ function sprite(color, opacity) {
 function labelHTML(tab) {
   const domain = domainOf(tab.url);
   const mark = tab.favicon
-    ? '<img src="' + escapeHTML(tab.favicon) + '" alt="">'
+    ? '<img src="' + escapeHTML(tab.favicon) + '" alt="" draggable="false">'
     : escapeHTML(domain.slice(0, 1).toUpperCase());
   return '<span class="star-label-pill">' +
     '<span class="star-label-mark">' + mark + "</span>" +
@@ -211,6 +211,9 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSour
       if (sink && sink.feed) sink.feed(0.65);
     }
     element.addEventListener("click", (event) => onSelect(star.tab, event));
+    // Favicons are nested in the star button. Prevent Chromium's native image
+    // drag so pointer movement always belongs to the star object.
+    element.addEventListener("dragstart", (event) => event.preventDefault());
     element.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       onContextMenu(star.tab);
@@ -451,8 +454,10 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSour
         activeRing.scale.setScalar(reducedMotion() ? 1 : 1 + Math.sin(time * 2.2) * 0.06);
       }
     },
-    pick(raycaster) {
-      const hit = raycaster.intersectObjects(Array.from(stars.values(), (star) => star.halo))[0];
+    pick(raycaster, excludeId = null) {
+      const excluded = excludeId === null ? null : String(excludeId);
+      const hit = raycaster.intersectObjects(Array.from(stars.values(), (star) => star.halo))
+        .find((item) => String(item.object.userData.tabId) !== excluded);
       return hit ? stars.get(hit.object.userData.tabId) : null;
     },
     // While held (being dragged, or dropped on the black hole and waiting
@@ -475,6 +480,9 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSour
     setJoining(star, color) {
       star.element.classList.toggle("joining", Boolean(color));
       if (color) star.element.style.setProperty("--join-color", color);
+    },
+    setDropTarget(star, enabled) {
+      star.element.classList.toggle("drop-target", Boolean(enabled));
     },
     setDoomed(star, doomed) {
       star.doomed = doomed;
