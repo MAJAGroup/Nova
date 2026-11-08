@@ -75,9 +75,9 @@
 .spotlight-link{border:0;background:transparent;color:#8a96b2;font-size:9px;padding:3px 4px;border-radius:5px;white-space:nowrap}
 .spotlight-link:hover{color:#e6ebfa;background:#ffffff0f}
 .spotlight-link b{color:#c6d0e8;font-weight:500}
-#assistant-menu{font-size:13px}
-.spotlight-keys{color:#6c7894;margin-right:2px;white-space:nowrap}
-.spotlight-keys kbd{font:8px var(--font);color:#a6b1ca;border:1px solid #ffffff1c;background:#ffffff0a;border-radius:4px;padding:1px 3px;margin:0 1px 0 4px}
+#assistant-menu{font-size:14px}
+.spotlight-keys{color:#6c7894;margin-right:2px;white-space:nowrap;font-size:10px}
+.spotlight-keys kbd{font:9px var(--font);color:#a6b1ca;border:1px solid #ffffff1c;background:#ffffff0a;border-radius:4px;padding:1px 3px;margin:0 1px 0 4px}
 .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .spotlight-bar:focus-within{box-shadow:inset 0 0 0 2px #9bb2ff;border-radius:7px}
 .composer-tool:focus-visible,.composer-send:focus-visible,.assistant-minimize:focus-visible,.spotlight-link:focus-visible,.assistant-handle:focus-visible{outline:2px solid #c4d3ff;outline-offset:2px}
