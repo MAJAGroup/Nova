@@ -5,3 +5,5 @@
 .placeholder-orbit{width:48px;height:48px;border:1px solid #6378d8;border-radius:50%;display:grid;place-items:center;color:#84dce9;box-shadow:0 0 25px #7289ff44;margin-bottom:14px}
 .browser-placeholder h2{font:600 17px Manrope,sans-serif;margin:0 0 6px}
 .browser-placeholder p{font-size:11px;color:#8996b2;margin:0}
+.browser-suggestion-preview{position:absolute;inset:0 var(--assistant-width,0px) 0 0;width:calc(100% - var(--assistant-width,0px));height:100%;object-fit:fill;pointer-events:none;z-index:1}
+.browser-suggestion-preview[hidden]{display:none}

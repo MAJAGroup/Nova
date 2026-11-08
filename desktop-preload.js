@@ -3,6 +3,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("orbitBrowser", {
+  getLocalSuggestions: query => ipcRenderer.invoke("browser:suggest-local", query),
+  getWebSuggestions: query => ipcRenderer.invoke("browser:suggest-web", query),
+  cancelSuggestions: () => ipcRenderer.send("browser:suggest-cancel"),
+  chooseSuggestion: suggestion => ipcRenderer.invoke("browser:choose-suggestion", suggestion),
   getHistory: () => ipcRenderer.invoke("browser:get-history"),
   openHistory: (id) => ipcRenderer.invoke("browser:open-history", id),
   clearHistory: () => ipcRenderer.invoke("browser:clear-history"),

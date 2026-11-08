@@ -1,6 +1,8 @@
 /* Navigation and address controls occupy their own, centered top row. */
 .browser-toolbar{height:44px;flex:none;display:grid;grid-template-columns:minmax(116px,1fr) minmax(220px,min(560px,48vw)) minmax(76px,1fr);align-items:center;gap:12px;padding:0 10px;border-bottom:1px solid var(--line);background:#0b1020}
 .browser-nav{grid-column:1;display:flex;align-items:center;gap:1px;min-width:0}
+.browser-toolbar{position:relative;z-index:10}
+.address-bar{position:relative}
 .browser-nav .icon-button{font-size:20px;color:#95a2bf}
 .browser-nav #reload-page{font-size:16px}
 .browser-nav #go-home svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}

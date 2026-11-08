@@ -1,14 +1,15 @@
+import { createSearchSuggestions } from "./search-suggestions.js";
 import { el } from "../lib/dom.js";
 import { HOME_URL, normalizeAddress, simplifyAddress } from "../lib/url.js";
 
 // Back / forward / reload, the address bar and the new-tab button.
-export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNewTab = () => browser.newTab() }) {
+export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNewTab = () => browser.newTab(), onSuggestionsVisibilityChange = () => {} }) {
   const omnibox = el("omnibox");
   const cosmosToggle = el("cosmos-toggle");
   const cosmosTab = el("cosmos-tab");
 
   const connection = el("connection-status");
-  let shownTabId = null;
+  let shownTabId = null, suggestions;
   function activeUrl() { return tabs.activeTab()?.isStartPage ? "" : tabs.activeTab()?.url || ""; }
   function showActiveUrl(editing = false) {
     omnibox.value = editing ? activeUrl() : simplifyAddress(activeUrl());
@@ -28,12 +29,31 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNew
     el("go-back").disabled = !active || !active.canGoBack;
     el("go-forward").disabled = !active || !active.canGoForward;
     const switched = shownTabId !== tabs.activeId;
+    if (switched) suggestions?.close();
     shownTabId = tabs.activeId;
     if (document.activeElement !== omnibox) showActiveUrl();
     else if (switched) { showActiveUrl(true); omnibox.select(); }
     showConnection();
   });
 
+  omnibox.addEventListener("focus", () => { showActiveUrl(true); omnibox.select(); showConnection(); });
+  omnibox.addEventListener("pointerdown", event => {
+    if (event.button === 0 && document.activeElement !== omnibox) {
+      event.preventDefault(); omnibox.focus(); omnibox.select();
+    }
+  });
+  omnibox.addEventListener("input", showConnection);
+  omnibox.addEventListener("blur", () => { showActiveUrl(); showConnection(); });
+  omnibox.addEventListener("suggestion-preview", showConnection);
+  suggestions = createSearchSuggestions({
+    input: omnibox, popup: el("address-suggestions"),
+    requestLocal: query => browser.getLocalSuggestions(query),
+    requestWeb: query => browser.getWebSuggestions(query),
+    cancelRequests: () => browser.cancelSuggestions(),
+    onEscape: () => { showActiveUrl(); omnibox.blur(); },
+    onVisibilityChange: onSuggestionsVisibilityChange,
+    onCommit: item => { void browser.chooseSuggestion(item); omnibox.blur(); onNavigate(); }
+  });
   omnibox.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       const query = omnibox.value.trim();
@@ -47,14 +67,7 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNew
       omnibox.blur();
     }
   });
-  omnibox.addEventListener("focus", () => { showActiveUrl(true); omnibox.select(); showConnection(); });
-  omnibox.addEventListener("pointerdown", event => {
-    if (event.button === 0 && document.activeElement !== omnibox) {
-      event.preventDefault(); omnibox.focus(); omnibox.select();
-    }
-  });
-  omnibox.addEventListener("input", showConnection);
-  omnibox.addEventListener("blur", () => { showActiveUrl(); showConnection(); });
+
 
   el("go-back").addEventListener("click", () => browser.goBack());
   el("go-forward").addEventListener("click", () => browser.goForward());

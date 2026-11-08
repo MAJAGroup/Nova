@@ -10,7 +10,8 @@
     "dist": "electron-builder",
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
-    "test:newtab": "node --test tests/newtab*.test.cjs"
+    "test:newtab": "node --test tests/newtab*.test.cjs",
+    "test:suggestions": "node --test tests/suggestions*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -30,6 +31,8 @@
       "README.md",
       "history-store.js",
       "connection-security.js",
+      "search-suggestions.cjs",
+      "search-preload.js",
       {
         "from": "node_modules/three/examples/jsm",
         "to": "node_modules/three/examples/jsm",

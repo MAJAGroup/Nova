@@ -42,6 +42,7 @@ ORBIT opens with a local space start page filling the window. Its point-cloud ga
 ## Use the browser
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
+- **Search suggestions:** The address bar and new-tab search combine matching history, open tabs and Google autocomplete. Use ↑ / ↓ to choose a result and Enter to open it; open-tab results switch to the existing tab. Escape dismisses suggestions. Local results work offline. After a short typing pause, ordinary search phrases are sent to Google for autocomplete without browser cookies; full addresses, email addresses and URL parameters stay local. History is matched on your device.
 - **Read or edit an address:** While browsing, HTTPS addresses omit `https://`, a leading `www.`, and an empty trailing slash. Other subdomains, ports, paths, query parameters and fragments remain visible. HTTP keeps its scheme and a **Not secure** indicator. Click the address bar or press Ctrl+L / Command+L to reveal and select the full address for editing or copying; Escape restores the current page address. Trimming changes only the display.
 - **Check connection security:** A lock appears only when Chromium reports a secure main-page HTTPS response with a currently valid certificate. Hover over it for the issuing authority and expiry. Navigation clears the previous lock; certificate failures and loaded insecure content never receive a lock. If verification is unavailable, ORBIT shows a neutral information icon. Electron continues to reject invalid certificates by default.
 - **Switch tabs:** Use the tab strip next to the address bar.
@@ -73,6 +74,8 @@ History records top-level HTTP(S) visits, including favicons, navigation branche
 **Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. History is not sent to the assistant's model.
 
 Run `npm run test:newtab` for the local start page, particle reveal, WebGL recovery, offline fallback and motion preferences, and `npm run test:address` (with OpenSSL installed) for address and connection states. Run `npm run test:history` for normal-list behavior, live search, native navigation, persistence and geometric checks for crossing or overlapping links. History previews are saved to `artifacts/history-list.png` and `artifacts/history-search-constellations.png`.
+
+Run `npm run test:suggestions` for autocomplete filtering, local ranking, stale-response handling, keyboard selection, tab switching, offline history and suggestions on the new-tab page. Preview images are saved to `artifacts/address-suggestions.png` and `artifacts/newtab-suggestions.png`.
 
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 

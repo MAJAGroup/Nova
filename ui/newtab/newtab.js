@@ -1,4 +1,5 @@
 import { normalizeAddress } from "../lib/url.js";
+import { createSearchSuggestions } from "../components/search-suggestions.js";
 import { createGalaxyScene } from "./galaxy-scene.js";
 
 const canvas = document.getElementById("universe");
@@ -53,6 +54,14 @@ toggle.addEventListener("click", () => {
   try { localStorage.setItem("orbit.start.motionPaused", paused ? "1" : "0"); } catch { /* Optional local preference. */ }
   syncMotion();
 });
+if (window.orbitSearch) {
+  const bridge = window.orbitSearch;
+  createSearchSuggestions({
+    input: document.getElementById("start-search"), popup: document.getElementById("start-suggestions"),
+    requestLocal: query => bridge.getLocalSuggestions(query), requestWeb: query => bridge.getWebSuggestions(query),
+    cancelRequests: () => bridge.cancelSuggestions(), onCommit: item => { void bridge.chooseSuggestion(item); }
+  });
+}
 document.getElementById("search-form").addEventListener("submit", event => {
   event.preventDefault(); const query = document.getElementById("start-search").value.trim();
   if (query) location.assign(normalizeAddress(query));

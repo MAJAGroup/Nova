@@ -26,10 +26,12 @@ function start() {
     return pending;
   };
 
+  let browserView;
   const toolbar = createToolbar({
     browser,
     tabs,
     onNewTab: openNewTab,
+    onSuggestionsVisibilityChange: open => browserView?.setSuggestionsOpen(open),
     onNavigate: () => { cosmos.close(); history.close(); },
     onToggleCosmos: () => { history.close(); cosmos.toggle(); }
   });
@@ -38,7 +40,7 @@ function start() {
     tabs,
     onActivateCurrent: () => { cosmos?.close(); history?.close(); }
   });
-  const browserView = createBrowserView({ browser, tabs });
+  browserView = createBrowserView({ browser, tabs });
   const settings = createSettingsModal({
     browser,
     aiConfig,

@@ -10,6 +10,7 @@ const {
   safeStorage,
   screen,
   shell,
+  net,
   session
 } = require("electron");
 const fs = require("node:fs/promises");
@@ -23,6 +24,9 @@ const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
 const { HistoryStore } = require("./history-store");
 const { trackConnectionSecurity } = require("./connection-security");
+const { localSuggestions, createWebSuggestions } = require("./search-suggestions.cjs");
+const fetchWebSuggestions = createWebSuggestions((url, options) => net.fetch(url, options));
+const suggestionRequests = new Map();
 if (process.env.ORBIT_USER_DATA) app.setPath("userData", process.env.ORBIT_USER_DATA);
 let visitHistory;
 
@@ -283,6 +287,7 @@ function attachWebContentsHandlers(tab) {
     sendTabs();
   });
   contents.on("destroyed", () => {
+    suggestionRequests.get(contents.id)?.abort(); suggestionRequests.delete(contents.id);
     if (!tabs.has(tab.id)) return;
     tabs.delete(tab.id);
     if (activeTabId === tab.id) {
@@ -300,6 +305,7 @@ function createTab(url, { groupId = null, openerVisit = null, activate = true } 
   const view = new WebContentsView({
     webPreferences: {
       partition: "persist:orbit",
+      preload: path.join(__dirname, "search-preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -607,6 +613,34 @@ function createWindow() {
 
 function registerIPC() {
   const fromShell = event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  const fromSearchUI = event => fromShell(event) || (event.senderFrame === event.sender.mainFrame && isStartPage(event.sender.getURL()) && Array.from(tabs.values()).some(tab => tab.view.webContents === event.sender));
+  ipcMain.handle("browser:suggest-local", (event, query) => {
+    if (!fromSearchUI(event) || typeof query !== "string" || query.length > 8192) return [];
+    return localSuggestions(query, { visits: visitHistory.nodes, tabs: Array.from(tabs.values()).map(tab => ({ id: tab.id, title: tab.title, url: tab.url, lastAccessed: tab.lastAccessed })), activeId: activeTabId });
+  });
+  ipcMain.handle("browser:suggest-web", async (event, query) => {
+    if (!fromSearchUI(event) || typeof query !== "string" || query.length > 100) return [];
+    const id = event.sender.id;
+    suggestionRequests.get(id)?.abort();
+    const controller = new AbortController(); suggestionRequests.set(id, controller);
+    try { return await fetchWebSuggestions(query, AbortSignal.any([controller.signal, AbortSignal.timeout(2500)])); }
+    finally { if (suggestionRequests.get(id) === controller) suggestionRequests.delete(id); }
+  });
+  ipcMain.on("browser:suggest-cancel", event => {
+    if (!fromSearchUI(event)) return;
+    suggestionRequests.get(event.sender.id)?.abort(); suggestionRequests.delete(event.sender.id);
+  });
+  ipcMain.handle("browser:choose-suggestion", (event, suggestion) => {
+    if (!fromSearchUI(event) || !suggestion || typeof suggestion.value !== "string" || suggestion.value.length > 8192) return false;
+    if (suggestion.kind === "tab") return setActiveTab(suggestion.tabId);
+    if (suggestion.kind !== "url" && suggestion.kind !== "search") return false;
+    const value = suggestion.value.trim(); if (!value) return false;
+    const url = suggestion.kind === "search" ? "https://www.google.com/search?q=" + encodeURIComponent(value) : value;
+    if (!isWebUrl(url) && url !== "orbit://newtab") return false;
+    const tab = tabs.get(activeTabId);
+    if (!tab) return createTab(url);
+    tab.freshNavigation = true; tab.view.webContents.loadURL(normalizeDestination(url)).catch(() => {}); return true;
+  });
   ipcMain.handle("browser:get-history", event => fromShell(event) ? visitHistory.snapshot(tabs) : []);
   ipcMain.handle("browser:open-history", (event, id) => {
     if (!fromShell(event)) return false;

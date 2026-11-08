@@ -57,6 +57,7 @@ test('address bar trims only its display and tracks verified TLS, mixed content,
     shell = await app.firstWindow(); shell.setDefaultTimeout(10000);
     shell.on('pageerror', error => errors.push(error.message));
     await shell.waitForFunction(() => document.documentElement.dataset.orbitReady === 'true');
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await app.evaluate(({ session }, trustedCertificate) => {
       session.fromPartition('persist:orbit').setCertificateVerifyProc((request, callback) => {
         const now = Date.now() / 1000;

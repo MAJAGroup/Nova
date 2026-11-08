@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/opsz.css">
     <link rel="stylesheet" href="styles/base.css">
     <link rel="stylesheet" href="styles/toolbar.css">
+    <link rel="stylesheet" href="styles/search-suggestions.css">
     <link rel="stylesheet" href="styles/tab-strip.css">
     <link rel="stylesheet" href="styles/browser-view.css">
     <link rel="stylesheet" href="styles/assistant.css">
@@ -38,6 +39,7 @@
           <div class="address-bar">
             <span id="connection-status" class="connection-status" role="img" aria-label="Connection security has not been verified" title="Connection security has not been verified" data-state="unknown"><svg class="connection-lock" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="8.5" width="11" height="8" rx="2"/><path d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5M10 12v1.5"/></svg><svg class="connection-info" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6v.2"/></svg><span class="connection-label">Not secure</span></span>
             <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
+            <div id="address-suggestions" class="search-suggestions" hidden></div>
           </div>
           <div class="toolbar-actions">
             <button type="button" class="icon-button assistant-toolbar-open" id="assistant-toolbar-open" title="Ask Orbit (Ctrl+Space)" aria-label="Open Orbit AI assistant"><span class="assistant-toolbar-orb" aria-hidden="true">✦</span><span class="assistant-toolbar-label" aria-hidden="true">AI</span></button>
@@ -51,6 +53,7 @@
           <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
         </div>
         <section id="browser-content" class="browser-content" aria-label="Current web page">
+          <img id="browser-suggestion-preview" class="browser-suggestion-preview" alt="" aria-hidden="true" hidden>
           <div class="browser-placeholder" id="browser-placeholder">
             <span class="placeholder-orbit">✦</span>
             <h2>No page open</h2>
