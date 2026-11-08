@@ -98,16 +98,18 @@
           </section>
         </section>
         <aside class="assistant-dock" id="assistant" aria-label="Orbit AI assistant">
-          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Orbit AI assistant (Ctrl+Space)" title="Ask Orbit · Ctrl+Space"><span class="assistant-handle-orb">✦</span><span>AI</span></button>
-          <section class="assistant-panel" role="complementary" aria-label="Ask Orbit">
+          <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Orbit AI assistant (Ctrl+Space)" aria-expanded="false" aria-controls="assistant-panel" title="Ask Orbit · Ctrl+Space"><span class="assistant-handle-orb" aria-hidden="true">✦</span><span aria-hidden="true">AI</span></button>
+          <section class="assistant-panel" id="assistant-panel" role="complementary" aria-label="Ask Orbit">
             <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
             <div class="spotlight-bar">
               <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
-              <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" spellcheck="false"></textarea>
-              <button class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Use voice input"><span class="mic-icon">♩</span></button>
-              <button class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Toggle spoken replies"><span>◖))</span></button>
+              <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" aria-describedby="chat-input-help" spellcheck="false"></textarea>
+              <span class="sr-only" id="chat-input-help">Press Enter to send. Press Shift plus Enter to start a new line.</span>
+              <button type="button" class="composer-tool" id="voice-input" title="Speak to Orbit" aria-label="Start voice input" aria-pressed="false"><span class="mic-icon" aria-hidden="true">♩</span></button>
+              <button type="button" class="composer-tool voice-reply-toggle" id="voice-reply" title="Speak assistant replies" aria-label="Enable spoken replies" aria-pressed="false"><span aria-hidden="true">◖))</span></button>
+              <button type="button" class="composer-send" id="chat-send" aria-label="Send message" title="Send message" disabled><span aria-hidden="true">➤</span></button>
             </div>
-            <div class="spotlight-body" id="chat-scroll">
+            <div class="spotlight-body" id="chat-scroll" role="log" aria-label="Conversation with Orbit" aria-live="polite" aria-relevant="additions">
               <div class="spotlight-suggestions" id="assistant-suggestions">
                 <div class="suggestion-label">SUGGESTIONS</div>
                 <button class="suggestion-chip" data-prompt="Give me a quick overview of my open tabs."><span>↗</span> Summarize my tabs</button>
@@ -117,7 +119,7 @@
               </div>
             </div>
             <div class="spotlight-footer">
-              <span class="assistant-status"></span><span id="ai-status">Ready to explore</span>
+              <span class="assistant-status" aria-hidden="true"></span><span id="ai-status" role="status" aria-live="polite" aria-atomic="true">Ready to explore</span>
               <span class="spotlight-dot">·</span>
               <button class="spotlight-link" id="context-info" title="About tab context">Context from <b id="context-count">0 tabs</b></button>
               <span class="spotlight-spacer"></span>

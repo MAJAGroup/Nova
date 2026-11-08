@@ -13,17 +13,27 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   const suggestions = el("assistant-suggestions");
   const scroll = el("chat-scroll");
   const input = el("chat-input");
+  const sendButton = el("chat-send");
   const status = el("ai-status");
-  const voice = createVoice({ onTranscript: (text) => ask(text) });
+  const voice = createVoice({ onTranscript: (text) => {
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  } });
 
   function showConfigStatus(config) {
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
+  }
+
+  function syncSendButton() {
+    sendButton.disabled = !input.value.trim();
   }
 
   let activeAIRequests = 0;
   function beginExploration() {
     activeAIRequests++;
     if (activeAIRequests === 1) {
+      root.setAttribute("aria-busy", "true");
       try { onExplorationChange(true); }
       catch (error) { console.warn("Orbit exploration animation unavailable", error); }
     }
@@ -33,6 +43,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       finished = true;
       activeAIRequests--;
       if (activeAIRequests === 0) {
+        root.setAttribute("aria-busy", "false");
         try { onExplorationChange(false); }
         catch (error) { console.warn("Orbit exploration animation unavailable", error); }
       }
@@ -43,16 +54,19 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   function open() {
     if (root.classList.contains("expanded")) return input.focus();
     root.classList.add("expanded");
+    el("assistant-reopen").setAttribute("aria-expanded", "true");
     onVisibilityChange(true);
     requestAnimationFrame(() => {
       input.focus();
     });
   }
 
-  function close() {
+  function close({ restoreFocus = true } = {}) {
     if (!root.classList.contains("expanded")) return;
     root.classList.remove("expanded");
+    el("assistant-reopen").setAttribute("aria-expanded", "false");
     onVisibilityChange(false);
+    if (restoreFocus) requestAnimationFrame(() => el("assistant-reopen").focus());
   }
 
   // The shortcut can arrive both from the menu and the page, so ignore a
@@ -87,7 +101,9 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     suggestions.hidden = true;
     const pending = document.createElement("div");
     pending.className = "message assistant-message pending-message";
-    pending.innerHTML = AVATAR + '<div class="message-content"><div class="message-name">ORBIT <span>thinking</span></div><div class="message-bubble"><span class="loading-dots">•••</span></div></div>';
+    pending.setAttribute("role", "status");
+    pending.setAttribute("aria-label", "Orbit is thinking");
+    pending.innerHTML = AVATAR + '<div class="message-content"><div class="message-name">ORBIT <span>thinking</span></div><div class="message-bubble"><span class="loading-dots" aria-hidden="true">•••</span></div></div>';
     scroll.appendChild(pending);
     scrollToEnd();
     return pending;
@@ -99,6 +115,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     appendMessage(trimmed, "user");
     input.value = "";
     input.style.height = "";
+    syncSendButton();
 
     const aiAvailable = Boolean(aiConfig.get().url);
     const intentReply = handleBrowserIntent(trimmed, { browser, tabs, aiAvailable });
@@ -178,14 +195,16 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    syncSendButton();
   });
+  sendButton.addEventListener("click", () => ask(input.value));
   document.querySelectorAll(".suggestion-chip").forEach((button) => {
     button.addEventListener("click", () => ask(button.dataset.prompt));
   });
   el("context-info").addEventListener("click", () => {
     showToast("When you ask Orbit, it shares open tab titles and URLs with your configured AI endpoint.");
   });
-  el("assistant-menu").addEventListener("click", () => { close(); onOpenSettings(); });
+  el("assistant-menu").addEventListener("click", () => { close({ restoreFocus: false }); onOpenSettings(); });
   el("assistant-reopen").addEventListener("click", open);
   el("assistant-minimize").addEventListener("click", close);
 

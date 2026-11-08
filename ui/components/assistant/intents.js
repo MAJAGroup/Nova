@@ -22,6 +22,7 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
 
   match = text.match(/^(?:search(?: the web)?(?: for)?|google)\s+(.+)$/i);
   if (match) {
+    if (aiAvailable && /\b(?:new\s+)?(?:tabs?|websites?|sites?|pages?)\b/i.test(text)) return "";
     browser.newTab(searchUrl(match[1]));
     return "Searching the web for “" + match[1] + "”.";
   }
@@ -37,6 +38,7 @@ export function handleBrowserIntent(prompt, { browser, tabs, aiAvailable = false
 
   match = text.match(/^(?:open|visit|go to)\s+(.+)$/i);
   if (match) {
+    if (aiAvailable && /\b(?:new\s+)?(?:tabs?|websites?|sites?|pages?)\b/i.test(text)) return "";
     browser.newTab(normalizeAddress(match[1]));
     return "Opening " + match[1] + ".";
   }
@@ -141,5 +143,5 @@ export function localAssistantReply(prompt, { tabs }) {
   if (text.includes("plan") || text.includes("hour")) {
     return "A simple next-hour plan:\n1. Pick one tab as your focus.\n2. Close anything unrelated.\n3. Spend 40 minutes on the main task, then take a short reset.\n\nConnect an AI endpoint for a plan tailored to your open pages.";
   }
-  return "I can help with your open tabs. Connect an AI endpoint in settings to enable model-powered answers. You can still say “open <site>”, “switch to <name> tab”, “close tab <name>”, “group <tabs> as <name>”, “group my tabs by site”, “ungroup <name>”, “back”, or “reload”.";
+  return "I can help with your open tabs. Connect an AI endpoint for model-powered answers and requests to open several websites. You can still say “open <site>”, “search for <topic>”, “switch to <name> tab”, “close tab <name>”, “group <tabs> as <name>”, “group my tabs by site”, “ungroup <name>”, “back”, or “reload”.";
 }

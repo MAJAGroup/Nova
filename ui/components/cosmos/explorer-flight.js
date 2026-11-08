@@ -22,6 +22,21 @@ function cubicTangent(a, b, c, d, t) {
   return 3 * inverse ** 2 * (b - a) + 6 * inverse * t * (c - b) + 3 * t ** 2 * (d - c);
 }
 
+function curvedPath(from, to, bend = 1) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.max(0.001, Math.hypot(dx, dy));
+  const offset = bend * Math.min(0.24, Math.max(0.1, distance * 0.2));
+  const normalX = -dy / distance;
+  const normalY = dx / distance;
+  return {
+    from: { ...from },
+    c1: { x: from.x + dx * 0.28 + normalX * offset, y: from.y + dy * 0.28 + normalY * offset },
+    c2: { x: from.x + dx * 0.72 + normalX * offset, y: from.y + dy * 0.72 + normalY * offset },
+    to: { ...to }
+  };
+}
+
 function portalShader() {
   return new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 }, uOpen: { value: 0 }, uSeed: { value: Math.random() * 20 } },
@@ -158,63 +173,252 @@ function makePortal(sceneRoot, camera) {
 function makeShip(root) {
   const ship = new THREE.Group();
   ship.visible = false;
-  ship.renderOrder = 40;
+  ship.renderOrder = 60;
+  const materials = [];
+  const metal = (color, options = {}) => {
+    const material = new THREE.MeshPhongMaterial({
+      color,
+      specular: 0x5c6268,
+      shininess: 16,
+      side: THREE.DoubleSide,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+      ...options
+    });
+    materials.push(material);
+    return material;
+  };
+  const lineMaterial = (color, opacity = 1) => {
+    const material = new THREE.LineBasicMaterial({ color, opacity, transparent: opacity < 1, depthTest: false, depthWrite: false, toneMapped: false });
+    materials.push(material);
+    return material;
+  };
+  const addMesh = (geometry, material, position, order = 62) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(position);
+    mesh.renderOrder = order;
+    ship.add(mesh);
+    return mesh;
+  };
+  const addBar = (width, height, depth, color, x, y, z, angle = 0, order = 63) => {
+    const bar = addMesh(new THREE.BoxGeometry(width, height, depth), metal(color, { shininess: 12 }), new THREE.Vector3(x, y, z), order);
+    bar.rotation.z = angle;
+    return bar;
+  };
+
+  // The split forward mandibles and offset cockpit give the hull its
+  // recognizable freighter profile. Extrusion and bevels make its rim read
+  // as a solid metal body while it banks through the camera-facing flight.
   const hullShape = new THREE.Shape();
-  hullShape.moveTo(0.68, 0);
-  hullShape.lineTo(0.14, 0.16);
-  hullShape.lineTo(-0.16, 0.48);
-  hullShape.lineTo(-0.23, 0.2);
-  hullShape.lineTo(-0.49, 0.23);
-  hullShape.lineTo(-0.31, 0);
-  hullShape.lineTo(-0.49, -0.23);
-  hullShape.lineTo(-0.23, -0.2);
-  hullShape.lineTo(-0.16, -0.48);
-  hullShape.lineTo(0.14, -0.16);
+  hullShape.moveTo(-0.62, -0.35);
+  hullShape.quadraticCurveTo(-0.76, 0, -0.62, 0.35);
+  hullShape.quadraticCurveTo(-0.4, 0.64, 0.04, 0.64);
+  hullShape.quadraticCurveTo(0.37, 0.62, 0.55, 0.46);
+  hullShape.lineTo(0.76, 0.34);
+  hullShape.lineTo(0.64, 0.18);
+  hullShape.lineTo(0.09, 0.105);
+  hullShape.quadraticCurveTo(0.045, 0, 0.09, -0.105);
+  hullShape.lineTo(0.64, -0.18);
+  hullShape.lineTo(0.76, -0.34);
+  hullShape.lineTo(0.55, -0.46);
+  hullShape.quadraticCurveTo(0.37, -0.62, 0.04, -0.64);
+  hullShape.quadraticCurveTo(-0.4, -0.64, -0.62, -0.35);
   hullShape.closePath();
-  const hull = new THREE.Mesh(
-    new THREE.ShapeGeometry(hullShape),
-    new THREE.MeshBasicMaterial({ color: 0xf4fbff, side: THREE.DoubleSide, depthTest: false })
-  );
-  hull.renderOrder = 40;
-  hull.position.z = 0.03;
-  ship.add(hull);
 
-  const cockpit = new THREE.Mesh(
-    new THREE.CircleGeometry(0.105, 20),
-    new THREE.MeshBasicMaterial({ color: 0x99edff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthTest: false })
-  );
-  cockpit.renderOrder = 41;
-  cockpit.position.set(0.11, 0, 0.05);
-  ship.add(cockpit);
+  const hullGeometry = new THREE.ExtrudeGeometry(hullShape, {
+    depth: 0.16,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: 0.025,
+    bevelThickness: 0.035,
+    curveSegments: 12
+  });
+  hullGeometry.translate(0, 0, -0.08);
+  addMesh(hullGeometry, metal(0xb9b5aa, { specular: 0x8b877d, shininess: 22 }), new THREE.Vector3(), 60);
 
-  const flame = new THREE.Mesh(
-    new THREE.ConeGeometry(0.105, 0.5, 7),
-    new THREE.MeshBasicMaterial({ color: 0xc7f8ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthTest: false })
-  );
+  // A raised circular hull ring and inset plates break up the broad saucer.
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.018, 6, 48), metal(0x6e7d8e, { shininess: 42 }));
+  rim.position.set(-0.12, 0.02, 0.125);
+  rim.renderOrder = 62;
+  ship.add(rim);
+  const plateColor = 0x7f8d9d;
+  addBar(0.24, 0.12, 0.026, plateColor, -0.42, 0.28, 0.12, -0.28);
+  addBar(0.2, 0.1, 0.026, 0xb3bdc8, -0.42, -0.31, 0.12, 0.28);
+  addBar(0.22, 0.085, 0.026, 0x768596, 0.06, 0.49, 0.12, 0.12);
+  addBar(0.2, 0.08, 0.026, 0x768596, 0.06, -0.49, 0.12, -0.12);
+  addBar(0.2, 0.055, 0.025, 0xc0cad4, -0.12, 0.02, 0.13);
+
+  // Fine hull seams and inset panels make the top surface legible at orbit
+  // scale without relying on an external model or texture asset.
+  const outlinePoints = hullShape.getPoints(72).map((point) => new THREE.Vector3(point.x, point.y, 0.105));
+  const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(outlinePoints), lineMaterial(0xd0dae4, 0.72));
+  outline.renderOrder = 64;
+  ship.add(outline);
+  const seamMaterial = lineMaterial(0x445465, 0.8);
+  const seamPaths = [
+    [[-0.56, 0.06], [-0.37, 0.09], [-0.2, 0.03]],
+    [[-0.5, -0.14], [-0.27, -0.1], [-0.12, -0.2]],
+    [[-0.36, 0.43], [-0.2, 0.31], [-0.02, 0.29]],
+    [[-0.36, -0.43], [-0.2, -0.31], [-0.02, -0.29]],
+    [[0.23, 0.47], [0.34, 0.38], [0.48, 0.34]],
+    [[0.23, -0.47], [0.34, -0.38], [0.48, -0.34]]
+  ];
+  for (const path of seamPaths) {
+    const seam = new THREE.Line(new THREE.BufferGeometry().setFromPoints(path.map(([x, y]) => new THREE.Vector3(x, y, 0.13))), seamMaterial);
+    seam.renderOrder = 65;
+    ship.add(seam);
+  }
+
+  // The offset cylindrical cockpit pod and its dark viewports sit along the
+  // right side of the hull, ahead of the dish.
+  const cockpitPod = addMesh(new THREE.CylinderGeometry(0.082, 0.096, 0.38, 12), metal(0xb0bac5, { shininess: 34 }), new THREE.Vector3(0.69, 0.22, 0.015), 66);
+  cockpitPod.rotation.z = -Math.PI / 2;
+  const cockpitNose = addMesh(new THREE.SphereGeometry(0.09, 14, 10), metal(0x8d9aa8), new THREE.Vector3(0.87, 0.22, 0.015), 66);
+  cockpitNose.scale.set(1.2, 0.88, 0.86);
+  const windowMaterial = metal(0x162737, { specular: 0x8fdcf5, shininess: 70 });
+  addBar(0.075, 0.035, 0.018, 0x172b3a, 0.73, 0.22, 0.103, 0, 68);
+  addBar(0.045, 0.034, 0.018, 0x172b3a, 0.81, 0.22, 0.103, 0, 68);
+  // Small blue glints on the viewports keep them readable against the hull.
+  const viewportGlow = addMesh(new THREE.BoxGeometry(0.012, 0.02, 0.008), windowMaterial, new THREE.Vector3(0.73, 0.22, 0.114), 69);
+  viewportGlow.rotation.z = 0.08;
+
+  // A layered, shallow parabolic dish on the dorsal hull.
+  const dishBase = addMesh(new THREE.CylinderGeometry(0.135, 0.16, 0.045, 24), metal(0x778696, { shininess: 38 }), new THREE.Vector3(-0.22, 0.27, 0.12), 66);
+  dishBase.rotation.x = Math.PI / 2;
+  addMesh(new THREE.CircleGeometry(0.125, 32), metal(0x293847, { specular: 0x91a9c1, shininess: 62 }), new THREE.Vector3(-0.22, 0.27, 0.147), 67);
+  const dishRim = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.012, 6, 32), metal(0xc2ccd5, { shininess: 50 }));
+  dishRim.position.set(-0.22, 0.27, 0.152);
+  dishRim.renderOrder = 68;
+  ship.add(dishRim);
+  addBar(0.116, 0.015, 0.012, 0x9caaba, -0.22, 0.27, 0.16, -0.25, 69);
+
+  // Twin dorsal turrets, small cannon barrels, and cooling vents.
+  for (const y of [0]) {
+    const turret = addMesh(new THREE.CylinderGeometry(0.082, 0.09, 0.055, 16), metal(0x8795a5, { shininess: 40 }), new THREE.Vector3(-0.02, y, 0.13), 66);
+    turret.rotation.x = Math.PI / 2;
+    const turretTop = addMesh(new THREE.SphereGeometry(0.065, 12, 8), metal(0xa9b5c1), new THREE.Vector3(-0.02, y, 0.16), 67);
+    turretTop.scale.set(1, 0.82, 0.5);
+    addBar(0.19, 0.022, 0.022, 0x566576, 0.07, y, 0.17, 0, 68);
+  }
+  for (let index = 0; index < 5; index++) {
+    addBar(0.018, 0.09, 0.018, 0x53687d, -0.61 + index * 0.045, -0.045, 0.08, 0, 64);
+  }
+
+  // Six circular exhaust vents across the aft deck.
+  for (const x of [-0.48, -0.29]) {
+    for (const y of [-0.28, 0, 0.28]) {
+      const vent = addMesh(new THREE.CylinderGeometry(0.073, 0.073, 0.024, 24),
+        metal(0x242a2d), new THREE.Vector3(x, y, 0.13), 67);
+      vent.rotation.x = Math.PI / 2;
+      addMesh(new THREE.TorusGeometry(0.075, 0.009, 6, 24),
+        metal(0x8d8b82), new THREE.Vector3(x, y, 0.147), 68);
+      for (let slit = -2; slit <= 2; slit++) {
+        addBar(0.105, 0.006, 0.008, 0x686c68, x, y + slit * 0.022, 0.15, 0, 69);
+      }
+    }
+  }
+  // Asymmetric, weathered armor markings and mandible recesses.
+  for (const y of [-0.29, 0.29]) {
+    addBar(0.29, 0.085, 0.018, 0x42474a, 0.43, y, 0.124, y > 0 ? 0.13 : -0.13);
+    addBar(0.19, 0.025, 0.025, 0xbbb7ac, 0.44, y, 0.14);
+  }
+  addBar(0.18, 0.06, 0.018, 0x764c42, -0.13, -0.5, 0.135, -0.2);
+  addBar(0.12, 0.045, 0.018, 0x764c42, 0.15, 0.48, 0.135, 0.2);
+
+  // Raise the deck toward its center, including the attached surface detail.
+  // This creates the Falcon's shallow lenticular saucer rather than a slab.
+  const deckHeight = (x, y) => 0.13 * Math.max(0, 1 - Math.hypot(x + 0.12, y) / 0.7);
+  const hullVertices = hullGeometry.attributes.position;
+  for (let i = 0; i < hullVertices.count; i++) {
+    const z = hullVertices.getZ(i);
+    hullVertices.setZ(i, z + Math.sign(z) * deckHeight(hullVertices.getX(i), hullVertices.getY(i)));
+  }
+  hullGeometry.computeVertexNormals();
+  for (const part of ship.children) {
+    if (!part.isLine) continue;
+    const vertices = part.geometry.attributes.position;
+    for (let i = 0; i < vertices.count; i++) {
+      vertices.setZ(i, vertices.getZ(i) + deckHeight(vertices.getX(i), vertices.getY(i)));
+    }
+  }
+  for (const part of ship.children) {
+    if (part.geometry === hullGeometry) continue;
+    if (part.position.z > 0.07) part.position.z += deckHeight(part.position.x, part.position.y);
+  }
+
+  rim.position.z = 0.125 + deckHeight(0.34, 0.02);
+
+  // Carry the cockpit outboard on its angled access corridor.
+  const cockpitParts = [cockpitPod, cockpitNose, viewportGlow];
+  for (const part of ship.children) {
+    if (part.position.x > 0.68 && !cockpitParts.includes(part)) cockpitParts.push(part);
+  }
+  for (const part of cockpitParts) part.position.y += 0.3;
+  const corridor = addMesh(new THREE.CylinderGeometry(0.085, 0.095, 0.43, 16),
+    metal(0xa6a59c), new THREE.Vector3(0.42, 0.45, 0.06), 66);
+  corridor.rotation.z = -1.05;
+
+  // Lift and tilt the radar dish on a short pedestal.
+  const radar = new THREE.Group();
+  radar.position.set(-0.22, 0.27, 0.24);
+  for (const part of [...ship.children]) {
+    if (Math.abs(part.position.x + 0.22) < 0.001 && Math.abs(part.position.y - 0.27) < 0.001) {
+      part.position.sub(radar.position);
+      radar.add(part);
+    }
+  }
+  radar.rotation.x = 0.48;
+  ship.add(radar);
+  addBar(0.025, 0.025, 0.14, 0x787d7b, -0.22, 0.27, 0.24);
+
+  // A continuous blue engine band follows the curved stern.
+  const enginePoints = [];
+  for (let i = 0; i <= 32; i++) {
+    const angle = Math.PI * (0.73 + i / 32 * 0.54);
+    enginePoints.push(new THREE.Vector3(-0.1 + Math.cos(angle) * 0.62, Math.sin(angle) * 0.62, 0));
+  }
+  const engineMaterial = new THREE.MeshBasicMaterial({ color: 0x83eaff, transparent: true, opacity: 0.95,
+    blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, toneMapped: false });
+  materials.push(engineMaterial);
+  const engine = addMesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(enginePoints), 48, 0.025, 8, false),
+    engineMaterial, new THREE.Vector3(), 70);
+  // Keep the animation's exhaust handle while replacing the rocket cone.
+  const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0x69dfff,
+    transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
+  flame.position.set(-0.71, 0, -0.025);
+  flame.scale.set(0.25, 0.8, 1);
   flame.renderOrder = 39;
-  flame.rotation.z = Math.PI / 2;
-  flame.position.set(-0.57, 0, -0.01);
   ship.add(flame);
 
-  const engineMaterial = new THREE.SpriteMaterial({ map: glowTexture(), color: 0x9beeff, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
-  const engine = new THREE.Sprite(engineMaterial);
-  engine.renderOrder = 39;
-  engine.position.set(-0.66, 0, -0.02);
-  engine.scale.set(0.9, 0.5, 1);
-  ship.add(engine);
+  // A fixed oblique presentation exposes the rim, underside and raised deck.
+  const model = new THREE.Group();
+  for (const part of [...ship.children]) model.add(part);
+  model.rotation.set(0.46, -0.18, 0);
+  ship.add(model);
+
+  // Soft, local lighting gives the beveled armor real light falloff while
+  // staying independent of the galaxy's scene lighting.
+  ship.add(new THREE.AmbientLight(0xa8bed6, 1.15));
+  const keyLight = new THREE.PointLight(0xe0f3ff, 3.4, 7, 2);
+  keyLight.position.set(-0.25, 0.55, 2.2);
+  ship.add(keyLight);
+  const rimLight = new THREE.PointLight(0x58dfff, 1.8, 4, 2);
+  rimLight.position.set(-0.7, -0.1, 0.6);
+  ship.add(rimLight);
+
   root.add(ship);
   return {
     group: ship, flame, engine,
     setDepthTest(enabled) {
-      hull.material.depthTest = enabled;
-      cockpit.material.depthTest = enabled;
+      for (const material of materials) material.depthTest = enabled;
       flame.material.depthTest = enabled;
-      engine.material.depthTest = enabled;
     }
   };
 }
 
-function makeTrail(root, color, opacity) {
+function makeTrail(root, color, opacity, offset) {
   const count = 18;
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
@@ -226,40 +430,18 @@ function makeTrail(root, color, opacity) {
   line.visible = false;
   root.add(line);
   const history = Array.from({ length: count }, () => ({ x: 0, y: 0, z: -DEPTH }));
-  return { line, geometry, positions, history, timer: 0 };
-}
-
-function makeStreakPool(root, size = 10) {
-  const geometry = new THREE.PlaneGeometry(1.5, 0.018);
-  const pool = [];
-  for (let index = 0; index < size; index++) {
-    const material = new THREE.MeshBasicMaterial({
-      color: index % 3 ? 0xc7f2ff : 0xffffff,
-      transparent: true,
-      opacity: 0,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.visible = false;
-    mesh.renderOrder = 36;
-    root.add(mesh);
-    pool.push({ mesh, material, age: 1, life: 0.34, x: 0, y: 0, point: { x: 0, y: 0 }, local: new THREE.Vector3(), angle: 0 });
-  }
-  return pool;
+  return { line, geometry, positions, history, timer: 0, offset };
 }
 
 // A camera-facing white wormhole and explorer ship. Its animation never
 // changes the user's camera, so it can play over the existing live scene.
-export function createExplorerFlight(scene, camera) {
+export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf } = {}) {
   const rig = new THREE.Group();
   rig.renderOrder = 18;
   scene.add(rig);
   const portal = makePortal(rig, camera);
   const ship = makeShip(rig);
-  const trails = [makeTrail(rig, 0xeafaff, 0.82), makeTrail(rig, 0x81d8ff, 0.45)];
-  const streaks = makeStreakPool(rig);
+  const trails = [makeTrail(rig, 0xeafaff, 0.82, -0.014), makeTrail(rig, 0x54d8ff, 0.68, 0.014)];
   const historyPoints = [new THREE.Vector3(), new THREE.Vector3()];
   const shipLocal = new THREE.Vector3();
 
@@ -267,21 +449,17 @@ export function createExplorerFlight(scene, camera) {
   let elapsed = 0;
   let time = 0;
   let exitRequested = false;
-  let nextStreak = 0;
-  let streakCursor = 0;
   let current = { x: -0.3, y: 0.05 };
-  let cruiseFrom = { ...current };
-  let cruiseTo = { x: 0.1, y: 0.18 };
-  let cruiseDuration = 0.8;
-  let cruiseElapsed = 0;
-  let cruiseArc = 0.12;
+  let heading = 0;
   let travel = null;
   let entryPath = null;
   let entryPoint = { ...current };
+  let entryBend = 1;
   let exitPoint = { ...current };
+  let exitBend = -1;
+  let arrivalStarId = null;
+  let arrivalWorldPoint = null;
   let previousExitPoint = null;
-
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function localFromNdc(point, depth = DEPTH, target = new THREE.Vector3()) {
     const halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -294,11 +472,33 @@ export function createExplorerFlight(scene, camera) {
     rig.quaternion.copy(camera.quaternion);
   }
 
+  function arrivalPointOnScreen() {
+    const livePosition = arrivalStarId && positionOf ? positionOf(arrivalStarId) : null;
+    if (livePosition && arrivalWorldPoint) arrivalWorldPoint.copy(livePosition);
+    if (!arrivalWorldPoint) return { x: 0, y: 0 };
+    camera.updateMatrixWorld(true);
+    const point = arrivalWorldPoint.clone().project(camera);
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || point.z < -1 || point.z > 1) return { x: 0, y: 0 };
+    return {
+      x: THREE.MathUtils.clamp(point.x, -0.76, 0.76),
+      y: THREE.MathUtils.clamp(point.y, -0.7, 0.7)
+    };
+  }
+
+  function resetTrails(point) {
+    for (const trail of trails) {
+      trail.timer = 0.035;
+      trail.line.visible = false;
+      trail.history.forEach((item) => { item.x = point.x; item.y = point.y; });
+    }
+  }
+
   function showShip(point, depth = DEPTH, scale = 1, angle = 0) {
     ship.group.visible = true;
     ship.group.position.copy(localFromNdc(point, depth, shipLocal));
-    ship.group.scale.setScalar(scale);
+    ship.group.scale.setScalar(scale * 0.5);
     ship.group.rotation.z = angle;
+    heading = angle;
     ship.flame.scale.y = 0.86 + Math.sin(time * 24) * 0.18;
     ship.engine.material.opacity = 0.78 + Math.sin(time * 19) * 0.16;
   }
@@ -320,26 +520,18 @@ export function createExplorerFlight(scene, camera) {
     return point;
   }
 
-  function startCruise() {
+  function arriveAtStar() {
     portal.show(0, time);
     portal.group.visible = false;
     portal.setEntryMask(false);
     ship.setDepthTest(false);
-    phase = "cruise";
+    phase = "hold";
     elapsed = 0;
-    current = { ...current };
+    current = arrivalPointOnScreen();
     ship.group.visible = true;
-    pickCruiseSegment();
+    showShip(current, DEPTH - 0.8, 1, heading);
+    for (const trail of trails) trail.line.visible = false;
     if (exitRequested) beginExit();
-  }
-
-  function pickCruiseSegment() {
-    cruiseFrom = { ...current };
-    cruiseTo = { x: -0.82 + Math.random() * 0.94, y: -0.72 + Math.random() * 1.44 };
-    const distance = Math.hypot(cruiseTo.x - cruiseFrom.x, cruiseTo.y - cruiseFrom.y);
-    cruiseDuration = reducedMotion ? 1.4 + Math.random() * 0.4 : Math.max(0.38, Math.min(0.85, distance * 0.62));
-    cruiseElapsed = 0;
-    cruiseArc = (Math.random() < 0.5 ? -1 : 1) * (0.07 + Math.random() * 0.2);
   }
 
   function beginExit() {
@@ -348,43 +540,10 @@ export function createExplorerFlight(scene, camera) {
     exitPoint = makeDifferentPortalPoint(current);
     portal.setForeground(true);
     openPortal(exitPoint);
-    const from = { ...current };
-    const to = { ...exitPoint };
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(0.001, Math.hypot(dx, dy));
-    const bend = (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.12);
-    travel = {
-      from,
-      c1: { x: from.x + dx * 0.28 - dy / length * bend, y: from.y + dy * 0.28 + dx / length * bend },
-      c2: { x: from.x + dx * 0.72 - dy / length * bend, y: from.y + dy * 0.72 + dx / length * bend },
-      to
-    };
-  }
-
-  function spawnStreak() {
-    const item = streaks[streakCursor++ % streaks.length];
-    item.age = 0;
-    item.x = current.x + (Math.random() - 0.5) * 0.28;
-    item.y = current.y + (Math.random() - 0.5) * 0.28;
-    item.angle = ship.group.rotation.z;
-    item.mesh.visible = true;
-  }
-
-  function updateStreaks(delta) {
-    for (const item of streaks) {
-      if (item.age >= item.life) continue;
-      item.age += delta;
-      const progress = clamp01(item.age / item.life);
-      const fade = Math.sin(progress * Math.PI) * 0.75;
-      const travel = progress * 0.18;
-      item.point.x = item.x - Math.cos(item.angle) * travel;
-      item.point.y = item.y - Math.sin(item.angle) * travel;
-      item.mesh.position.copy(localFromNdc(item.point, DEPTH + 0.3, item.local));
-      item.mesh.rotation.z = item.angle;
-      item.material.opacity = fade;
-      item.mesh.visible = fade > 0.01;
-    }
+    exitBend = Math.random() < 0.5 ? -1 : 1;
+    travel = curvedPath(current, exitPoint, exitBend);
+    ship.setDepthTest(false);
+    resetTrails(current);
   }
 
   function updateTrails(point, delta) {
@@ -401,14 +560,28 @@ export function createExplorerFlight(scene, camera) {
       }
       for (let index = 0; index < trail.history.length; index++) {
         const item = trail.history[index];
-        const local = localFromNdc(item, DEPTH + 0.2, historyPoints[index % historyPoints.length]);
+        const before = trail.history[Math.max(0, index - 1)];
+        const after = trail.history[Math.min(trail.history.length - 1, index + 1)];
+        let tangentX = before.x - after.x;
+        let tangentY = before.y - after.y;
+        let tangentLength = Math.hypot(tangentX, tangentY);
+        if (tangentLength < 0.001) {
+          tangentX = Math.cos(heading);
+          tangentY = Math.sin(heading);
+          tangentLength = 1;
+        }
+        const pointWithOffset = {
+          x: item.x - tangentY / tangentLength * trail.offset,
+          y: item.y + tangentX / tangentLength * trail.offset
+        };
+        const local = localFromNdc(pointWithOffset, DEPTH + 0.2, historyPoints[index % historyPoints.length]);
         const offset = index * 3;
         trail.positions[offset] = local.x;
         trail.positions[offset + 1] = local.y;
         trail.positions[offset + 2] = local.z;
       }
       trail.geometry.attributes.position.needsUpdate = true;
-      trail.line.visible = phase === "cruise" || phase === "exit";
+      trail.line.visible = ship.group.visible && (phase === "entry" || phase === "exit");
     }
   }
 
@@ -419,6 +592,7 @@ export function createExplorerFlight(scene, camera) {
     const dx = cubicTangent(path.from.x, path.c1.x, path.c2.x, path.to.x, t);
     const dy = cubicTangent(path.from.y, path.c1.y, path.c2.y, path.to.y, t);
     const angle = Math.atan2(dy, dx);
+    heading = angle;
     const scale = phase === "exit" ? 1 - smooth((progress - 0.72) / 0.28) * 0.98 : 0.85 + smooth(progress) * 0.15;
     showShip(current, depth, Math.max(0.015, scale), angle);
     return current;
@@ -430,32 +604,25 @@ export function createExplorerFlight(scene, camera) {
     phase = "entry";
     elapsed = 0;
     exitRequested = false;
+    const star = getArrivalStar ? getArrivalStar() : null;
+    arrivalStarId = star && star.id != null ? String(star.id) : null;
+    arrivalWorldPoint = star && star.position && star.position.isVector3 ? star.position.clone() : null;
     entryPoint = randomPortalPoint();
-    const direction = { x: entryPoint.x < -0.1 ? 1 : -1, y: entryPoint.y < 0 ? 0.24 : -0.22 };
-    const target = { x: Math.max(-0.82, Math.min(0.1, entryPoint.x + direction.x * 0.35)), y: Math.max(-0.72, Math.min(0.72, entryPoint.y + direction.y)) };
-    entryPath = {
-      from: entryPoint,
-      c1: { x: entryPoint.x + direction.x * 0.06, y: entryPoint.y + direction.y * 0.04 },
-      c2: { x: entryPoint.x + direction.x * 0.24, y: entryPoint.y + direction.y * 0.85 },
-      to: target
-    };
+    entryBend = Math.random() < 0.5 ? -1 : 1;
+    current = { ...entryPoint };
+    entryPath = curvedPath(entryPoint, arrivalPointOnScreen(), entryBend);
     portal.setForeground(false);
     portal.setEntryMask(true);
     ship.setDepthTest(true);
     openPortal(entryPoint);
     ship.group.visible = false;
-    current = { ...entryPoint };
-    for (const trail of trails) {
-      trail.line.visible = false;
-      trail.history.forEach((point) => { point.x = entryPoint.x; point.y = entryPoint.y; });
-    }
-    for (const streak of streaks) { streak.mesh.visible = false; streak.age = streak.life; }
+    resetTrails(entryPoint);
   }
 
   function finish() {
     if (phase === "idle" || phase === "exit") return;
     exitRequested = true;
-    if (phase === "cruise") beginExit();
+    if (phase === "hold") beginExit();
   }
 
   function cancel() {
@@ -468,8 +635,10 @@ export function createExplorerFlight(scene, camera) {
     ship.setDepthTest(false);
     portal.group.visible = false;
     ship.group.visible = false;
+    arrivalStarId = null;
+    arrivalWorldPoint = null;
+    entryPath = null;
     for (const trail of trails) trail.line.visible = false;
-    for (const streak of streaks) streak.mesh.visible = false;
   }
 
   function update(now, delta) {
@@ -482,32 +651,15 @@ export function createExplorerFlight(scene, camera) {
       const closing = 1 - smooth((elapsed - 0.95) / 0.36);
       portal.show(opening * closing, time);
       const emergence = clamp01((elapsed - 0.22) / 0.82);
+      entryPath = curvedPath(entryPoint, arrivalPointOnScreen(), entryBend);
       if (emergence > 0) {
         setShipAlongTravel(entryPath, emergence, DEPTH + (1 - emergence) * 2.5 - emergence * 3);
+        updateTrails(current, delta);
       }
-      if (elapsed >= 1.34) startCruise();
-    } else if (phase === "cruise") {
-      elapsed += delta;
-      cruiseElapsed += delta;
-      if (cruiseElapsed >= cruiseDuration) pickCruiseSegment();
-      const t = clamp01(cruiseElapsed / cruiseDuration);
-      const bend = cruiseArc * Math.sin(Math.PI * t);
-      const dx = cruiseTo.x - cruiseFrom.x;
-      const dy = cruiseTo.y - cruiseFrom.y;
-      const distance = Math.max(0.001, Math.hypot(dx, dy));
-      const bendX = -dy / distance * bend;
-      const bendY = dx / distance * bend;
-      current.x = cubic(cruiseFrom.x, cruiseFrom.x + dx * 0.28 + bendX, cruiseFrom.x + dx * 0.72 + bendX, cruiseTo.x, t);
-      current.y = cubic(cruiseFrom.y, cruiseFrom.y + dy * 0.28 + bendY, cruiseFrom.y + dy * 0.72 + bendY, cruiseTo.y, t);
-      const vx = cubicTangent(cruiseFrom.x, cruiseFrom.x + dx * 0.28 + bendX, cruiseFrom.x + dx * 0.72 + bendX, cruiseTo.x, t);
-      const vy = cubicTangent(cruiseFrom.y, cruiseFrom.y + dy * 0.28 + bendY, cruiseFrom.y + dy * 0.72 + bendY, cruiseTo.y, t);
-      showShip(current, DEPTH - 0.8, 1, Math.atan2(vy, vx));
-      if (!reducedMotion && elapsed >= nextStreak) {
-        spawnStreak();
-        nextStreak = elapsed + 0.09 + Math.random() * 0.08;
-      }
-      updateStreaks(delta);
-      updateTrails(current, delta);
+      if (elapsed >= 1.34) arriveAtStar();
+    } else if (phase === "hold") {
+      current = arrivalPointOnScreen();
+      showShip(current, DEPTH - 0.8, 1, heading);
     } else if (phase === "exit") {
       elapsed += delta;
       const opening = smooth(elapsed / 0.36);
@@ -515,13 +667,11 @@ export function createExplorerFlight(scene, camera) {
       portal.show(opening * closing, time);
       const progress = clamp01((elapsed - 0.12) / 0.98);
       setShipAlongTravel(travel, progress, DEPTH - 0.8 + smooth((progress - 0.72) / 0.28) * 3.3);
-      updateStreaks(delta);
       updateTrails(current, delta);
       if (elapsed >= 1.48) {
         portal.show(0, time);
         ship.group.visible = false;
         for (const trail of trails) trail.line.visible = false;
-        for (const streak of streaks) streak.mesh.visible = false;
         phase = "idle";
         return true;
       }

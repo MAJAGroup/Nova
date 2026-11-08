@@ -53,6 +53,13 @@
 #assistant-menu{font-size:13px}
 .spotlight-keys{color:#6c7894;margin-right:2px;white-space:nowrap}
 .spotlight-keys kbd{font:8px var(--font);color:#a6b1ca;border:1px solid #ffffff1c;background:#ffffff0a;border-radius:4px;padding:1px 3px;margin:0 1px 0 4px}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.spotlight-bar:focus-within{box-shadow:inset 0 0 0 2px #9bb2ff;border-radius:7px}
+.composer-tool:focus-visible,.composer-send:focus-visible,.assistant-minimize:focus-visible,.spotlight-link:focus-visible,.assistant-handle:focus-visible{outline:2px solid #c4d3ff;outline-offset:2px}
+.composer-send{width:29px;height:29px;flex:none;display:grid;place-items:center;border:1px solid #6d80e9;border-radius:8px;background:#4658b5;color:#fff;font-size:14px}
+.composer-send:hover:not(:disabled){background:#5f72d1}
+.composer-send:disabled{opacity:.42;cursor:default}
+.suggestion-chip:focus-visible{outline:2px solid #c4d3ff;outline-offset:1px}
 
 @media(max-width:560px){
   .spotlight-footer{gap:3px;padding-inline:7px}

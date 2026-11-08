@@ -94,7 +94,15 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
     backdrop = createBackdrop(scene, camera);
     blackHole = createBlackHole(scene);
-    explorer = createExplorerFlight(scene, camera);
+    explorer = createExplorerFlight(scene, camera, {
+      getArrivalStar: () => {
+        const tab = tabs.activeTab() || tabs.tabs[0];
+        if (!tab || !stars) return null;
+        const position = stars.positionOf(tab.id);
+        return position ? { id: String(tab.id), position } : null;
+      },
+      positionOf: (id) => stars && stars.positionOf(id)
+    });
     constellations = createConstellations({
       scene,
       camera,
