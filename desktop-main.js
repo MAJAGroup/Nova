@@ -25,6 +25,7 @@ const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 const { HistoryStore } = require("./history-store");
 const { BookmarkStore } = require("./bookmark-store");
 const { registerLinuxDesktop } = require("./linux-desktop");
+const { createTabResourceView } = require("./tab-resources-view");
 const { trackConnectionSecurity } = require("./connection-security");
 const { localSuggestions, createWebSuggestions } = require("./search-suggestions.cjs");
 const fetchWebSuggestions = createWebSuggestions((url, options) => net.fetch(url, options));
@@ -39,6 +40,7 @@ const permissionGrants = new Map();
 const hiddenBounds = { x: 0, y: 0, width: 0, height: 0 };
 let mainWindow = null;
 let assistantHandleView = null;
+let tabResourceView = null;
 let activeTabId = null;
 let nextTabId = 1;
 let browserBounds = { ...hiddenBounds };
@@ -103,6 +105,7 @@ function tabsPayload() {
 
 function sendTabs() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  tabResourceView?.refresh();
   mainWindow.webContents.send("browser:tabs-updated", tabsPayload());
   mainWindow.webContents.send("browser:history-updated", visitHistory.snapshot(tabs));
   mainWindow.webContents.send("browser:bookmarks-updated", bookmarks.snapshot(tabs));
@@ -195,6 +198,7 @@ function updateWebViewVisibility() {
     assistantHandleView.setVisible(shouldShow);
     if (shouldShow) mainWindow.contentView.addChildView(assistantHandleView);
   }
+  tabResourceView?.raise();
 }
 
 function setActiveTab(id) {
@@ -574,6 +578,7 @@ function createWindow() {
     }
   });
   mainWindow = win;
+  tabResourceView = createTabResourceView({ window: win, tabs, getMetrics: () => app.getAppMetrics() });
   browserBounds = { ...hiddenBounds };
   assistantExpanded = false;
   assistantHandleView = new WebContentsView({
@@ -605,6 +610,7 @@ function createWindow() {
   });
   win.on("closed", () => {
     if (mainWindow === win) {
+      tabResourceView?.dispose(); tabResourceView = null;
       mainWindow = null;
       browserBounds = { ...hiddenBounds };
       for (const tab of tabs.values()) {
@@ -621,6 +627,15 @@ function createWindow() {
 
 function registerIPC() {
   const fromShell = event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  ipcMain.on("browser:show-tab-resources", (event, payload) => {
+    if (fromShell(event) && typeof payload?.id === "string") tabResourceView?.show(payload.id, payload.anchor);
+  });
+  ipcMain.on("browser:hide-tab-resources", (event, immediate) => {
+    if (!fromShell(event)) return;
+    if (immediate === true) tabResourceView?.hide(); else tabResourceView?.scheduleHide();
+  });
+  ipcMain.on("tab-resources:pointer", (event, inside) => { if (tabResourceView?.owns(event)) tabResourceView.pointer(inside === true); });
+  ipcMain.on("tab-resources:dismiss", event => { if (tabResourceView?.owns(event)) tabResourceView.hide(); });
   ipcMain.handle("browser:get-bookmarks", event => fromShell(event) ? bookmarks.snapshot(tabs) : []);
   const changeBookmark = (event, operation) => {
     if (!fromShell(event)) return { ok: false, error: "Bookmarks can only be changed in ORBIT." };

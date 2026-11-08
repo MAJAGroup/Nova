@@ -3,6 +3,13 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("orbitBrowser", {
+  showTabResources: (id, anchor) => ipcRenderer.send("browser:show-tab-resources", { id, anchor }),
+  hideTabResources: immediate => ipcRenderer.send("browser:hide-tab-resources", immediate === true),
+  onTabResourcesUpdated: callback => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("browser:tab-resources-updated", listener);
+    return () => ipcRenderer.removeListener("browser:tab-resources-updated", listener);
+  },
   getBookmarks: () => ipcRenderer.invoke("browser:get-bookmarks"),
   saveBookmark: bookmark => ipcRenderer.invoke("browser:save-bookmark", bookmark),
   removeBookmark: id => ipcRenderer.invoke("browser:remove-bookmark", id),

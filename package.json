@@ -14,7 +14,8 @@
     "test:address": "node --test tests/address*.test.cjs",
     "test:newtab": "node --test tests/newtab*.test.cjs",
     "test:suggestions": "node --test tests/suggestions*.test.cjs",
-    "test:bookmarks": "node --test tests/bookmarks*.test.cjs"
+    "test:bookmarks": "node --test tests/bookmarks*.test.cjs",
+    "test:resources": "node --test tests/resources*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -31,6 +32,9 @@
       "tab-groups.js",
       "ai-grouping.js",
       "linux-desktop.js",
+      "tab-resources.js",
+      "tab-resources-view.js",
+      "tab-resources-preload.js",
       "assets/**/*",
       "ui/**/*",
       "README.md",
