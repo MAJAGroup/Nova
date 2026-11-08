@@ -237,6 +237,18 @@ The microphone button starts voice input and sends the recognized transcript as 
 
 ## Build a distributable app
 
+On Linux, build an executable AppImage with:
+
+    ./build-appimage.sh
+
+You can also use `npm run appimage`. The script works from any directory, installs dependencies with `npm ci` if Electron or electron-builder is missing, and builds the current source without publishing it. It writes a versioned AppImage into `dist/`, gives it executable permissions, and prints its exact launch command. For example, on x64 with version 0.2.0:
+
+    ./dist/ORBIT-0.2.0-x64.AppImage
+
+You can also open that AppImage from your file manager after the build finishes. The first build may download packaging tools and requires internet access.
+
+When `/dev/fuse` is unavailable, the script prints a launch command with `--appimage-extract-and-run`, which runs the AppImage without mounting it. You can also add that flag manually if you encounter a FUSE error; see the [AppImage fallback instructions](https://docs.appimage.org/user-guide/troubleshooting/fuse.html#extract-and-run-type-2-appimages).
+
 Run these commands from the project folder after installing dependencies:
 
     npm run pack
