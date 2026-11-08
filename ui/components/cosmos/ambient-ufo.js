@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { glowTexture } from "./textures.js";
 
-const DECISION_SECONDS = 20;
+const DECISION_SECONDS = 10;
 const ORBIT_SECONDS = 8;
 const TRANSIT_SECONDS = 1.2;
 const VIEW_DEPTH = 13;
@@ -267,7 +267,7 @@ export function createAmbientUfo(scene, camera, { getStarCount, getStarTargets, 
   function placeShip(point, scale = 1, angle = heading) {
     ship.visible = true;
     ship.position.copy(localFromScreen(point, VIEW_DEPTH - .4));
-    ship.scale.setScalar(scale);
+    ship.scale.setScalar(scale * .25);
     ship.rotation.set(.31 + Math.sin(time * 1.7) * .07, .15 + Math.sin(time * 1.1) * .12, angle);
     heading = angle;
   }
