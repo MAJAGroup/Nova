@@ -3,20 +3,20 @@ const assert = require('node:assert/strict');
 const { localSuggestions, createWebSuggestions, webQueryAllowed } = require('../search-suggestions.cjs');
 
 test('local results match every word, prioritize open tabs, deduplicate visits, and preserve URL case', () => {
-  const rows = localSuggestions('orbit docs', {
+  const rows = localSuggestions('nova docs', {
     visits: [
-      { url: 'https://orbit.test/Docs', title: 'Orbit docs', at: 1 },
-      { url: 'https://orbit.test/Docs', title: 'Orbit docs', at: 5 },
-      { url: 'https://orbit.test/docs', title: 'Orbit docs lowercase', at: 3 },
-      { url: 'https://unrelated.test/', title: 'Orbit alone', at: 9 }
+      { url: 'https://nova.test/Docs', title: 'Nova docs', at: 1 },
+      { url: 'https://nova.test/Docs', title: 'Nova docs', at: 5 },
+      { url: 'https://nova.test/docs', title: 'Nova docs lowercase', at: 3 },
+      { url: 'https://unrelated.test/', title: 'Nova alone', at: 9 }
     ],
-    tabs: [{ id: '2', url: 'https://orbit.test/Docs', title: 'Orbit docs', lastAccessed: 2 },
-      { id: '3', url: 'https://active.test/', title: 'Orbit docs active', lastAccessed: 10 }], activeId: '3'
+    tabs: [{ id: '2', url: 'https://nova.test/Docs', title: 'Nova docs', lastAccessed: 2 },
+      { id: '3', url: 'https://active.test/', title: 'Nova docs active', lastAccessed: 10 }], activeId: '3'
   });
   assert.equal(rows[0].kind, 'search');
   assert.equal(rows[1].kind, 'tab');
   assert.equal(rows[1].tabId, '2');
-  assert.equal(rows[2].value, 'https://orbit.test/docs');
+  assert.equal(rows[2].value, 'https://nova.test/docs');
   assert.equal(rows.length, 3);
 });
 
@@ -32,7 +32,7 @@ test('empty input offers recent pages and only web URLs; address actions retain 
   }
   const long = 'https://example.com/?q=' + 'x'.repeat(1500);
   assert.equal(localSuggestions(long)[0].value, long);
-  assert.equal(localSuggestions('orbit://newtab')[0].value, 'orbit://newtab');
+  assert.equal(localSuggestions('nova://newtab')[0].value, 'nova://newtab');
   assert.equal(localSuggestions('javascript:alert(1)')[0].kind, 'search');
   assert.ok(!localSuggestions('secret', { visits: [{url:'https://user:secret@example.com/'}] })[1].description.includes('secret'));
 });

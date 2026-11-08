@@ -7,7 +7,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 test('address and start-page suggestions support web results, history, tab switching, keyboard and offline use', { timeout: 90000 }, async () => {
-  const profile = await mkdtemp(path.join(os.tmpdir(), 'orbit-suggestions-'));
+  const profile = await mkdtemp(path.join(os.tmpdir(), 'nova-suggestions-'));
   const server = createServer((req, res) => res.end(`<title>${req.url === '/archive' ? 'Atlas Archive' : req.url === '/other' ? 'Other fixture' : 'Atlas Observatory'}</title><h1>Atlas fixture</h1>`));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -16,15 +16,15 @@ test('address and start-page suggestions support web results, history, tab switc
     const end = Date.now() + 12000;
     while (!await predicate()) { if (Date.now() > end) throw Error(`Timed out: ${stage}`); await new Promise(resolve => setTimeout(resolve, 40)); }
   };
-  const active = () => shell.evaluate(async () => { const data = await window.orbitBrowser.getTabs(); return data.tabs.find(tab => tab.id === data.activeId); });
+  const active = () => shell.evaluate(async () => { const data = await window.novaBrowser.getTabs(); return data.tabs.find(tab => tab.id === data.activeId); });
   const start = code => app.evaluate(({ BrowserWindow }, code) => {
     const view = BrowserWindow.getAllWindows()[0].contentView.children.find(v => v.webContents?.getURL().endsWith('/ui/newtab/index.html') && v.getBounds().width > 0);
     return view?.webContents.executeJavaScript(code, true);
   }, code);
   try {
-    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, ORBIT_USER_DATA: profile, ORBIT_START_URL: base + '/atlas', ORBIT_TEST_HIDDEN: '1' } });
+    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, NOVA_USER_DATA: profile, NOVA_START_URL: base + '/atlas', NOVA_TEST_HIDDEN: '1' } });
     shell = await app.firstWindow(); shell.setDefaultTimeout(10000); shell.on('pageerror', error => errors.push(error.message));
-    await shell.waitForFunction(() => document.documentElement.dataset.orbitReady === 'true');
+    await shell.waitForFunction(() => document.documentElement.dataset.novaReady === 'true');
     await app.evaluate(({ BrowserWindow, net, session }, base) => {
       BrowserWindow.getAllWindows()[0].showInactive();
       net.testQueries = []; net.testOffline = false;
@@ -35,19 +35,19 @@ test('address and start-page suggestions support web results, history, tab switc
         await new Promise(resolve => setTimeout(resolve, q === 'slow query' ? 700 : 20));
         return { ok: true, text: async () => JSON.stringify([q, [q + ' news', q + ' images', '<img src=x onerror=alert(1)>']]) };
       };
-      const browsing = session.fromPartition('persist:orbit');
+      const browsing = session.fromPartition('persist:nova');
       browsing.webRequest.onBeforeRequest({ urls: ['https://www.google.com/search*'] }, (details, callback) => {
         browsing.testLastSearch = details.url; callback({ redirectURL: base + '/searched' });
       });
     }, base);
     await until(async () => !(await active()).loading && (await active()).url === base + '/atlas');
-    await shell.evaluate(url => window.orbitBrowser.navigate(url), base + '/archive');
+    await shell.evaluate(url => window.novaBrowser.navigate(url), base + '/archive');
     await until(async () => !(await active()).loading && (await active()).url === base + '/archive');
-    await shell.evaluate(url => window.orbitBrowser.navigate(url), base + '/other');
+    await shell.evaluate(url => window.novaBrowser.navigate(url), base + '/other');
     await until(async () => !(await active()).loading && (await active()).url === base + '/other');
-    const atlasTab = await shell.evaluate(url => window.orbitBrowser.newTab(url), base + '/atlas');
+    const atlasTab = await shell.evaluate(url => window.novaBrowser.newTab(url), base + '/atlas');
     await until(async () => !(await active()).loading && (await active()).id === atlasTab);
-    await shell.evaluate(() => window.orbitBrowser.newTab());
+    await shell.evaluate(() => window.novaBrowser.newTab());
     await until(async () => (await active()).isStartPage && !(await active()).loading);
 
     stage = 'local results and native page cover';
@@ -64,10 +64,10 @@ test('address and start-page suggestions support web results, history, tab switc
     assert.equal(await box.inputValue(), base + '/atlas');
     await box.press('Enter');
     await until(async () => (await active()).id === atlasTab);
-    assert.equal((await shell.evaluate(() => window.orbitBrowser.getTabs())).tabs.length, 3);
+    assert.equal((await shell.evaluate(() => window.novaBrowser.getTabs())).tabs.length, 3);
     assert.equal(await popup.isHidden(), true);
     assert.equal(await shell.locator('#browser-suggestion-preview').isHidden(), true);
-    assert.equal(await app.evaluate(({ webContents }, base) => webContents.getAllWebContents().find(c => c.getURL() === base + '/atlas').executeJavaScript('typeof window.orbitSearch'), base), 'undefined');
+    assert.equal(await app.evaluate(({ webContents }, base) => webContents.getAllWebContents().find(c => c.getURL() === base + '/atlas').executeJavaScript('typeof window.novaSearch'), base), 'undefined');
 
     stage = 'web autocomplete and escape';
     await box.fill('space');
@@ -85,7 +85,7 @@ test('address and start-page suggestions support web results, history, tab switc
     await new Promise(resolve => setTimeout(resolve, 750));
     assert.ok(!(await popup.textContent()).includes('slow query'));
     await popup.locator('[data-source="google"]').first().click();
-    await until(() => app.evaluate(({ session }) => session.fromPartition('persist:orbit').testLastSearch === 'https://www.google.com/search?q=fast%20query%20news'));
+    await until(() => app.evaluate(({ session }) => session.fromPartition('persist:nova').testLastSearch === 'https://www.google.com/search?q=fast%20query%20news'));
     await until(async () => (await active()).url === base + '/searched' && !(await active()).loading);
 
     stage = 'history navigation while offline';
@@ -100,14 +100,14 @@ test('address and start-page suggestions support web results, history, tab switc
     await until(async () => (await active()).url === base + '/direct' && !(await active()).loading);
 
     stage = 'new-tab suggestions';
-    const reopenedAtlas = await shell.evaluate(url => window.orbitBrowser.newTab(url), base + '/atlas');
+    const reopenedAtlas = await shell.evaluate(url => window.novaBrowser.newTab(url), base + '/atlas');
     await until(async () => (await active()).id === reopenedAtlas && !(await active()).loading);
-    await shell.evaluate(id => window.orbitBrowser.activateTab(id), atlasTab);
+    await shell.evaluate(id => window.novaBrowser.activateTab(id), atlasTab);
     await shell.locator('#go-home').click();
     await until(async () => (await active()).isStartPage && !(await active()).loading);
     await until(() => start('document.documentElement.dataset.startReady === "true"'));
-    assert.equal(await start('typeof window.orbitBrowser'), 'undefined');
-    assert.equal(await start('typeof window.orbitSearch.getLocalSuggestions'), 'function');
+    assert.equal(await start('typeof window.novaBrowser'), 'undefined');
+    assert.equal(await start('typeof window.novaSearch.getLocalSuggestions'), 'function');
     await app.evaluate(({ net }) => { net.testOffline = false; });
     await start(`(() => {const i=document.getElementById('start-search');i.focus();i.value='nebula';i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
     await until(() => start(`!document.getElementById('start-suggestions').hidden && document.querySelectorAll('#start-suggestions [data-source="google"]').length > 0`));

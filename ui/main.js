@@ -9,19 +9,21 @@ import { createCosmosView } from "./components/cosmos/cosmos-view.js";
 
 import { createHistoryView } from "./components/history/history-view.js";
 import { createBookmarksView } from "./components/bookmarks/bookmarks-view.js";
+import { migrateNovaPreferences } from "./lib/preferences.js";
 
-const browser = window.orbitBrowser;
+const browser = window.novaBrowser;
 
 function start() {
+  migrateNovaPreferences();
   const tabs = createTabStore(browser);
   const aiConfig = createAIConfig(browser);
   let cosmos, history, bookmarks;
   let preserveCosmosTabChanges = 0;
   const openNewTab = () => {
-    const preserveOrbit = Boolean(cosmos && cosmos.isOpen() && cosmos.stayOnNewTab());
-    if (preserveOrbit) preserveCosmosTabChanges++;
+    const preserveNova = Boolean(cosmos && cosmos.isOpen() && cosmos.stayOnNewTab());
+    if (preserveNova) preserveCosmosTabChanges++;
     const pending = browser.newTab();
-    if (preserveOrbit && pending && typeof pending.catch === "function") {
+    if (preserveNova && pending && typeof pending.catch === "function") {
       pending.catch(() => { preserveCosmosTabChanges = Math.max(0, preserveCosmosTabChanges - 1); });
     }
     return pending;
@@ -78,17 +80,17 @@ function start() {
   document.getElementById("bookmarks-tab").addEventListener("click", () => bookmarks.toggle());
 
   // Switching to an existing tab normally returns to its page. The New Tab
-  // preference can preserve Orbit for the activation caused by the + button;
-  // closing the shown tab also leaves Orbit visible for its falling star.
+  // preference can preserve Nova for the activation caused by the + button;
+  // closing the shown tab also leaves Nova visible for its falling star.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
     const wasClosed = shownTabId != null && !tabs.tabs.some((tab) => String(tab.id) === String(shownTabId));
     const hasPendingNewTab = preserveCosmosTabChanges > 0;
-    const preserveOrbit = hasPendingNewTab && cosmos.isOpen();
+    const preserveNova = hasPendingNewTab && cosmos.isOpen();
     if (hasPendingNewTab) preserveCosmosTabChanges--;
     shownTabId = tabs.activeId;
-    if (!wasClosed && !preserveOrbit) cosmos.close();
+    if (!wasClosed && !preserveNova) cosmos.close();
     history.close();
     bookmarks.close();
   });
@@ -135,8 +137,8 @@ function start() {
       else if (!cosmos.clearSelection()) cosmos.close();
     }
   });
-  document.documentElement.dataset.orbitReady = "true";
+  document.documentElement.dataset.novaReady = "true";
 }
 
 if (browser && browser.getTabs) start();
-else document.body.textContent = "ORBIT must be run as the desktop app (npm start).";
+else document.body.textContent = "Nova must be run as the desktop app (npm start).";

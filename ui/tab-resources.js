@@ -1,5 +1,5 @@
 const get = id => document.getElementById(id);
-window.orbitTabResources.onUpdate(data => {
+window.novaTabResources.onUpdate(data => {
   get("resource-title").textContent = data.title;
   let domain = "New tab";
   try { const url = new URL(data.url); if (url.protocol !== "file:") domain = url.hostname || "New tab"; } catch { /* A loading tab. */ }
@@ -14,7 +14,7 @@ window.orbitTabResources.onUpdate(data => {
     : "Page processes · CPU: 100% = one core";
   document.body.dataset.tabId = data.id;
 });
-document.body.addEventListener("pointerenter", () => window.orbitTabResources.pointerInside(true));
-document.body.addEventListener("pointerleave", () => window.orbitTabResources.pointerInside(false));
-document.addEventListener("pointerdown", () => window.orbitTabResources.dismiss());
-document.addEventListener("keydown", event => { if (event.key === "Escape") window.orbitTabResources.dismiss(); });
+document.body.addEventListener("pointerenter", () => window.novaTabResources.pointerInside(true));
+document.body.addEventListener("pointerleave", () => window.novaTabResources.pointerInside(false));
+document.addEventListener("pointerdown", () => window.novaTabResources.dismiss());
+document.addEventListener("keydown", event => { if (event.key === "Escape") window.novaTabResources.dismiss(); });

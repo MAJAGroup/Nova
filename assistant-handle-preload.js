@@ -2,6 +2,6 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("orbitAssistantHandle", {
+contextBridge.exposeInMainWorld("novaAssistantHandle", {
   open: () => ipcRenderer.send("assistant:open-from-handle")
 });

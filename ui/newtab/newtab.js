@@ -1,13 +1,16 @@
 import { normalizeAddress } from "../lib/url.js";
 import { createSearchSuggestions } from "../components/search-suggestions.js";
 import { createGalaxyScene } from "./galaxy-scene.js";
+import { migrateNovaPreferences } from "../lib/preferences.js";
+
+migrateNovaPreferences();
 
 const canvas = document.getElementById("universe");
 const motion = matchMedia("(prefers-reduced-motion: reduce)");
 const toggle = document.getElementById("motion-toggle");
 const galaxy = createGalaxyScene(canvas);
 let paused = false;
-try { paused = localStorage.getItem("orbit.start.motionPaused") === "1"; } catch { /* Optional local preference. */ }
+try { paused = localStorage.getItem("nova.start.motionPaused") === "1"; } catch { /* Optional local preference. */ }
 let width = 0, height = 0, ratio = 1, frame = 0, last = 0, elapsed = motion.matches ? 3.2 : 0;
 const pointer = { x: 0, y: 0, targetX: 0, targetY: 0 };
 const running = () => !paused && !motion.matches && !document.hidden && galaxy.available;
@@ -51,11 +54,11 @@ document.addEventListener("visibilitychange", syncMotion);
 motion.addEventListener("change", () => { if (motion.matches) elapsed = Math.max(3.2, elapsed); syncMotion(); });
 toggle.addEventListener("click", () => {
   paused = !paused;
-  try { localStorage.setItem("orbit.start.motionPaused", paused ? "1" : "0"); } catch { /* Optional local preference. */ }
+  try { localStorage.setItem("nova.start.motionPaused", paused ? "1" : "0"); } catch { /* Optional local preference. */ }
   syncMotion();
 });
-if (window.orbitSearch) {
-  const bridge = window.orbitSearch;
+if (window.novaSearch) {
+  const bridge = window.novaSearch;
   createSearchSuggestions({
     input: document.getElementById("start-search"), popup: document.getElementById("start-suggestions"),
     requestLocal: query => bridge.getLocalSuggestions(query), requestWeb: query => bridge.getWebSuggestions(query),

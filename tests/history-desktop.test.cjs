@@ -18,7 +18,7 @@ test('History opens as a dated list and turns live search results into navigatio
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const url = 'http://127.0.0.1:' + server.address().port;
-  const profile = await mkdtemp(path.join(os.tmpdir(), 'orbit-dates-'));
+  const profile = await mkdtemp(path.join(os.tmpdir(), 'nova-dates-'));
   let app, shell;
   const uiErrors = [];
   const oldDate = new Date(); oldDate.setDate(oldDate.getDate() - 2); oldDate.setHours(10, 0, 0, 0);
@@ -28,15 +28,15 @@ test('History opens as a dated list and turns live search results into navigatio
     { id: 'seed-2', journey: 'seed', at: +oldDate + 600000, title: 'Planetary orbits · Wikipedia', url: url + '/orbits', parent: 'seed-1', kind: 'navigation' },
     { id: 'seed-3', journey: 'seed', at: +yesterday, title: 'Stars · Astronomy', url: url + '/stars', parent: 'seed-2', kind: 'navigation' }
   ];
-  await writeFile(path.join(profile, 'orbit-history.json'), JSON.stringify({ nodes: seeds }));
+  await writeFile(path.join(profile, 'nova-history.json'), JSON.stringify({ nodes: seeds }));
   const until = async check => { const end = Date.now() + 15000; while (!await check()) { if (Date.now() > end) throw new Error('Timed out waiting for native state'); await new Promise(r => setTimeout(r, 40)); } };
-  const history = () => shell.evaluate(() => window.orbitBrowser.getHistory());
-  const page = name => until(() => shell.evaluate(name => window.orbitBrowser.getTabs().then(p => p.tabs.some(t => t.active && t.title === name + ' · Research' && !t.loading)), name));
+  const history = () => shell.evaluate(() => window.novaBrowser.getHistory());
+  const page = name => until(() => shell.evaluate(name => window.novaBrowser.getTabs().then(p => p.tabs.some(t => t.active && t.title === name + ' · Research' && !t.loading)), name));
   async function launch() {
-    app = await electron.launch({ args: [path.resolve('.')], env: { ...process.env, ORBIT_USER_DATA: profile, ORBIT_START_URL: url + '/A', ORBIT_TEST_HIDDEN: '1' } });
+    app = await electron.launch({ args: [path.resolve('.')], env: { ...process.env, NOVA_USER_DATA: profile, NOVA_START_URL: url + '/A', NOVA_TEST_HIDDEN: '1' } });
     shell = await app.firstWindow(); shell.setDefaultTimeout(10000);
     shell.on('pageerror', error => uiErrors.push(error.message));
-    await until(() => shell.evaluate(() => document.documentElement.dataset.orbitReady === 'true'));
+    await until(() => shell.evaluate(() => document.documentElement.dataset.novaReady === 'true'));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await page('A');
   }
@@ -44,7 +44,7 @@ test('History opens as a dated list and turns live search results into navigatio
   try {
     await launch();
     await clickLink('A', 'B'); await page('B');
-    await shell.evaluate(() => window.orbitBrowser.goBack()); await page('A');
+    await shell.evaluate(() => window.novaBrowser.goBack()); await page('A');
     await clickLink('A', 'C'); await page('C');
     const data = await history(), a = data.find(n => n.title === 'A · Research'), b = data.find(n => n.title === 'B · Research'), c = data.find(n => n.title === 'C · Research');
     assert.equal(b.parent, a.id); assert.equal(c.parent, a.id);
@@ -145,19 +145,19 @@ test('History opens as a dated list and turns live search results into navigatio
 });
 
 test('history lists older entries in pages and searches saved visits beyond the loaded list', { timeout: 60000 }, async () => {
-  const profile = await mkdtemp(path.join(os.tmpdir(), 'orbit-history-list-'));
+  const profile = await mkdtemp(path.join(os.tmpdir(), 'nova-history-list-'));
   const start = new Date(2026, 9, 1, 9).getTime();
   const nodes = Array.from({ length: 130 }, (_, i) => ({ id: `saved-${i}`, journey: `journey-${i}`, at: start + i * 60000, title: `Saved page ${i}`, url: `https://example.test/saved/${i}`, parent: null, kind: 'root' }));
-  await writeFile(path.join(profile, 'orbit-history.json'), JSON.stringify({ nodes }));
+  await writeFile(path.join(profile, 'nova-history.json'), JSON.stringify({ nodes }));
   let app;
   try {
-    app = await electron.launch({ args: [path.resolve('.')], env: { ...process.env, ORBIT_USER_DATA: profile, ORBIT_START_URL: '', ORBIT_TEST_HIDDEN: '1' } });
+    app = await electron.launch({ args: [path.resolve('.')], env: { ...process.env, NOVA_USER_DATA: profile, NOVA_START_URL: '', NOVA_TEST_HIDDEN: '1' } });
     const shell = await app.firstWindow(); shell.setDefaultTimeout(10000);
     const until = async predicate => {
       const end = Date.now() + 10000;
       while (!await predicate()) { if (Date.now() > end) throw new Error('Timed out waiting for history list'); await new Promise(r => setTimeout(r, 40)); }
     };
-    await until(() => shell.evaluate(() => document.documentElement.dataset.orbitReady === 'true'));
+    await until(() => shell.evaluate(() => document.documentElement.dataset.novaReady === 'true'));
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await shell.locator('#history-tab').click();
     await until(async () => await shell.locator('.history-entry').count() === 100);

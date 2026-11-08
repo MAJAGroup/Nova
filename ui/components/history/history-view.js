@@ -172,7 +172,7 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
         return { stars: positions, constellations: clusters, extent: Math.max(12, ...[...positions.values()].map(p => p.length())) };
       }}, onLayout: layout => { constellations.sync(layout); drawTrails(); }
     });
-    // The star component shares Orbit view's icon labels and hover behavior.
+    // The star component shares Nova view's icon labels and hover behavior.
     const ray = new THREE.Raycaster(), pointer = new THREE.Vector2(); let down;
     function hit(event) {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -494,12 +494,12 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     });
     const timeline = mode === "timeline" && visualize;
     if (saved) root.querySelector(".history-legend > span").replaceChildren(node("i", ""), document.createTextNode(timeline ? "Saved order" : "Same website"));
-    root.querySelector(".history-orbit").hidden = timeline;
+    root.querySelector(".history-rotation").hidden = timeline;
     root.querySelector(".history-fit").hidden = timeline;
     root.querySelector(".cosmos-sidebar").setAttribute("aria-label", timeline ? (saved ? "Bookmarks by date saved" : "Chronological browsing history") : saved ? "Bookmarks by website" : "Navigation journeys");
     root.querySelector(".cosmos-hint").textContent = timeline
       ? "Scroll either side to move through time · Click a star to open · Click a sidebar row to inspect"
-      : "Click a star to open · Click a sidebar row to inspect · Drag to orbit · Scroll to zoom";
+      : "Click a star to open · Click a sidebar row to inspect · Drag to rotate · Scroll to zoom";
     refresh(true);
   }
   function setView(searching) {
@@ -635,11 +635,11 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
   }
   function setOrbit(enabled) {
     if (controls) controls.autoRotate = enabled && !motion.matches;
-    const button = root.querySelector(".history-orbit");
-    button.textContent = controls?.autoRotate ? "Pause orbit" : "Resume orbit";
+    const button = root.querySelector(".history-rotation");
+    button.textContent = controls?.autoRotate ? "Pause rotation" : "Resume rotation";
     button.setAttribute("aria-pressed", String(Boolean(controls?.autoRotate)));
   }
-  root.querySelector(".history-orbit").onclick = () => setOrbit(!controls?.autoRotate);
+  root.querySelector(".history-rotation").onclick = () => setOrbit(!controls?.autoRotate);
   motion.addEventListener("change", () => { if (motion.matches) setOrbit(false); if (controls) controls.enableDamping = !motion.matches; });
   const sidebarToggle = root.querySelector(".history-sidebar-toggle");
   function setSidebarHidden(hidden) {
@@ -648,10 +648,10 @@ export function createHistoryView({ browser, onVisibilityChange, collection = "h
     sidebarToggle.setAttribute("aria-expanded", String(!hidden));
     sidebarToggle.title = hidden ? (saved ? "Show bookmarks list" : "Show history list") : saved ? "Hide bookmarks list" : "Hide history list";
     sidebarToggle.setAttribute("aria-label", sidebarToggle.title);
-    try { localStorage.setItem(`orbit.${collection}.sidebarHidden`, hidden ? "1" : "0"); } catch { /* storage unavailable */ }
+    try { localStorage.setItem(`nova.${collection}.sidebarHidden`, hidden ? "1" : "0"); } catch { /* storage unavailable */ }
   }
   let sidebarHidden = false;
-  try { sidebarHidden = localStorage.getItem(`orbit.${collection}.sidebarHidden`) === "1"; } catch { /* storage unavailable */ }
+  try { sidebarHidden = localStorage.getItem(`nova.${collection}.sidebarHidden`) === "1"; } catch { /* storage unavailable */ }
   setSidebarHidden(sidebarHidden);
   sidebarToggle.onclick = () => { setSidebarHidden(!root.classList.contains("sidebar-hidden")); fit(); };
   root.querySelectorAll(".history-mode").forEach(button => { button.onclick = () => setMode(button.dataset.mode); });

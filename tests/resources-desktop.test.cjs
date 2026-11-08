@@ -7,7 +7,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 test('tab hover shows live native memory, CPU and audio without pausing the page, and cleans up on leave and close', { timeout:90000 }, async () => {
-  const profile = await mkdtemp(path.join(os.tmpdir(),'orbit-resources-'));
+  const profile = await mkdtemp(path.join(os.tmpdir(),'nova-resources-'));
   const server = createServer((req,res) => {
     res.setHeader('Content-Type','text/html');
     if (req.url === '/busy') res.end(`<title>Busy resource fixture</title><h1>Busy page</h1><script>
@@ -28,13 +28,13 @@ test('tab hover shows live native memory, CPU and audio without pausing the page
   });
   const page=code=>app.evaluate(({webContents},{url,code})=>webContents.getAllWebContents().find(contents=>contents.getURL()===url).executeJavaScript(code,true),{url:base+'/busy',code});
   try{
-    app=await _electron.launch({args:[path.resolve('.'),'--autoplay-policy=no-user-gesture-required'],env:{...process.env,ORBIT_USER_DATA:profile,ORBIT_START_URL:base+'/quiet',ORBIT_TEST_HIDDEN:'1'}});
+    app=await _electron.launch({args:[path.resolve('.'),'--autoplay-policy=no-user-gesture-required'],env:{...process.env,NOVA_USER_DATA:profile,NOVA_START_URL:base+'/quiet',NOVA_TEST_HIDDEN:'1'}});
     await until(()=>{shell=app.windows().find(page=>page.url().endsWith('/ui/index.html'));return Boolean(shell);});
     shell.setDefaultTimeout(10000);shell.on('pageerror',error=>errors.push(error.message));
-    await shell.waitForFunction(()=>document.documentElement.dataset.orbitReady==='true');
+    await shell.waitForFunction(()=>document.documentElement.dataset.novaReady==='true');
     await app.evaluate(({app,BrowserWindow})=>{BrowserWindow.getAllWindows()[0].showInactive();const original=app.getAppMetrics.bind(app);app.testResourceCalls=0;app.getAppMetrics=()=>{app.testResourceCalls++;return original();};});
-    const initial=await shell.evaluate(()=>window.orbitBrowser.getTabs()),quietId=initial.activeId;
-    const busyId=await shell.evaluate(url=>window.orbitBrowser.newTab(url),base+'/busy');
+    const initial=await shell.evaluate(()=>window.novaBrowser.getTabs()),quietId=initial.activeId;
+    const busyId=await shell.evaluate(url=>window.novaBrowser.newTab(url),base+'/busy');
     await until(()=>page('document.readyState === "complete" && window.tickCount > 2').catch(()=>false));
     const button=shell.locator(`.browser-tab[data-tab-id="${busyId}"]`);
     const bounds=()=>app.evaluate(({BrowserWindow},url)=>BrowserWindow.getAllWindows()[0].contentView.children.find(view=>view.webContents?.getURL()===url).getBounds(),base+'/busy');
@@ -50,10 +50,10 @@ test('tab hover shows live native memory, CPU and audio without pausing the page
     assert.ok(await page('tickCount')>ticks);
     // Browser state updates must keep the hovered node and keyboard focus intact.
     await button.evaluate(el=>{el.dataset.preserved='yes';});
-    await shell.evaluate(id=>window.orbitBrowser.groupTabs([id],{name:'Resource test'}),busyId);
+    await shell.evaluate(id=>window.novaBrowser.groupTabs([id],{name:'Resource test'}),busyId);
     assert.equal(await button.getAttribute('data-preserved'),'yes');
     assert.equal((await card()).visible,true);
-    assert.equal((await shell.evaluate(()=>window.orbitBrowser.getTabs())).activeId,busyId);
+    assert.equal((await shell.evaluate(()=>window.novaBrowser.getTabs())).activeId,busyId);
     const image=await app.evaluate(async({webContents})=>(await webContents.getAllWebContents().find(contents=>contents.getURL().endsWith('/ui/tab-resources.html')).capturePage()).toDataURL());
     await mkdir('artifacts',{recursive:true});await writeFile('artifacts/tab-resources.png',Buffer.from(image.split(',')[1],'base64'));
 
@@ -75,14 +75,14 @@ test('tab hover shows live native memory, CPU and audio without pausing the page
     stage='inactive tabs and keyboard dismissal';
     await shell.locator(`.browser-tab[data-tab-id="${quietId}"]`).hover();
     await until(async()=>{const data=await card();return data.visible&&data.id===quietId;});
-    assert.equal((await shell.evaluate(()=>window.orbitBrowser.getTabs())).activeId,busyId);
+    assert.equal((await shell.evaluate(()=>window.novaBrowser.getTabs())).activeId,busyId);
     await shell.keyboard.press('Escape');await until(async()=>!(await card()).visible);
     await button.focus();await until(async()=>{const data=await card();return data.visible&&data.id===busyId;});
     await button.press('Escape');await until(async()=>!(await card()).visible);
 
     stage='closed tabs and viewport edge';
     await shell.mouse.move(8,8);await button.hover();await until(async()=>(await card()).visible);
-    await shell.evaluate(id=>window.orbitBrowser.closeTab(id),busyId);await until(async()=>!(await card()).visible);
+    await shell.evaluate(id=>window.novaBrowser.closeTab(id),busyId);await until(async()=>!(await card()).visible);
     const last=shell.locator(`.browser-tab[data-tab-id="${quietId}"]`);await last.hover();
     await until(async()=>(await card()).visible);
     const cardBounds=(await card()).bounds,viewport=await shell.evaluate(()=>({width:innerWidth,height:innerHeight}));

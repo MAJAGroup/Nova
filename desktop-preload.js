@@ -2,7 +2,7 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("orbitBrowser", {
+contextBridge.exposeInMainWorld("novaBrowser", {
   showTabResources: (id, anchor) => ipcRenderer.send("browser:show-tab-resources", { id, anchor }),
   hideTabResources: immediate => ipcRenderer.send("browser:hide-tab-resources", immediate === true),
   onTabResourcesUpdated: callback => {

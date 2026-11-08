@@ -35,7 +35,7 @@ function localSuggestions(value, { visits = [], bookmarks = [], tabs = [], activ
   const results = [...candidates.values()].sort((a, b) => b.score - a.score || b.at - a.at).slice(0, query ? 6 : 7);
   if (query) {
     let address;
-    if (query === "orbit://newtab" || query === "orbit://newtab/") address = "orbit://newtab";
+    if (query === "nova://newtab" || query === "nova://newtab/") address = "nova://newtab";
     try {
       const parsed = new URL(/^https?:\/\//i.test(query) ? query : `https://${query}`);
       if (!/\s/.test(query) && (/^https?:\/\//i.test(query) || /^[\w-]+(?:\.[\w-]+)+(?::\d+)?(?:[/?#]|$)/.test(query) || /^localhost(?::\d+)?(?:\/|$)/i.test(query) || /^\[[:\da-f]+\]/i.test(query))) address = parsed.href;

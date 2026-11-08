@@ -138,7 +138,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   // The tab list can be tucked away to give the cosmos the whole width;
   // the choice is remembered on this device.
-  const SIDEBAR_KEY = "orbit.cosmos.sidebarHidden";
+  const SIDEBAR_KEY = "nova.cosmos.sidebarHidden";
   const sidebarToggle = el("cosmos-sidebar-toggle");
   function setSidebarHidden(hidden) {
     container.classList.toggle("sidebar-hidden", hidden);
@@ -154,7 +154,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   sidebarToggle.addEventListener("click", () => setSidebarHidden(!container.classList.contains("sidebar-hidden")));
 
   const stayToggle = el("cosmos-stay-toggle");
-  const STAY_ON_NEW_TAB_KEY = "orbit.cosmos.stayOnNewTab";
+  const STAY_ON_NEW_TAB_KEY = "nova.cosmos.stayOnNewTab";
   let stayOnNewTab = false;
   try { stayOnNewTab = localStorage.getItem(STAY_ON_NEW_TAB_KEY) === "1"; } catch (_) { /* storage unavailable */ }
   function setStayOnNewTab(enabled) {
@@ -163,7 +163,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       stayToggle.setAttribute("aria-checked", String(stayOnNewTab));
       stayToggle.classList.toggle("active", stayOnNewTab);
       stayToggle.title = stayOnNewTab
-        ? "New tabs opened with + keep Orbit visible"
+        ? "New tabs opened with + keep Nova visible"
         : "New tabs opened with + switch to the web page";
     }
     try { localStorage.setItem(STAY_ON_NEW_TAB_KEY, stayOnNewTab ? "1" : "0"); } catch (_) { /* storage unavailable */ }
@@ -212,7 +212,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (!sections.length) {
       const empty = document.createElement("div");
       empty.className = "cosmos-list-empty";
-      empty.innerHTML = '<span class="cosmos-empty-orbit">✦</span><span>No tabs in orbit yet</span><small>Open a page to add its star to the atlas.</small>';
+      empty.innerHTML = '<span class="cosmos-empty-nova">✦</span><span>No tabs in Nova yet</span><small>Open a page to add its star to the atlas.</small>';
       sections.push(empty);
     }
     tabList.replaceChildren(...sections);
@@ -617,7 +617,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       explorationPhase = "active";
       container.classList.add("exploring");
       container.classList.remove("exploration-exiting");
-      showExplorationStatus("ORBIT AI · EXPLORING", "Charting a course through space…");
+      showExplorationStatus("Nova AI · EXPLORING", "Charting a course through space…");
       if (explorer) explorer.start();
       return;
     }

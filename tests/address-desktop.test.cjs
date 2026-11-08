@@ -12,7 +12,7 @@ const os = require('node:os');
 // A temporary CA is trusted only inside this test's disposable Electron session.
 // It is never installed on the machine or enabled by application code.
 test('address bar trims only its display and tracks verified TLS, mixed content, failures and tab switches', { timeout: 90000 }, async () => {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'orbit-address-'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'nova-address-'));
   const servers = []; let app, shell;
   const errors = [];
   let diagnostics = "", stage = "startup";
@@ -30,7 +30,7 @@ test('address bar trims only its display and tracks verified TLS, mixed content,
     return server.address().port;
   }
   try {
-    openssl(['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2', '-subj', '/CN=ORBIT temporary test CA']);
+    openssl(['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'ca.key', '-out', 'ca.pem', '-days', '2', '-subj', '/CN=Nova temporary test CA']);
     openssl(['req', '-newkey', 'rsa:2048', '-nodes', '-keyout', 'server.key', '-out', 'server.csr', '-subj', '/CN=127.0.0.1']);
     await writeFile(path.join(dir, 'extensions.cnf'), 'subjectAltName=IP:127.0.0.1\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n');
     openssl(['x509', '-req', '-in', 'server.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-CAcreateserial', '-out', 'server.pem', '-days', '1', '-extfile', 'extensions.cnf']);
@@ -51,15 +51,15 @@ test('address bar trims only its display and tracks verified TLS, mixed content,
     }));
     const badPort = await listen(createHttpsServer({ key: await readFile(path.join(dir, 'bad.key')), cert: await readFile(path.join(dir, 'bad.pem')) }, (_req, res) => res.end('Must not load')));
     const tlsUrl = `https://127.0.0.1:${tlsPort}`;
-    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, ORBIT_USER_DATA: path.join(dir, 'profile'), ORBIT_START_URL: httpUrl, ORBIT_TEST_HIDDEN: '1' } });
+    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, NOVA_USER_DATA: path.join(dir, 'profile'), NOVA_START_URL: httpUrl, NOVA_TEST_HIDDEN: '1' } });
     app.process().stderr.on('data', data => { diagnostics = (diagnostics + data).slice(-8000); });
     app.process().on('exit', (code, signal) => { diagnostics += `\nElectron exit: ${code} ${signal}`; });
     shell = await app.firstWindow(); shell.setDefaultTimeout(10000);
     shell.on('pageerror', error => errors.push(error.message));
-    await shell.waitForFunction(() => document.documentElement.dataset.orbitReady === 'true');
+    await shell.waitForFunction(() => document.documentElement.dataset.novaReady === 'true');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await app.evaluate(({ session }, trustedCertificate) => {
-      session.fromPartition('persist:orbit').setCertificateVerifyProc((request, callback) => {
+      session.fromPartition('persist:nova').setCertificateVerifyProc((request, callback) => {
         const now = Date.now() / 1000;
         const trustedFixture = request.hostname === '127.0.0.1'
           && request.certificate.data.trim() === trustedCertificate.trim()
@@ -67,14 +67,14 @@ test('address bar trims only its display and tracks verified TLS, mixed content,
         callback(trustedFixture ? 0 : -3);
       });
     }, cert);
-    const active = () => shell.evaluate(async () => { const p = await window.orbitBrowser.getTabs(); return p.tabs.find(t => t.id === p.activeId); });
-    const navigate = url => shell.evaluate(url => window.orbitBrowser.navigate(url), url);
+    const active = () => shell.evaluate(async () => { const p = await window.novaBrowser.getTabs(); return p.tabs.find(t => t.id === p.activeId); });
+    const navigate = url => shell.evaluate(url => window.novaBrowser.navigate(url), url);
     const state = () => shell.locator('#connection-status').getAttribute('data-state');
     await until(async () => (await active())?.url === httpUrl + '/' && await state() === 'insecure');
     const httpTabId = (await active()).id;
     stage = "verified TLS";
     const fullUrl = tlsUrl + '/docs/page?q=one%20two&utm_source=keep#section';
-    const httpsTabId = await shell.evaluate(url => window.orbitBrowser.newTab(url), fullUrl);
+    const httpsTabId = await shell.evaluate(url => window.novaBrowser.newTab(url), fullUrl);
     await until(async () => (await active())?.url === fullUrl && await state() === 'secure');
     const box = shell.locator('#omnibox');
     assert.equal(await box.inputValue(), fullUrl.replace('https://', ''));
@@ -90,9 +90,9 @@ test('address bar trims only its display and tracks verified TLS, mixed content,
     await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(c => c.getURL() === url).executeJavaScript('history.pushState({}, "", "#changed")'), fullUrl);
     await until(async () => (await active()).url.endsWith('#changed') && await state() === 'secure');
     stage = "switch to HTTP";
-    await shell.evaluate(id => window.orbitBrowser.activateTab(id), httpTabId);
+    await shell.evaluate(id => window.novaBrowser.activateTab(id), httpTabId);
     await until(async () => await state() === 'insecure');
-    await shell.evaluate(id => window.orbitBrowser.activateTab(id), httpsTabId);
+    await shell.evaluate(id => window.novaBrowser.activateTab(id), httpsTabId);
     await until(async () => await state() === 'secure');
     stage = 'mixed content';
     await navigate(tlsUrl + '/mixed');

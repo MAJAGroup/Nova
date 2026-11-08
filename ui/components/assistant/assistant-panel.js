@@ -5,7 +5,7 @@ import {
 } from "./intents.js";
 import { createVoice } from "./voice.js";
 
-const AVATAR = '<div class="message-avatar"><span class="mini-orbit">✦</span></div>';
+const AVATAR = '<div class="message-avatar"><span class="mini-nova">✦</span></div>';
 
 // A right-side dock for chat, with a narrow edge handle while minimized.
 export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onVisibilityChange, onExplorationChange = () => {} }) {
@@ -35,7 +35,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     if (activeAIRequests === 1) {
       root.setAttribute("aria-busy", "true");
       try { onExplorationChange(true); }
-      catch (error) { console.warn("Orbit exploration animation unavailable", error); }
+      catch (error) { console.warn("Nova exploration animation unavailable", error); }
     }
     let finished = false;
     return () => {
@@ -45,7 +45,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       if (activeAIRequests === 0) {
         root.setAttribute("aria-busy", "false");
         try { onExplorationChange(false); }
-        catch (error) { console.warn("Orbit exploration animation unavailable", error); }
+        catch (error) { console.warn("Nova exploration animation unavailable", error); }
       }
     };
   }
@@ -89,7 +89,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const message = document.createElement("div");
     message.className = "message " + (isAssistant ? "assistant-message" : "user-message");
     message.innerHTML = (isAssistant ? AVATAR : "") +
-      '<div class="message-content"><div class="message-name">' + (isAssistant ? "ORBIT" : "YOU") +
+      '<div class="message-content"><div class="message-name">' + (isAssistant ? "Nova" : "YOU") +
       " <span>" + currentTime() + '</span></div><div class="message-bubble">' +
       escapeHTML(text).replace(/\n/g, "<br>") + "</div></div>";
     scroll.appendChild(message);
@@ -102,8 +102,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     const pending = document.createElement("div");
     pending.className = "message assistant-message pending-message";
     pending.setAttribute("role", "status");
-    pending.setAttribute("aria-label", "Orbit is thinking");
-    pending.innerHTML = AVATAR + '<div class="message-content"><div class="message-name">ORBIT <span>thinking</span></div><div class="message-bubble"><span class="loading-dots" aria-hidden="true">•••</span></div></div>';
+    pending.setAttribute("aria-label", "Nova is thinking");
+    pending.innerHTML = AVATAR + '<div class="message-content"><div class="message-name">Nova <span>thinking</span></div><div class="message-bubble"><span class="loading-dots" aria-hidden="true">•••</span></div></div>';
     scroll.appendChild(pending);
     scrollToEnd();
     return pending;
@@ -202,7 +202,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     button.addEventListener("click", () => ask(button.dataset.prompt));
   });
   el("context-info").addEventListener("click", () => {
-    showToast("When you ask Orbit, it shares open tab titles and URLs with your configured AI endpoint.");
+    showToast("When you ask Nova, it shares open tab titles and URLs with your configured AI endpoint.");
   });
   el("assistant-menu").addEventListener("click", () => { close({ restoreFocus: false }); onOpenSettings(); });
   el("assistant-reopen").addEventListener("click", open);

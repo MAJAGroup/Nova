@@ -7,7 +7,7 @@ const { BookmarkStore, bookmarkUrl } = require('../bookmark-store');
 const { localSuggestions } = require('../search-suggestions.cjs');
 
 test('bookmarks persist atomically, deduplicate URLs, preserve identity and date when edited, and remove independently', () => {
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'orbit-bookmarks-model-'));
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'nova-bookmarks-model-'));
   try {
     const file = path.join(dir, 'bookmarks.json'), store = new BookmarkStore(file);
     const first = store.save({ title: 'Space', url: 'https://example.com', favicon: 'https://example.com/icon.png' });
@@ -29,11 +29,11 @@ test('bookmarks persist atomically, deduplicate URLs, preserve identity and date
 
 test('bookmarks reject executable and internal URLs, strip credentials, and leave unreadable files alone', () => {
   const store = new BookmarkStore(null);
-  for (const value of ['javascript:alert(1)', 'file:///secret', 'orbit://newtab', 'data:text/html,test', 'example.com', null]) {
+  for (const value of ['javascript:alert(1)', 'file:///secret', 'nova://newtab', 'data:text/html,test', 'example.com', null]) {
     assert.throws(() => store.save({url:value}));
   }
   assert.equal(bookmarkUrl('https://user:password@example.com/Path?q=keep#part'), 'https://example.com/Path?q=keep#part');
-  const dir = mkdtempSync(path.join(os.tmpdir(), 'orbit-bookmarks-bad-'));
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'nova-bookmarks-bad-'));
   try {
     const file = path.join(dir, 'bookmarks.json'); writeFileSync(file, '{broken');
     assert.throws(() => new BookmarkStore(file)); assert.equal(readFileSync(file, 'utf8'), '{broken');

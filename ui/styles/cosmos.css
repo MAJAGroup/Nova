@@ -31,7 +31,7 @@
 .cosmos-info-tab.active .cosmos-info-active{opacity:1}
 .cosmos-list-empty{height:100%;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;text-align:center;color:#9aa9c5;font-size:11px}
 .cosmos-list-empty small{max-width:170px;color:#697895;font-size:9px;line-height:1.5}
-.cosmos-empty-orbit{width:32px;height:32px;display:grid;place-items:center;border:1px solid #496583;border-radius:50%;color:#89def0;box-shadow:0 0 20px #7acde22b}
+.cosmos-empty-nova{width:32px;height:32px;display:grid;place-items:center;border:1px solid #496583;border-radius:50%;color:#89def0;box-shadow:0 0 20px #7acde22b}
 .cosmos-stage{position:absolute;z-index:1;inset:0;overflow:hidden}
 .cosmos-canvas{position:absolute;inset:0;display:block;touch-action:none}
 .cosmos-labels{position:absolute;inset:0;pointer-events:none}

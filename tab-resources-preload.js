@@ -1,6 +1,6 @@
 "use strict";
 const { contextBridge, ipcRenderer } = require("electron");
-contextBridge.exposeInMainWorld("orbitTabResources", {
+contextBridge.exposeInMainWorld("novaTabResources", {
   onUpdate: callback => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("tab-resources:data", listener);

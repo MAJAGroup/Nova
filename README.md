@@ -1,6 +1,6 @@
-# ORBIT
+# Nova
 
-ORBIT is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, standard browser navigation, and an AI assistant that can use a local Ollama model hosted on Empire AI Alpha, BullsAI, or another compatible chat endpoint.
+Nova is a standalone desktop browser prototype for the UB Hacking 2026 deep-space theme. It combines Chromium-backed tabs, standard browser navigation, and an AI assistant that can use a local Ollama model hosted on Empire AI Alpha, BullsAI, or another compatible chat endpoint.
 
 ## What you need
 
@@ -16,7 +16,7 @@ Check that Node.js and npm are installed by opening a terminal and running:
 
 Both commands should print version numbers. On Windows, use PowerShell or Command Prompt to run the desktop app rather than WSL.
 
-## Install and launch ORBIT
+## Install and launch Nova
 
 1. Open Terminal, PowerShell, or Command Prompt.
 2. Change to the project folder. Replace the example path with the folder where you saved this project:
@@ -37,30 +37,34 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 
        npm start
 
-ORBIT opens with a local space start page filling the window. Its point-cloud galaxy reveals outward from the core, turns slowly around a dark dust lane, and responds gently to mouse movement. The galaxy uses the app’s cyan, blue and lavender palette; its visual reference is the public landing animation at https://odyssey.com/. Rendering and geometry are local, with a smaller Canvas fallback when WebGL is unavailable. Use its search box to search the web or enter a URL; GitHub, Wikipedia and YouTube shortcuts are included. The page works offline, respects reduced-motion preferences, offers a pause button, and suspends animation while hidden. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
+Nova opens with a local space start page filling the window. Its point-cloud galaxy reveals outward from the core, turns slowly around a dark dust lane, and responds gently to mouse movement. The galaxy uses the app’s cyan, blue and lavender palette; its visual reference is the public landing animation at https://odyssey.com/. Rendering and geometry are local, with a smaller Canvas fallback when WebGL is unavailable. Use its search box to search the web or enter a URL; GitHub, Wikipedia and YouTube shortcuts are included. The page works offline, respects reduced-motion preferences, offers a pause button, and suspends animation while hidden. Press Ctrl+Space to bring up the Nova assistant as a Spotlight-style popup over the page.
+
+Nova uses a `Nova` profile folder under the operating system's application-data directory. When that folder does not yet exist, the first launch copies an earlier browser profile and carries forward bookmarks, history, settings and browser storage, leaving the original profile untouched. Nova writes `nova-bookmarks.json`, `nova-history.json` and `nova-settings.json`; existing Nova data is never overwritten by the migration. Interface preferences, including animation and sidebar settings, also migrate. Use `NOVA_USER_DATA` for a custom profile, `NOVA_START_URL` for a startup destination, and `NOVA_TEST_HIDDEN=1` for isolated hidden-window tests.
+
+Run `npm run test:branding` to check the Nova identity, profile migration, preferences, desktop registration and new-tab branding.
 
 ## Use the browser
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
 - **Search suggestions:** The address bar and new-tab search combine matching history, bookmarks, open tabs and Google autocomplete. Use ↑ / ↓ to choose a result and Enter to open it; open-tab results switch to the existing tab. Escape dismisses suggestions. Local results work offline. After a short typing pause, ordinary search phrases are sent to Google for autocomplete without browser cookies; full addresses, email addresses and URL parameters stay local. History and bookmarks are matched on your device.
 - **Read or edit an address:** While browsing, HTTPS addresses omit `https://`, a leading `www.`, and an empty trailing slash. Other subdomains, ports, paths, query parameters and fragments remain visible. HTTP keeps its scheme and a **Not secure** indicator. Click the address bar or press Ctrl+L / Command+L to reveal and select the full address for editing or copying; Escape restores the current page address. Trimming changes only the display.
-- **Check connection security:** A lock appears only when Chromium reports a secure main-page HTTPS response with a currently valid certificate. Hover over it for the issuing authority and expiry. Navigation clears the previous lock; certificate failures and loaded insecure content never receive a lock. If verification is unavailable, ORBIT shows a neutral information icon. Electron continues to reject invalid certificates by default.
+- **Check connection security:** A lock appears only when Chromium reports a secure main-page HTTPS response with a currently valid certificate. Hover over it for the issuing authority and expiry. Navigation clears the previous lock; certificate failures and loaded insecure content never receive a lock. If verification is unavailable, Nova shows a neutral information icon. Electron continues to reject invalid certificates by default.
 - **Switch tabs:** Use the tab strip next to the address bar.
 - **Inspect tab resources:** Hover over a tab, or focus it with the keyboard, to see its live memory use, CPU use, and audio state (**Playing**, **Muted**, or **Silent**). The card updates once per second while open; Escape dismisses it, and sampling stops when it closes. Memory is the resident memory of the page's renderer processes, including iframe renderers, displayed in MB. CPU uses 100% for one logical core and can exceed 100% for multithreaded pages. When a process serves multiple tabs, the card labels its shared totals. Shared browser, GPU and audio-service processes are excluded. The page stays running while you inspect it.
-- **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to orbit, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page. Zoomed out, the cosmos shows constellation names; zoom in or select a constellation's name to see its tab titles. Double-click empty space to see everything again.
+- **See all tabs as a cosmos:** Select **✦** in the toolbar or press Ctrl+Shift+O (Command+Shift+O on macOS). Every open tab is a star in a 3D galaxy; tabs from the same site share a colour and the current tab has a ring around it. Drag to rotate, scroll to zoom, and select a star or its label to switch to that tab. Press Esc or select **✦** again to return to the page. Zoomed out, the cosmos shows constellation names; zoom in or select a constellation's name to see its tab titles. Double-click empty space to see everything again.
 - **Group tabs into constellations:** Each group of tabs becomes its own constellation, with its stars joined by lines. To make one:
   - Right-click a tab (in the tab strip or the cosmos) and choose **New constellation with this tab** or **Add to constellation**.
   - In the cosmos, Shift-click several stars and select **Make a constellation**, then type its name.
   - Ask the assistant, for example “group github, mdn and node as Dev” or “ungroup Dev”.
-  - Describe the grouping you want in your own words, for example “group my tabs by project”, “put everything about the trip to Japan together”, or “split my tabs into work and personal”. With an AI endpoint connected, the assistant sends your instruction and your open tab titles and URLs to the model, which plans the constellations; ORBIT then creates or updates them. Without an endpoint, “group my tabs by site” still works.
+  - Describe the grouping you want in your own words, for example “group my tabs by project”, “put everything about the trip to Japan together”, or “split my tabs into work and personal”. With an AI endpoint connected, the assistant sends your instruction and your open tab titles and URLs to the model, which plans the constellations; Nova then creates or updates them. Without an endpoint, “group my tabs by site” still works.
 
-  Grouped tabs have a coloured line under them in the tab strip. Links opened from a grouped tab join its group. To rename a constellation, double-click its name in the cosmos or use the right-click menu. Groups last until ORBIT closes.
+  Grouped tabs have a coloured line under them in the tab strip. Links opened from a grouped tab join its group. To rename a constellation, double-click its name in the cosmos or use the right-click menu. Groups last until Nova closes.
 - **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS). Each blank tab opens the local space start page with an empty address bar; explicit website links still open their destination.
 - **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh space start page.
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
-- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Orbit assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
+- **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Nova assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
-ORBIT uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
+Nova uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new Nova tab. Sites that request camera, microphone, location, or notification access show an Nova permission prompt.
 
 ## Bookmarks
 
@@ -68,7 +72,7 @@ Select the **Bookmarks** ribbon beside History in the upper-right toolbar, or pr
 
 Click the star beside the address bar or press **Ctrl+D / Command+D** to save the current website. A filled star marks a saved page; clicking it again edits its name or address. You can also edit or remove bookmarks from List or the star-details panel. Opening a bookmark returns to its existing tab when available, otherwise opening a new tab. Internal new-tab screens cannot be bookmarked.
 
-Bookmarks are saved locally in `orbit-bookmarks.json` in the application profile and survive restarts independently of history, cookies and cache. **Clear bookmarks…** asks for confirmation. Bookmarks also appear in local address-bar and new-tab suggestions. Run `npm run test:bookmarks` for persistence, editing, duplicate handling, website constellations, keyboard/menu actions, native tab opening and the narrow layout; previews are saved to `artifacts/bookmarks-list.png`, `artifacts/bookmarks-universe.png`, and `artifacts/bookmarks-narrow.png`.
+Bookmarks are saved locally in `nova-bookmarks.json` in the application profile and survive restarts independently of history, cookies and cache. **Clear bookmarks…** asks for confirmation. Bookmarks also appear in local address-bar and new-tab suggestions. Run `npm run test:bookmarks` for persistence, editing, duplicate handling, website constellations, keyboard/menu actions, native tab opening and the narrow layout; previews are saved to `artifacts/bookmarks-list.png`, `artifacts/bookmarks-universe.png`, and `artifacts/bookmarks-narrow.png`.
 
 ## History
 
@@ -76,9 +80,9 @@ Select the **History** clock icon in the upper-right toolbar, or press **Ctrl+H 
 
 Start typing in **Search history** to filter the sidebar and visualization. Results update on each edit. Clearing the query or pressing Escape in the search box restores the selected view. The Universe scene has no date markers; date filters remain in the sidebar.
 
-The Universe scene shares Orbit's backdrop, black hole, favicon stars and collapsible history sidebar. Connected visits form branching constellations positioned around the black hole, with no date markers in the scene. Only actual navigation links and new-tab relationships connect visits; hidden intermediate visits never produce invented shortcuts. Choose a date in the sidebar to filter the scene. Select a star or sidebar entry for visit details, double-click a star to reopen it, and use **F / Fit journeys** to fit the results. Drag to orbit, right-drag to pan, and scroll to zoom. Timeline mode keeps the camera fixed and syncs its twenty visible stars with the chronological sidebar. Reduced-motion preferences are respected, and the WebGL scene stops animating when History is closed. The List view remains available without 3D graphics.
+The Universe scene shares Nova's backdrop, black hole, favicon stars and collapsible history sidebar. Connected visits form branching constellations positioned around the black hole, with no date markers in the scene. Only actual navigation links and new-tab relationships connect visits; hidden intermediate visits never produce invented shortcuts. Choose a date in the sidebar to filter the scene. Select a star or sidebar entry for visit details, double-click a star to reopen it, and use **F / Fit journeys** to fit the results. Drag to rotate, right-drag to pan, and scroll to zoom. Timeline mode keeps the camera fixed and syncs its twenty visible stars with the chronological sidebar. Reduced-motion preferences are respected, and the WebGL scene stops animating when History is closed. The List view remains available without 3D graphics.
 
-History records top-level HTTP(S) visits, including favicons, navigation branches and closed-tab trails, and retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The Universe scene visualizes five connected journeys; Timeline shows twenty visits at a time. Search scans all retained visits, including entries not yet shown in the sidebar. Date filters can reach older matches. Back/forward returns to existing visit nodes; new navigation preserves earlier branches. Reopening loads the page's current contents. Visits from before recording was introduced cannot be reconstructed.
+History records top-level HTTP(S) visits, including favicons, navigation branches and closed-tab trails, and retains up to 3,000 visits locally in `nova-history.json` under Electron's user-data directory. The Universe scene visualizes five connected journeys; Timeline shows twenty visits at a time. Search scans all retained visits, including entries not yet shown in the sidebar. Date filters can reach older matches. Back/forward returns to existing visit nodes; new navigation preserves earlier branches. Reopening loads the page's current contents. Visits from before recording was introduced cannot be reconstructed.
 
 **Clear history…** asks for confirmation and deletes saved visit metadata without closing tabs or clearing website cookies. Titles and addresses are rendered as text. History is not sent to the assistant's model.
 
@@ -90,7 +94,7 @@ Run `npm run test:resources` for real CPU load, memory allocation, audible/muted
 
 ## Run Ollama Qwen3.8:27b on Empire AI Alpha
 
-This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the ORBIT desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using ORBIT.
+This setup runs Ollama and Qwen3.8 on an Empire AI Alpha GPU node, then uses an SSH tunnel so the Nova desktop app on your Mac can call that Ollama API. It does not use Ollama Cloud. Keep the Slurm job and the SSH tunnel running while using Nova.
 
 The default `qwen3.8:27b` tag is a 27.3B Q4_K_M model listed at about 18 GB, with a maximum context window of 256K. A single Alpha GPU is a reasonable starting point; the scheduler routes single-GPU jobs to the RTX PRO 6000 Blackwell pool (about 96 GB VRAM). The model weights and context cache both use memory, so begin with a moderate context if you encounter memory errors. Empire AI Beta requires at least four GPUs per job and is unnecessary for this setup. See the [Ollama model details](https://ollama.com/library/qwen3.8:27b) and [Empire AI Alpha QoS guide](https://empireai.freshdesk.com/support/solutions/articles/157000374474-alpha-job-submission-and-qos-overview).
 
@@ -150,7 +154,7 @@ Inside the CPU job, start Ollama with the Alpha binary and the home cache:
 
 ### 4. Request one GPU for one hour
 
-From the Alpha login shell, request the interactive GPU job. `test` permits up to two hours; the one-hour request below is enough for a short ORBIT session:
+From the Alpha login shell, request the interactive GPU job. `test` permits up to two hours; the one-hour request below is enough for a short Nova session:
 
     srun --partition=alpha --qos=test --account=su_cwang1_worlds --gres=gpu:1 --cpus-per-task=8 --mem=32G --time=01:00:00 --pty bash -l
 
@@ -192,21 +196,21 @@ Keep this SSH command running in the second Terminal window. Confirm the tunnel 
 
 The response should list `qwen3.8:27b`.
 
-### 7. Point ORBIT at the tunneled API
+### 7. Point Nova at the tunneled API
 
-In the ORBIT desktop app, click **⚙** in the assistant popup (or press Ctrl+, / Command+,) and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
+In the Nova desktop app, click **⚙** in the assistant popup (or press Ctrl+, / Command+,) and choose **Local Ollama API**. Use these settings; change the model field because the preset may still show the previous Kimi model:
 
     URL:      http://localhost:11435/v1/chat/completions
     Model:    qwen3.8:27b
     API key:  leave blank
 
-Save the settings and send a prompt. Ollama provides the OpenAI-compatible chat-completions route that ORBIT uses. You can also check it from your Mac with:
+Save the settings and send a prompt. Ollama provides the OpenAI-compatible chat-completions route that Nova uses. You can also check it from your Mac with:
 
     curl http://localhost:11435/v1/chat/completions \
       -H "Content-Type: application/json" \
-      -d '{"model":"qwen3.8:27b","messages":[{"role":"user","content":"Reply that ORBIT is connected."}]}'
+      -d '{"model":"qwen3.8:27b","messages":[{"role":"user","content":"Reply that Nova is connected."}]}'
 
-ORBIT sends the prompt and open tab titles and URLs through the tunnel to the Empire AI server. It does not automatically send page text. The API is available only while the Slurm job, Ollama server, and SSH tunnel are all active. When you finish, stop the tunnel with Ctrl+C. In the allocated shell, run `kill "$OLLAMA_SERVER_PID"` and then `exit`; Slurm releases the GPU. Slurm also ends the job when its one-hour limit expires.
+Nova sends the prompt and open tab titles and URLs through the tunnel to the Empire AI server. It does not automatically send page text. The API is available only while the Slurm job, Ollama server, and SSH tunnel are all active. When you finish, stop the tunnel with Ctrl+C. In the allocated shell, run `kill "$OLLAMA_SERVER_PID"` and then `exit`; Slurm releases the GPU. Slurm also ends the job when its one-hour limit expires.
 
 For current cluster guidance, see [Empire AI Alpha Interactive Slurm Quickstart](https://empireai.freshdesk.com/support/solutions/articles/157000374475-empire-ai-alpha-%E2%80%94-interactive-slurm-quickstart) and [Empire AI Alpha Jupyter, SSH & Tunnels](https://empireai.freshdesk.com/support/solutions/articles/157000374476-empire-ai-alpha-%E2%80%94-jupyter-ssh-tunnels).
 
@@ -216,9 +220,9 @@ Enter an HTTPS chat-completions URL, model ID, and API key from that provider. F
 
 ### API key storage
 
-In the desktop app, ORBIT stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s ORBIT user-data folder. The renderer does not store desktop API keys in browser local storage.
+In the desktop app, Nova stores API keys with Electron `safeStorage` when OS-backed encryption is available. The encrypted value is kept in the app’s settings file under the operating system’s Nova user-data folder. The renderer does not store desktop API keys in browser local storage.
 
-On Linux, ORBIT requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting ORBIT. `OLLAMA_API_KEY` is only needed for Ollama’s direct cloud API; it is not used for the tunneled Empire AI endpoint. `BULLSAI_API_KEY` remains supported for BullsAI and compatible endpoints. Environment variables take precedence over a saved key.
+On Linux, Nova requires a protected desktop keyring to save an API key. If one is unavailable, set an environment variable before starting Nova. `OLLAMA_API_KEY` is only needed for Ollama’s direct cloud API; it is not used for the tunneled Empire AI endpoint. `BULLSAI_API_KEY` remains supported for BullsAI and compatible endpoints. Environment variables take precedence over a saved key.
 
 macOS or Linux:
 
@@ -234,7 +238,7 @@ Do not commit a real API key to this project or put it in README.md.
 
 ### What the assistant sends
 
-For a regular question, ORBIT sends the prompt and open tab titles and URLs to the configured endpoint. With the Empire AI setup above, this information travels through SSH to the Alpha compute node. With another cloud provider, it is sent to that provider. ORBIT does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
+For a regular question, Nova sends the prompt and open tab titles and URLs to the configured endpoint. With the Empire AI setup above, this information travels through SSH to the Alpha compute node. With another cloud provider, it is sent to that provider. Nova does not automatically send page text. Direct browser commands such as “open buffalo.edu,” “search for UB Hacking,” “switch to the BullsAI tab,” “close the tab called …,” “go back,” and “move the tab called … to Research” are handled locally.
 
 The microphone button starts voice input and sends the recognized transcript as the prompt. The adjacent voice-reply button toggles spoken assistant responses. If voice recognition is unavailable or microphone access is denied, you can continue by typing.
 
@@ -246,11 +250,11 @@ On Linux, build an executable AppImage with:
 
 You can also use `npm run appimage`. The script works from any directory, installs dependencies with `npm ci` if Electron or electron-builder is missing, and builds the current source without publishing it. It writes a versioned AppImage into `dist/`, gives it executable permissions, and prints its exact launch command. For example, on x64 with version 0.2.0:
 
-    ./dist/ORBIT-0.2.0-x64.AppImage
+    ./dist/Nova-0.2.0-x64.AppImage
 
 You can also open that AppImage from your file manager after the build finishes. The first build may download packaging tools and requires internet access.
 
-The app window and Linux AppImage use ORBIT's cyan and lavender ringed-planet icon. Its editable SVG and 512px PNG are in `assets/`. On Linux, launching the app registers its icon and an ORBIT application entry in your user data directory (`$XDG_DATA_HOME`, or `~/.local/share`). The entry shares the app's window identity so Wayland and X11 desktops can associate its taskbar icon correctly; registration needs no administrator access.
+The app window and Linux AppImage use Nova's cyan and lavender ringed-planet icon. Its editable SVG and 512px PNG are in `assets/`. On Linux, launching the app registers its icon and an Nova application entry in your user data directory (`$XDG_DATA_HOME`, or `~/.local/share`). The entry shares the app's window identity so Wayland and X11 desktops can associate its taskbar icon correctly; registration needs no administrator access.
 
 When `/dev/fuse` is unavailable, the script prints a launch command with `--appimage-extract-and-run`, which runs the AppImage without mounting it. You can also add that flag manually if you encounter a FUSE error; see the [AppImage fallback instructions](https://docs.appimage.org/user-guide/troubleshooting/fuse.html#extract-and-run-type-2-appimages).
 
@@ -269,11 +273,11 @@ This creates a distributable for the current platform. The project is configured
 - **npm install fails or hangs:** Confirm the computer can reach npm and Electron release downloads, then retry. Electron binary installation errors are often caused by a network, proxy, or firewall issue. See Electron’s installation guide: https://www.electronjs.org/docs/latest/tutorial/installation
 - **npm start says Electron is missing:** Run npm install from the project folder and check for installation errors.
 - **A website does not load:** Check your internet connection, then try entering the full address, such as https://example.com.
-- **ORBIT cannot reach Ollama on Alpha:** Confirm the Slurm job is still running, `ollama serve` is active on the allocated compute node, and the SSH tunnel is still open. On your Mac, `curl http://localhost:11435/api/tags` should return the model list.
+- **Nova cannot reach Ollama on Alpha:** Confirm the Slurm job is still running, `ollama serve` is active on the allocated compute node, and the SSH tunnel is still open. On your Mac, `curl http://localhost:11435/api/tags` should return the model list.
 - **Ollama runs on CPU or reports an out-of-memory error:** Run Ollama inside the GPU allocation, check `nvidia-smi` and `ollama ps`, and retry with a shorter context. Make sure the model pull completed before starting the GPU job.
 - **The Slurm request is rejected:** Check `sacctmgr show assoc user="$USER" format=Account%20,QOS%60` and use an account/QoS permitted for your user. Alpha requires an explicit project account; Beta is a separate system and requires at least four GPUs per job.
 - **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
-- **Voice input is unavailable:** Check OS microphone access and the ORBIT permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
+- **Voice input is unavailable:** Check OS microphone access and the Nova permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
 - **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.
 
 ## Project files

@@ -7,7 +7,7 @@ const path = require('node:path');
 const os = require('node:os');
 
 test('bookmarks save, edit, search, form website constellations, open live tabs, remove and survive restart independently of history', { timeout: 90000 }, async () => {
-  const profile = await mkdtemp(path.join(os.tmpdir(), 'orbit-bookmarks-'));
+  const profile = await mkdtemp(path.join(os.tmpdir(), 'nova-bookmarks-'));
   const server = createServer((req, res) => {
     if (req.url === '/icon.svg') { res.setHeader('Content-Type', 'image/svg+xml'); res.end('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" rx="6" fill="#80ccdd"/></svg>'); return; }
     res.setHeader('Content-Type', 'text/html');
@@ -20,15 +20,15 @@ test('bookmarks save, edit, search, form website constellations, open live tabs,
     const end = Date.now() + 12000;
     while (!await predicate()) { if (Date.now() > end) throw Error('Timed out: ' + stage); await new Promise(resolve => setTimeout(resolve, 40)); }
   };
-  const all = () => shell.evaluate(() => window.orbitBrowser.getBookmarks());
-  const active = () => shell.evaluate(async () => { const data = await window.orbitBrowser.getTabs(); return data.tabs.find(t => t.id === data.activeId); });
+  const all = () => shell.evaluate(() => window.novaBrowser.getBookmarks());
+  const active = () => shell.evaluate(async () => { const data = await window.novaBrowser.getTabs(); return data.tabs.find(t => t.id === data.activeId); });
   async function launch() {
-    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, ORBIT_USER_DATA: profile, ORBIT_START_URL: base + '/A', ORBIT_TEST_HIDDEN: '1' } });
+    app = await _electron.launch({ args: [path.resolve('.')], env: { ...process.env, NOVA_USER_DATA: profile, NOVA_START_URL: base + '/A', NOVA_TEST_HIDDEN: '1' } });
     // The assistant handle is also a native WebContentsView. Select the shell
     // by its actual URL rather than whichever renderer reports itself first.
     await until(() => { shell = app.windows().find(page => page.url().endsWith('/ui/index.html')); return Boolean(shell); });
     shell.setDefaultTimeout(10000); shell.on('pageerror', error => errors.push(error.message));
-    await shell.waitForFunction(() => document.documentElement.dataset.orbitReady === 'true');
+    await shell.waitForFunction(() => document.documentElement.dataset.novaReady === 'true');
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive());
     await until(async () => (await active())?.url === base + '/A' && !(await active()).loading);
   }
@@ -56,7 +56,7 @@ test('bookmarks save, edit, search, form website constellations, open live tabs,
     assert.equal((await all()).length, 1);
     assert.equal((await all())[0].at, first.at);
     await shell.locator('#bookmark-editor-cancel').click();
-    await shell.evaluate(url => window.orbitBrowser.navigate(url), base + '/B');
+    await shell.evaluate(url => window.novaBrowser.navigate(url), base + '/B');
     await until(async () => (await active()).url === base + '/B' && !(await active()).loading);
     assert.equal(await shell.locator('#bookmark-page').getAttribute('aria-pressed'), 'false');
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu().items.find(item => item.label === 'File').submenu.items.find(item => item.label === 'Bookmark This Page').click());
@@ -109,21 +109,21 @@ test('bookmarks save, edit, search, form website constellations, open live tabs,
     await shell.locator('#history').waitFor({ state: 'visible' });
     await shell.locator('#history [data-mode="list"]').click();
     assert.ok(await shell.locator('#history .history-entry').count() >= 2);
-    await shell.evaluate(() => window.orbitBrowser.clearHistory());
+    await shell.evaluate(() => window.novaBrowser.clearHistory());
     assert.equal((await all()).length, 2);
-    assert.deepEqual(await shell.evaluate(() => window.orbitBrowser.getHistory()), []);
-    const rows = await shell.evaluate(() => window.orbitBrowser.getLocalSuggestions('Research Atlas'));
+    assert.deepEqual(await shell.evaluate(() => window.novaBrowser.getHistory()), []);
+    const rows = await shell.evaluate(() => window.novaBrowser.getLocalSuggestions('Research Atlas'));
     assert.equal(rows[1].source, 'bookmark');
     await shell.locator('#bookmarks-tab').click();
     await manager().locator('[data-mode="list"]').click();
     await manager().locator(`.history-entry[data-visit-id="${first.id}"]`).click();
     await until(async () => (await active()).url === base + '/A' && !(await active()).loading);
     assert.equal(await manager().isHidden(), true);
-    const tabCount = (await shell.evaluate(() => window.orbitBrowser.getTabs())).tabs.length;
+    const tabCount = (await shell.evaluate(() => window.novaBrowser.getTabs())).tabs.length;
     await shell.locator('#bookmarks-tab').click();
     await manager().locator(`.history-entry[data-visit-id="${first.id}"]`).click();
     await manager().waitFor({ state: 'hidden' });
-    assert.equal((await shell.evaluate(() => window.orbitBrowser.getTabs())).tabs.length, tabCount);
+    assert.equal((await shell.evaluate(() => window.novaBrowser.getTabs())).tabs.length, tabCount);
     await shell.locator('#bookmarks-tab').click();
     await manager().locator(`.history-entry[data-visit-id="${second.id}"]`).locator('..').locator('.bookmark-remove').click();
     await until(async () => (await all()).length === 1);
@@ -145,7 +145,7 @@ test('bookmarks save, edit, search, form website constellations, open live tabs,
     await until(async () => (await active()).isStartPage && !(await active()).loading);
     assert.equal(await shell.locator('#bookmark-page').isDisabled(), true);
     assert.equal((await all()).length, 1);
-    const saved = JSON.parse(await readFile(path.join(profile, 'orbit-bookmarks.json'), 'utf8'));
+    const saved = JSON.parse(await readFile(path.join(profile, 'nova-bookmarks.json'), 'utf8'));
     assert.equal(saved.bookmarks[0].title, 'Research Atlas');
     await app.close(); app = null;
 

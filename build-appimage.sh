@@ -27,7 +27,7 @@ case "$target_arch" in
   *) printf 'Unsupported Linux architecture: %s\n' "$target_arch" >&2; exit 1 ;;
 esac
 app_version="$(node -p 'require("./package.json").version')"
-artifact_name="ORBIT-${app_version}-${target_arch}.AppImage"
+artifact_name="Nova-${app_version}-${target_arch}.AppImage"
 appimage_path="$project_dir/dist/$artifact_name"
 
 printf 'Building %s…\n' "$artifact_name"
@@ -42,7 +42,7 @@ if [[ ! -s "$appimage_path" ]]; then
   exit 1
 fi
 chmod a+x -- "$appimage_path"
-printf '\nAppImage ready:\n  %s\n\nRun ORBIT with:\n  %q' "$appimage_path" "$appimage_path"
+printf '\nAppImage ready:\n  %s\n\nRun Nova with:\n  %q' "$appimage_path" "$appimage_path"
 if [[ ! -e /dev/fuse ]]; then
   printf ' --appimage-extract-and-run'
 fi

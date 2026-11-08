@@ -1,4 +1,4 @@
-/* History uses Orbit's canvas, constellation labels, stars and sidebar rows. */
+/* History uses Nova's canvas, constellation labels, stars and sidebar rows. */
 .history-page{right:var(--assistant-width,0px)}
 .history-page .cosmos-sidebar{background:linear-gradient(90deg,#050813ed,#050813c9 85%,#05081300)}
 .history-sidebar-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:20px 16px 4px}
@@ -37,7 +37,7 @@
 .history-empty{position:absolute;inset:40% 15% auto;color:#859bb8;text-align:center;font-size:12px;line-height:1.8;pointer-events:none}.history-empty[hidden]{display:none}.history-webgl-note{display:none}.history-no-webgl .history-webgl-note{display:block;position:absolute;top:25%;left:35%;right:15%;color:#90a8c7;text-align:center;font-size:11px}
 .history-clear-confirm{position:absolute;z-index:20;left:50%;top:30%;transform:translateX(-50%);max-width:90%;width:340px;padding:22px;border:1px solid #526c8b;border-radius:10px;background:#101b2d;box-shadow:0 0 0 100vmax #000a}.history-clear-confirm[hidden]{display:none}.history-clear-confirm p{font-size:12px;line-height:1.7;margin-top:0;color:#becde2}.history-clear-confirm button{margin-right:7px}
 .history-page button:focus-visible{outline:2px solid #9dddf5;outline-offset:2px}
-.history-page.timeline-mode .history-orbit,.history-page.timeline-mode .history-fit{display:none}
+.history-page.timeline-mode .history-rotation,.history-page.timeline-mode .history-fit{display:none}
 .history-page.timeline-mode .cosmos-canvas{cursor:grab;touch-action:none}
 .history-page.timeline-mode .cosmos-canvas:active{cursor:grabbing}
 .history-page.timeline-mode .history-visits{scroll-behavior:auto;overscroll-behavior:contain}

@@ -25,7 +25,7 @@ function spanningTree(ids, positions) {
 }
 
 // Draws each tab group as a constellation: lines between its stars, a faint
-// nebula behind them and its name above. In Orbit, the name can be dragged to
+// nebula behind them and its name above. In Nova, the name can be dragged to
 // another group to merge them, clicked to focus, or double-clicked to rename.
 export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
@@ -35,7 +35,7 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
   let highlighted = null;
   let draggedGroupId = null;
   let suppressGroupClick = false;
-  const GROUP_DRAG_TYPE = "application/x-orbit-constellation";
+  const GROUP_DRAG_TYPE = "application/x-nova-constellation";
 
   function createItem(group) {
     const geometry = new THREE.BufferGeometry();

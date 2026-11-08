@@ -42,7 +42,7 @@ export function createVoice({ onTranscript }) {
     el("voice-reply").setAttribute("aria-pressed", String(speakReplies));
     el("voice-reply").setAttribute("aria-label", speakReplies ? "Disable spoken replies" : "Enable spoken replies");
     if (!speakReplies && window.speechSynthesis) window.speechSynthesis.cancel();
-    showToast(speakReplies ? "Orbit will speak its replies." : "Spoken replies are off.");
+    showToast(speakReplies ? "Nova will speak its replies." : "Spoken replies are off.");
   }
 
   el("voice-input").addEventListener("click", toggleListening);
