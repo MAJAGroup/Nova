@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { glowTexture } from "./textures.js";
 
 const DEPTH = 13;
+const ORBIT_SECONDS = 8;
+const TARGET_TRANSIT_SECONDS = 1.15;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const smooth = (value) => {
   const t = clamp01(value);
@@ -435,7 +437,7 @@ function makeTrail(root, color, opacity, offset) {
 
 // A camera-facing white wormhole and explorer ship. Its animation never
 // changes the user's camera, so it can play over the existing live scene.
-export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf } = {}) {
+export function createExplorerFlight(scene, camera, { getArrivalStar, getOrbitTargets, positionOf } = {}) {
   const rig = new THREE.Group();
   rig.renderOrder = 18;
   scene.add(rig);
@@ -460,6 +462,10 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
   let arrivalStarId = null;
   let arrivalWorldPoint = null;
   let previousExitPoint = null;
+  let tourTargets = [];
+  let tourTargetIndex = 0;
+  let orbitPhaseOffset = 0;
+  const BLACK_HOLE_TARGET = "__black-hole__";
 
   function localFromNdc(point, depth = DEPTH, target = new THREE.Vector3()) {
     const halfHeight = depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -482,6 +488,36 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
     return {
       x: THREE.MathUtils.clamp(point.x, -0.76, 0.76),
       y: THREE.MathUtils.clamp(point.y, -0.7, 0.7)
+    };
+  }
+
+  function buildTourTargets() {
+    const byId = new Map();
+    for (const target of (getOrbitTargets ? getOrbitTargets() : []) || []) {
+      if (target && target.id != null && String(target.id) !== BLACK_HOLE_TARGET) {
+        byId.set(String(target.id), { id: String(target.id), kind: "star", position: target.position || null });
+      }
+    }
+    if (arrivalStarId && !byId.has(arrivalStarId)) {
+      byId.set(arrivalStarId, { id: arrivalStarId, kind: "star", position: arrivalWorldPoint });
+    }
+    const targets = [...byId.values()];
+    if (targets.length <= 1) targets.push({ id: BLACK_HOLE_TARGET, kind: "black-hole" });
+    return targets;
+  }
+
+  function targetPointOnScreen(target) {
+    if (!target) return { x: 0, y: 0 };
+    const world = target.kind === "black-hole"
+      ? new THREE.Vector3()
+      : (positionOf && positionOf(target.id)) || target.position;
+    if (!world) return { x: 0, y: 0 };
+    camera.updateMatrixWorld(true);
+    const projected = world.clone().project(camera);
+    if (!Number.isFinite(projected.x) || !Number.isFinite(projected.y) || projected.z < -1 || projected.z > 1) return { x: 0, y: 0 };
+    return {
+      x: THREE.MathUtils.clamp(projected.x, -0.76, 0.76),
+      y: THREE.MathUtils.clamp(projected.y, -0.7, 0.7)
     };
   }
 
@@ -528,6 +564,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
     phase = "hold";
     elapsed = 0;
     current = arrivalPointOnScreen();
+    orbitPhaseOffset = Math.random() * Math.PI * 2;
     ship.group.visible = true;
     showShip(current, DEPTH - 0.8, 1, heading);
     for (const trail of trails) trail.line.visible = false;
@@ -544,6 +581,33 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
     travel = curvedPath(current, exitPoint, exitBend);
     ship.setDepthTest(false);
     resetTrails(current);
+  }
+
+  function beginNextTarget() {
+    const currentTarget = tourTargets[tourTargetIndex];
+    const targets = buildTourTargets();
+    const currentIndex = currentTarget ? targets.findIndex(target => target.id === currentTarget.id) : -1;
+    tourTargets = targets;
+    tourTargetIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % targets.length;
+    phase = "transit";
+    elapsed = 0;
+    travel = curvedPath(current, targetPointOnScreen(tourTargets[tourTargetIndex]), Math.random() < 0.5 ? -1 : 1);
+    portal.group.visible = false;
+    ship.setDepthTest(false);
+    resetTrails(current);
+  }
+
+  function orbitTarget(delta) {
+    const center = targetPointOnScreen(tourTargets[tourTargetIndex]);
+    const angle = orbitPhaseOffset + elapsed * (Math.PI * 2 / ORBIT_SECONDS);
+    const radius = smooth(elapsed / 0.55);
+    const radiusY = 0.135 * radius;
+    const radiusX = radiusY / Math.max(0.65, camera.aspect);
+    current.x = center.x + Math.cos(angle) * radiusX;
+    current.y = center.y + Math.sin(angle) * radiusY;
+    heading = Math.atan2(Math.cos(angle) * radiusY, -Math.sin(angle) * radiusX);
+    showShip(current, DEPTH - 0.8, 1, heading);
+    updateTrails(current, delta);
   }
 
   function updateTrails(point, delta) {
@@ -581,7 +645,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
         trail.positions[offset + 2] = local.z;
       }
       trail.geometry.attributes.position.needsUpdate = true;
-      trail.line.visible = ship.group.visible && (phase === "entry" || phase === "exit");
+      trail.line.visible = ship.group.visible && (phase === "entry" || phase === "hold" || phase === "transit" || phase === "exit");
     }
   }
 
@@ -607,6 +671,10 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
     const star = getArrivalStar ? getArrivalStar() : null;
     arrivalStarId = star && star.id != null ? String(star.id) : null;
     arrivalWorldPoint = star && star.position && star.position.isVector3 ? star.position.clone() : null;
+    tourTargets = buildTourTargets();
+    const arrivalIndex = arrivalStarId ? tourTargets.findIndex(target => target.id === arrivalStarId) : -1;
+    if (arrivalIndex > 0) tourTargets = [...tourTargets.slice(arrivalIndex), ...tourTargets.slice(0, arrivalIndex)];
+    tourTargetIndex = 0;
     entryPoint = randomPortalPoint();
     entryBend = Math.random() < 0.5 ? -1 : 1;
     current = { ...entryPoint };
@@ -622,7 +690,7 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
   function finish() {
     if (phase === "idle" || phase === "exit") return;
     exitRequested = true;
-    if (phase === "hold") beginExit();
+    if (phase === "hold" || phase === "transit") beginExit();
   }
 
   function cancel() {
@@ -638,6 +706,8 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
     arrivalStarId = null;
     arrivalWorldPoint = null;
     entryPath = null;
+    tourTargets = [];
+    tourTargetIndex = 0;
     for (const trail of trails) trail.line.visible = false;
   }
 
@@ -658,8 +728,21 @@ export function createExplorerFlight(scene, camera, { getArrivalStar, positionOf
       }
       if (elapsed >= 1.34) arriveAtStar();
     } else if (phase === "hold") {
-      current = arrivalPointOnScreen();
-      showShip(current, DEPTH - 0.8, 1, heading);
+      elapsed += delta;
+      orbitTarget(delta);
+      if (elapsed >= ORBIT_SECONDS) beginNextTarget();
+    } else if (phase === "transit") {
+      elapsed += delta;
+      setShipAlongTravel(travel, clamp01(elapsed / TARGET_TRANSIT_SECONDS), DEPTH - 0.8);
+      updateTrails(current, delta);
+      if (elapsed >= TARGET_TRANSIT_SECONDS) {
+        phase = "hold";
+        elapsed = 0;
+        current = targetPointOnScreen(tourTargets[tourTargetIndex]);
+        orbitPhaseOffset = Math.random() * Math.PI * 2;
+        showShip(current, DEPTH - 0.8, 1, heading);
+        resetTrails(current);
+      }
     } else if (phase === "exit") {
       elapsed += delta;
       const opening = smooth(elapsed / 0.36);

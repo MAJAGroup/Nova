@@ -101,6 +101,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
         const position = stars.positionOf(tab.id);
         return position ? { id: String(tab.id), position } : null;
       },
+      getOrbitTargets: () => tabs.tabs.map(tab => ({ id: String(tab.id), position: stars && stars.positionOf(tab.id) })).filter(target => target.position),
       positionOf: (id) => stars && stars.positionOf(id)
     });
     constellations = createConstellations({
@@ -117,6 +118,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       tabs,
       sink: blackHole,
       isVisible: () => isOpen,
+      birthSource: () => new THREE.Vector3(),
       onSelect: select,
       onPress: (star, event) => startPress(star, event),
       onContextMenu: (tab) => browser.showTabMenu(tab.id),
@@ -142,6 +144,22 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   try { sidebarHidden = localStorage.getItem(SIDEBAR_KEY) === "1"; } catch (_) { /* storage unavailable */ }
   setSidebarHidden(sidebarHidden);
   sidebarToggle.addEventListener("click", () => setSidebarHidden(!container.classList.contains("sidebar-hidden")));
+
+  const stayToggle = el("cosmos-stay-toggle");
+  const STAY_ON_NEW_TAB_KEY = "orbit.cosmos.stayOnNewTab";
+  let stayOnNewTab = false;
+  try { stayOnNewTab = localStorage.getItem(STAY_ON_NEW_TAB_KEY) === "1"; } catch (_) { /* storage unavailable */ }
+  function setStayOnNewTab(enabled) {
+    stayOnNewTab = Boolean(enabled);
+    stayToggle.setAttribute("aria-checked", String(stayOnNewTab));
+    stayToggle.classList.toggle("active", stayOnNewTab);
+    stayToggle.title = stayOnNewTab
+      ? "New tabs opened with + keep Orbit visible"
+      : "New tabs opened with + switch to the web page";
+    try { localStorage.setItem(STAY_ON_NEW_TAB_KEY, stayOnNewTab ? "1" : "0"); } catch (_) { /* storage unavailable */ }
+  }
+  setStayOnNewTab(stayOnNewTab);
+  stayToggle.addEventListener("click", () => setStayOnNewTab(!stayOnNewTab));
 
   el("cosmos-reset").addEventListener("click", () => {
     if (renderer) flyHome();
@@ -533,6 +551,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     if (stars) {
       stars.setHovered(null);
       stars.clearSelection();
+      stars.finishBirths();
       stars.finishFalling();
       updateSelectionBar();
     }
@@ -557,6 +576,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
         flyToGroup(groupId);
         constellations.editName(groupId);
       }
-    }
+    },
+    stayOnNewTab: () => stayOnNewTab
   };
 }

@@ -58,6 +58,11 @@
             <header class="history-topbar">
               <div class="history-page-heading"><h1>History</h1><span class="history-view-caption">Your recent browsing</span></div>
               <div class="history-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input class="history-search" type="search" placeholder="Search history" aria-label="Search history" autocomplete="off"><button class="history-search-clear" aria-label="Clear history search" title="Clear search" hidden>×</button></div>
+              <div class="history-mode-switch" role="group" aria-label="History view">
+                <button type="button" class="history-mode active" data-mode="list" aria-pressed="true">List</button>
+                <button type="button" class="history-mode" data-mode="universe" aria-pressed="false">Universe</button>
+                <button type="button" class="history-mode" data-mode="timeline" aria-pressed="false">Timeline</button>
+              </div>
               <button class="history-clear history-quiet">Clear history…</button>
               <button class="history-close cosmos-icon-button" aria-label="Close history">×</button>
             </header>

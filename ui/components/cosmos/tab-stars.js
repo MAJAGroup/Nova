@@ -11,6 +11,8 @@ const BASE_SIZE = 3.4;
 const ACTIVE_SIZE = 4.6;
 const HOVER_BOOST = 1.35;
 const APPEAR_SECONDS = 0.7;
+const BIRTH_SECONDS = 1.65;
+const BIRTH_TRAIL_SEGMENTS = 30;
 const SELECTED_BOOST = 1.2;
 const GLIDE_RATE = 3;
 // Tab icons grow as the camera comes closer, so zooming in on a cluster
@@ -58,8 +60,10 @@ function labelHTML(tab) {
 // tabs are grouped or ungrouped. onLayout receives each new layout so the
 // constellations can follow.
 //
+// A new tab ignites at the black-hole core and follows a glowing spiral into
+// its orbit while the cosmos is visible.
 // A closed tab spirals into the black hole while the cosmos is visible.
-export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect, onPress, onContextMenu, onLayout, layout = createStarLayout(), reducedMotion = () => REDUCED_MOTION.matches, emphasisFor = () => 1, animateLayout = true }) {
+export function createTabStars({ scene, camera, tabs, sink, isVisible, birthSource, onSelect, onPress, onContextMenu, onLayout, layout = createStarLayout(), reducedMotion = () => REDUCED_MOTION.matches, emphasisFor = () => 1, animateLayout = true }) {
   const group = new THREE.Group();
   scene.add(group);
   const stars = new Map();
@@ -76,10 +80,117 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
   activeRing.visible = false;
   group.add(activeRing);
 
+  function birthPoint(birth, progress, target = new THREE.Vector3()) {
+    const t = THREE.MathUtils.clamp(progress, 0, 1), inverse = 1 - t;
+    target.copy(birth.from).multiplyScalar(inverse * inverse)
+      .addScaledVector(birth.control, 2 * inverse * t)
+      .addScaledVector(birth.to, t * t);
+    const swirl = Math.sin(Math.PI * t) * (1 - t) * birth.spiral;
+    const angle = birth.phase + t * Math.PI * 4.5;
+    target.x += Math.cos(angle) * swirl;
+    target.y += Math.sin(angle) * swirl * 0.55;
+    target.z += Math.sin(angle + 0.8) * swirl;
+    return target;
+  }
+
+  function createBirthEffect(from, to, color) {
+    const direction = to.clone().sub(from);
+    const distance = direction.length();
+    if (distance > 0.001) direction.normalize();
+    const side = new THREE.Vector3(-direction.z, 0.55, direction.x);
+    if (side.lengthSq() < 0.001) side.set(1, 0, 0);
+    side.normalize();
+    const control = from.clone().lerp(to, 0.54).addScaledVector(side, Math.min(6, Math.max(1.2, distance * 0.24)));
+
+    const trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array((BIRTH_TRAIL_SEGMENTS + 1) * 3), 3));
+    const trailMaterial = new THREE.LineBasicMaterial({
+      color, transparent: true, opacity: 0, depthTest: false, depthWrite: false,
+      blending: THREE.AdditiveBlending, toneMapped: false
+    });
+    const trail = new THREE.Line(trailGeometry, trailMaterial);
+    trail.frustumCulled = false;
+    trail.renderOrder = 10;
+    group.add(trail);
+
+    const flare = sprite(color, 0);
+    flare.material.depthTest = false;
+    flare.renderOrder = 12;
+    group.add(flare);
+
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.72, 1, 64), new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0, side: THREE.DoubleSide,
+      depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+    }));
+    ring.renderOrder = 11;
+    group.add(ring);
+
+    return {
+      start: null, duration: BIRTH_SECONDS, from: from.clone(), to: to.clone(), control,
+      spiral: Math.min(1.8, Math.max(0.45, distance * 0.09)), phase: Math.random() * Math.PI * 2,
+      trail, flare, ring, sample: new THREE.Vector3()
+    };
+  }
+
+  function disposeBirthEffect(birth) {
+    if (!birth) return;
+    group.remove(birth.trail, birth.flare, birth.ring);
+    birth.trail.geometry.dispose();
+    birth.trail.material.dispose();
+    birth.flare.material.dispose();
+    birth.ring.geometry.dispose();
+    birth.ring.material.dispose();
+  }
+
+  function completeBirth(star, time) {
+    if (!star.birth) return;
+    disposeBirthEffect(star.birth);
+    star.birth = null;
+    star.root.position.copy(star.target);
+    star.element.classList.remove("star-born");
+    star.born = time - APPEAR_SECONDS;
+  }
+
+  function updateBirth(star, time) {
+    const birth = star.birth;
+    if (birth.start === null) birth.start = time;
+    const progress = reducedMotion() ? 1 : Math.min(1, (time - birth.start) / birth.duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    birth.to.copy(star.target);
+    star.root.position.copy(birthPoint(birth, progress, birth.sample));
+
+    const samples = Math.max(2, Math.ceil(progress * BIRTH_TRAIL_SEGMENTS));
+    const positions = birth.trail.geometry.attributes.position;
+    for (let index = 0; index <= samples; index++) {
+      const point = birthPoint(birth, progress * index / samples, birth.sample);
+      positions.setXYZ(index, point.x, point.y, point.z);
+    }
+    positions.needsUpdate = true;
+    birth.trail.geometry.setDrawRange(0, samples + 1);
+    birth.trail.geometry.computeBoundingSphere();
+    birth.trail.material.opacity = 0.92 * Math.pow(1 - progress, 0.7);
+
+    birth.flare.position.copy(birth.from);
+    birth.flare.scale.setScalar(1.8 + eased * 11);
+    birth.flare.material.opacity = 1.15 * Math.pow(1 - progress, 1.65);
+    birth.ring.position.copy(birth.from);
+    birth.ring.quaternion.copy(camera.quaternion);
+    birth.ring.scale.setScalar(1 + eased * 12);
+    birth.ring.material.opacity = 0.82 * Math.pow(1 - progress, 1.8);
+
+    if (progress >= 1) completeBirth(star, time);
+    return eased;
+  }
+
   function createStar(tab, position) {
     const id = String(tab.id);
     const root = new THREE.Group();
-    root.position.copy(position);
+    let origin = null;
+    if (birthSource && (!isVisible || isVisible()) && !reducedMotion()) {
+      const source = typeof birthSource === "function" ? birthSource(tab, position) : birthSource;
+      if (source && source.isVector3) origin = source.clone();
+    }
+    root.position.copy(origin || position);
     const halo = sprite(0xffffff, 1);
     const core = sprite(0xffffff, 1);
     halo.userData.tabId = id;
@@ -93,7 +204,12 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
     root.add(halo, core, label);
     group.add(root);
 
-    const star = { id, tab, root, halo, core, label, element, target: position.clone(), labelKey: "", labelScale: 1, born: null, phase: Math.random() * Math.PI * 2 };
+    const birth = origin ? createBirthEffect(origin, position, colorFor(tab)) : null;
+    const star = { id, tab, root, halo, core, label, element, target: position.clone(), labelKey: "", labelScale: 1, born: null, birth, phase: Math.random() * Math.PI * 2 };
+    if (birth) {
+      element.classList.add("star-born");
+      if (sink && sink.feed) sink.feed(0.65);
+    }
     element.addEventListener("click", (event) => onSelect(star.tab, event));
     element.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -120,6 +236,8 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
     star.element.remove();
     star.halo.material.dispose();
     star.core.material.dispose();
+    disposeBirthEffect(star.birth);
+    star.birth = null;
     if (star.fall) {
       for (const piece of star.fall.tail) {
         group.remove(piece);
@@ -131,6 +249,11 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
 
   function removeStar(star) {
     detach(star);
+    if (star.birth) {
+      disposeBirthEffect(star.birth);
+      star.birth = null;
+      star.element.classList.remove("star-born");
+    }
     if (!sink || !isVisible || !isVisible() || reducedMotion()) {
       disposeStar(star);
       return;
@@ -243,8 +366,14 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
       stars.set(id, star);
       star.tab = tab;
       star.target.copy(target);
+      if (star.birth) star.birth.to.copy(target);
       const color = colorFor(tab);
       star.halo.material.color.copy(color);
+      if (star.birth) {
+        star.birth.trail.material.color.copy(color);
+        star.birth.flare.material.color.copy(color);
+        star.birth.ring.material.color.copy(color);
+      }
       star.element.style.setProperty("--star-color", "#" + color.getHexString());
       const owner = tabs.groupOf(tab);
       const key = [tab.title, tab.url, tab.favicon, owner ? owner.color : ""].join("\n");
@@ -285,10 +414,14 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
       let active = null;
       for (const star of Array.from(falling)) updateFalling(star, time);
       for (const star of stars.values()) {
-        if (!star.held) star.root.position.lerp(star.target, glide);
-        if (star.born === null) star.born = time;
-        const grow = reducedMotion() ? 1 : Math.min(1, (time - star.born) / APPEAR_SECONDS);
-        const eased = 1 - Math.pow(1 - grow, 3);
+        let eased;
+        if (star.birth) eased = updateBirth(star, time);
+        else {
+          if (!star.held) star.root.position.lerp(star.target, glide);
+          if (star.born === null) star.born = time;
+          const grow = reducedMotion() ? 1 : Math.min(1, (time - star.born) / APPEAR_SECONDS);
+          eased = 1 - Math.pow(1 - grow, 3);
+        }
         const isActive = tabs.isActive(star.tab);
         if (isActive) active = star;
         let size = isActive ? ACTIVE_SIZE : BASE_SIZE;
@@ -362,6 +495,9 @@ export function createTabStars({ scene, camera, tabs, sink, isVisible, onSelect,
     // Ends any infall still playing, e.g. when the cosmos is hidden.
     finishFalling() {
       for (const star of Array.from(falling)) disposeStar(star);
+    },
+    finishBirths() {
+      for (const star of stars.values()) if (star.birth) completeBirth(star, lastTime ?? 0);
     },
     extent: () => extent
   };

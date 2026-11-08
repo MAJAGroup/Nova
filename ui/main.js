@@ -14,10 +14,22 @@ const browser = window.orbitBrowser;
 function start() {
   const tabs = createTabStore(browser);
   const aiConfig = createAIConfig(browser);
+  let cosmos;
+  let preserveCosmosTabChanges = 0;
+  const openNewTab = () => {
+    const preserveOrbit = Boolean(cosmos && cosmos.isOpen() && cosmos.stayOnNewTab());
+    if (preserveOrbit) preserveCosmosTabChanges++;
+    const pending = browser.newTab();
+    if (preserveOrbit && pending && typeof pending.catch === "function") {
+      pending.catch(() => { preserveCosmosTabChanges = Math.max(0, preserveCosmosTabChanges - 1); });
+    }
+    return pending;
+  };
 
   const toolbar = createToolbar({
     browser,
     tabs,
+    onNewTab: openNewTab,
     onNavigate: () => { cosmos.close(); history.close(); },
     onToggleCosmos: () => { history.close(); cosmos.toggle(); }
   });
@@ -28,7 +40,7 @@ function start() {
     aiConfig,
     onVisibilityChange: (open) => browserView.cover("settings", open)
   });
-  const cosmos = createCosmosView({
+  cosmos = createCosmosView({
     browser,
     tabs,
     onVisibilityChange: (open) => {
@@ -46,15 +58,18 @@ function start() {
   }});
   document.getElementById("history-tab").addEventListener("click", () => history.toggle());
 
-  // Switching tabs while the cosmos is open brings the page back. Closing
-  // the shown tab also changes the active tab, but then the cosmos stays so
-  // the star can be seen falling into the black hole.
+  // Switching to an existing tab normally returns to its page. The New Tab
+  // preference can preserve Orbit for the activation caused by the + button;
+  // closing the shown tab also leaves Orbit visible for its falling star.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
     const wasClosed = shownTabId != null && !tabs.tabs.some((tab) => String(tab.id) === String(shownTabId));
+    const hasPendingNewTab = preserveCosmosTabChanges > 0;
+    const preserveOrbit = hasPendingNewTab && cosmos.isOpen();
+    if (hasPendingNewTab) preserveCosmosTabChanges--;
     shownTabId = tabs.activeId;
-    if (!wasClosed) cosmos.close();
+    if (!wasClosed && !preserveOrbit) cosmos.close();
     history.close();
   });
   const assistant = createAssistantPanel({
@@ -71,7 +86,7 @@ function start() {
 
   // Commands from the application menu and its shortcuts.
   const commands = {
-    "new-tab": () => browser.newTab(),
+    "new-tab": openNewTab,
     "close-tab": () => { if (tabs.activeId) browser.closeTab(tabs.activeId); },
     "focus-address": () => toolbar.focusAddress(),
     "reload": () => browser.reload(),

@@ -36,6 +36,14 @@
 .cosmos.sidebar-hidden .cosmos-header{left:14px}
 .cosmos.exploring .cosmos-header{left:14px}
 .cosmos-header-row{display:flex;align-items:center;gap:10px}
+.cosmos-stay-toggle{pointer-events:auto;display:flex;align-items:center;gap:8px;min-height:28px;padding:0 9px;border:1px solid #293b55;border-radius:7px;background:rgba(10,16,32,.78);color:#8494b1;font:9px var(--font);letter-spacing:.2px;white-space:nowrap;backdrop-filter:blur(6px);cursor:pointer;transition:color .16s ease,border-color .16s ease,background .16s ease}
+.cosmos-stay-toggle:hover{border-color:#536d8e;color:#d5e7fa}
+.cosmos-switch-track{width:24px;height:14px;flex:none;display:flex;align-items:center;padding:2px;border:1px solid #4a5a76;border-radius:99px;background:#18243b;transition:background .16s ease,border-color .16s ease}
+.cosmos-switch-track i{width:8px;height:8px;border-radius:50%;background:#7888a5;transition:transform .16s ease,background .16s ease}
+.cosmos-stay-toggle.active{border-color:#4b9ab0;background:#102735d9;color:#b9edf6}
+.cosmos-stay-toggle.active .cosmos-switch-track{border-color:#4aa8bb;background:#165267}
+.cosmos-stay-toggle.active .cosmos-switch-track i{transform:translateX(10px);background:#d5fbff}
+.cosmos-stay-toggle:focus-visible{outline:2px solid #9dddf5;outline-offset:2px}
 .cosmos-icon-button{pointer-events:auto;width:28px;height:28px;flex:none;display:grid;place-items:center;padding:0;border:1px solid #2c3a5c;border-radius:8px;background:rgba(10,16,32,.78);color:#8fe8ff;backdrop-filter:blur(6px);transition:background .15s ease,border-color .15s ease,color .15s ease}
 .cosmos-icon-button svg{width:15px;height:15px}
 .cosmos-icon-button:hover{border-color:#4d6390;background:rgba(18,28,52,.92);color:#e6f8ff}
@@ -58,7 +66,8 @@
 .cosmos-unavailable{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#8996b2;font-size:12px}
 /* A tab's icon sits on its star. Hovering slides the title out to the
    right; the icon stays put because the pill grows from its left edge. */
-.star-label{--label-scale:1;pointer-events:auto;position:relative;width:calc(24px * var(--label-scale));height:calc(24px * var(--label-scale));padding:0;border:0;background:none;cursor:pointer;outline:0}
+.star-label{--label-scale:1;pointer-events:auto;position:relative;width:calc(24px * var(--label-scale));height:calc(24px * var(--label-scale));padding:0;border:0;background:none;cursor:pointer;outline:0;transition:opacity .18s ease}
+.star-label.star-born{opacity:0;pointer-events:none}
 .star-label-pill{position:absolute;left:0;top:0;transform:scale(var(--label-scale));transform-origin:0 0;height:24px;display:flex;align-items:center;gap:0;padding:3px;border:1px solid transparent;border-radius:999px;background:rgba(8,13,28,0);color:#fff;font-size:11px;white-space:nowrap;transition:background .22s ease,border-color .22s ease,gap .22s ease,padding .22s ease,box-shadow .22s ease}
 .star-label-mark{width:18px;height:18px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#1b2547;color:#d6e0ff;font-size:9px;font-weight:700;box-shadow:0 0 0 1px color-mix(in srgb,var(--star-color,#8fe8ff) 70%,transparent),0 0 12px 2px color-mix(in srgb,var(--star-color,#8fe8ff) 55%,transparent);transition:transform .22s ease}
 .star-label-mark img{width:13px;height:13px;object-fit:contain}
