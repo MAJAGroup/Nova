@@ -6,12 +6,14 @@ export function createTabStore(browser) {
   let tabs = [];
   let groups = [];
   let activeId = null;
+  let sideId = null;
   const listeners = new Set();
 
   function update(payload) {
     tabs = payload.tabs || [];
     groups = payload.groups || [];
     activeId = payload.activeId;
+    sideId = payload.sideId || null;
     listeners.forEach((listener) => listener(store));
   }
 
@@ -19,6 +21,10 @@ export function createTabStore(browser) {
     get tabs() { return tabs; },
     get groups() { return groups; },
     get activeId() { return activeId; },
+    get sideId() { return sideId; },
+    sideTab() {
+      return sideId ? tabs.find((tab) => String(tab.id) === String(sideId)) || null : null;
+    },
     groupOf(tab) {
       return (tab && tab.groupId && groups.find((group) => group.id === tab.groupId)) || null;
     },

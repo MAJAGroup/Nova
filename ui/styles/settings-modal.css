@@ -18,3 +18,5 @@
 .text-button{border:0;background:transparent;color:#8491ad;font-size:9px}
 .text-button:hover{color:#efb1bb}
 .settings-actions .primary-button{height:34px}
+.settings-section-label{margin:22px 0 2px;padding-top:16px;border-top:1px solid #ffffff12;font:8px var(--font);letter-spacing:1.3px;color:#96a3c1}
+.settings-section-label span{color:#6ee2ec;margin-left:4px}

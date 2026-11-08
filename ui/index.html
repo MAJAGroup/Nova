@@ -55,6 +55,15 @@
             <h2>No page open</h2>
             <p>Enter a web address above to begin.</p>
           </div>
+          <div class="side-pane" id="side-pane" hidden aria-label="Side tab opened by Orbit">
+            <div class="side-pane-header">
+              <img class="side-pane-icon" id="side-pane-icon" alt="" hidden>
+              <span class="side-pane-kicker">ORBIT</span>
+              <span class="side-pane-title" id="side-pane-title">Side tab</span>
+              <button type="button" class="side-pane-button" id="side-pane-promote" title="Make this the main tab" aria-label="Make this the main tab"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 8 8M6.5 3.5h-3v9h9v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button type="button" class="side-pane-button" id="side-pane-close" title="Close side tab" aria-label="Close side tab">×</button>
+            </div>
+          </div>
           <section id="history" class="cosmos history-page" hidden aria-label="Browsing history" data-view="list">
             <header class="history-topbar">
               <div class="history-page-heading"><h1>History</h1><span class="history-view-caption">History of the Universe</span></div>
@@ -158,12 +167,18 @@
           <button type="button" class="text-button" data-ollama-preset="cloud">Ollama Cloud API</button>
         </div>
         <label class="field-label" for="api-url">CHAT COMPLETIONS URL</label>
-        <input id="api-url" class="settings-input" type="url" placeholder="https://…/v1/chat/completions">
+        <input id="api-url" class="settings-input" type="url" placeholder="http(s)://…/v1/chat/completions">
         <label class="field-label" for="api-model">MODEL ID <span>optional</span></label>
         <input id="api-model" class="settings-input" type="text" placeholder="e.g. kimi-k3.1-pro:cloud">
         <label class="field-label" for="api-key">API KEY <span>stored securely in the desktop app</span></label>
         <input id="api-key" class="settings-input" type="password" placeholder="Paste the API key for this provider">
-        <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
+        <div class="settings-hint"><span>ⓘ</span> Local Ollama uses your Ollama sign-in and needs no key here. http:// endpoints (local, tunnels, your own servers) don’t need a key and aren’t encrypted. Direct Ollama Cloud API access needs an Ollama API key. Cloud requests send your prompt and open tab titles/URLs to Ollama.</div>
+        <div class="settings-section-label">VOICE <span>ELEVENLABS</span></div>
+        <label class="field-label" for="elevenlabs-key">ELEVENLABS API KEY <span id="elevenlabs-key-state">stored securely in the desktop app</span></label>
+        <input id="elevenlabs-key" class="settings-input" type="password" placeholder="Paste your ElevenLabs API key" autocomplete="off">
+        <label class="field-label" for="elevenlabs-voice">VOICE ID <span>optional</span></label>
+        <input id="elevenlabs-voice" class="settings-input" type="text" placeholder="Default voice" autocomplete="off" spellcheck="false">
+        <div class="settings-hint"><span>ⓘ</span> The mic button records until you click it again, then sends the audio to ElevenLabs for transcription. Spoken replies send Orbit's reply text to ElevenLabs.</div>
         <div class="settings-actions"><button class="text-button" id="clear-settings">Clear connection</button><button class="primary-button" id="save-settings">Save connection <span>↗</span></button></div>
       </section>
     </div>

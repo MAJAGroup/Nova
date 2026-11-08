@@ -10,7 +10,8 @@
     "dist": "electron-builder",
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
-    "test:newtab": "node --test tests/newtab*.test.cjs"
+    "test:newtab": "node --test tests/newtab*.test.cjs",
+    "test:agent": "node --test tests/agent*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -26,6 +27,7 @@
       "assistant-handle-preload.js",
       "tab-groups.js",
       "ai-grouping.js",
+      "ai-agent.js",
       "ui/**/*",
       "README.md",
       "history-store.js",

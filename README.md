@@ -60,6 +60,16 @@ ORBIT opens with a local space start page filling the window. Its ringed planet 
 
 ORBIT uses a persistent Chromium session for website cookies and local storage. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
 
+## Talk to Orbit and let it look things up
+
+Orbit can open pages on its own and answer from what they show. Ask something that needs live information, for example “check the prices for a ticket to SFO next week”. Orbit opens the relevant page (Google Flights, in this case) in a **side tab** between your current page and the assistant, reads it once it has loaded, and replies with what it found. Your current page stays where it is.
+
+- **Side tab:** The side tab is marked with a dashed outline in the tab strip. Use the arrow button in its header to make it your main tab, or × to close it. Selecting it in the tab strip also makes it the main tab. A new lookup replaces the previous side tab.
+- **Speak instead of typing:** Select the mic button in the assistant, speak, then select it again to send. Recording stops by itself after 30 seconds. You can start with “Orbit, …”; plain browser commands such as “Orbit, open github.com” work too. Replies to spoken requests are read aloud. The speaker button reads typed requests' replies aloud as well.
+- **Set up voice:** Open AI settings (⚙ in the assistant) and paste an ElevenLabs API key under **Voice**. The key is encrypted with your operating system's secret storage. You can also launch ORBIT with `ELEVENLABS_API_KEY` set. Optionally enter an ElevenLabs voice ID to change the voice.
+- **What is sent where:** Recordings go to ElevenLabs speech-to-text (Scribe), and spoken replies go to ElevenLabs text-to-speech. Your request, open tab titles and URLs, and the text of pages Orbit opens go to your configured AI endpoint. Orbit treats page text as untrusted data. It reads pages but never clicks, types or submits anything on them.
+- **Which models work:** Looking things up needs an AI endpoint. The model must reply with a small JSON action, so pick one that follows instructions well. Models that ignore the format still answer, but without opening pages.
+
 ## History
 
 Select the **History** clock icon in the upper-right toolbar, or press **Ctrl+H / Command+H**. History opens as a normal list of page visits, grouped by date and ordered newest first. Each entry shows its title, full address, favicon and visit time. Click an entry to reopen it or return to its open tab. **Show older history** loads more entries.
@@ -245,12 +255,13 @@ This creates a distributable for the current platform. The project is configured
 - **Ollama runs on CPU or reports an out-of-memory error:** Run Ollama inside the GPU allocation, check `nvidia-smi` and `ollama ps`, and retry with a shorter context. Make sure the model pull completed before starting the GPU job.
 - **The Slurm request is rejected:** Check `sacctmgr show assoc user="$USER" format=Account%20,QOS%60` and use an account/QoS permitted for your user. Alpha requires an explicit project account; Beta is a separate system and requires at least four GPUs per job.
 - **BullsAI returns an error:** Check developer access, endpoint URL, model ID, API key, and whether the endpoint uses the expected Bearer-token and OpenAI-compatible format.
-- **Voice input is unavailable:** Check OS microphone access and the ORBIT permission prompt. Some Electron or system configurations do not provide speech recognition; typing remains available.
+- **Voice input is unavailable:** Check that your operating system allows ORBIT to use the microphone, and that an ElevenLabs API key is saved in AI settings. A toast reports the ElevenLabs error, for example a rejected key or used-up quota. Typing remains available.
 - **Installer build fails:** Run npm run dist on the target operating system and review the first error printed by electron-builder. Platform signing and notarization require separate credentials and setup.
 
 ## Project files
 
 - desktop-main.js — Electron main process, Chromium tab lifecycle, navigation, permissions, and AI endpoint requests.
+- ai-agent.js — the assistant's action loop: open a page in the side tab, read it, answer.
 - tab-groups.js — tab group (constellation) names and colours, used by the main process.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - connection-security.js — Chromium main-frame connection metadata, certificate validity, navigation resets, and insecure-content tracking.

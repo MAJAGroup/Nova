@@ -26,7 +26,19 @@ contextBridge.exposeInMainWorld("orbitBrowser", {
   removeGroup: (groupId) => ipcRenderer.invoke("browser:remove-group", groupId),
   showTabMenu: (id) => ipcRenderer.send("browser:show-tab-menu", id),
   capturePage: () => ipcRenderer.invoke("browser:capture-page"),
-  setBrowserBounds: (bounds) => ipcRenderer.send("browser:set-bounds", bounds),
+  setBrowserBounds: (bounds, side) => ipcRenderer.send("browser:set-bounds", bounds, side),
+  openSideTab: (url) => ipcRenderer.invoke("browser:open-side-tab", url),
+  closeSideTab: () => ipcRenderer.invoke("browser:close-side-tab"),
+  promoteSideTab: () => ipcRenderer.invoke("browser:promote-side-tab"),
+  getVoiceConfig: () => ipcRenderer.invoke("voice:get-config"),
+  saveVoiceConfig: (config) => ipcRenderer.invoke("voice:save-config", config),
+  transcribe: (audio, mimeType) => ipcRenderer.invoke("voice:transcribe", audio, mimeType),
+  speak: (text) => ipcRenderer.invoke("voice:speak", text),
+  onAssistantProgress: (callback) => {
+    const listener = (_event, note) => callback(note);
+    ipcRenderer.on("ai:progress", listener);
+    return () => ipcRenderer.removeListener("ai:progress", listener);
+  },
   getAIConfig: () => ipcRenderer.invoke("ai:get-config"),
   saveAIConfig: (config) => ipcRenderer.invoke("ai:save-config", config),
   clearAIConfig: () => ipcRenderer.invoke("ai:clear-config"),

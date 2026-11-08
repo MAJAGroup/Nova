@@ -32,3 +32,4 @@
 .orbit-moon{fill:#ffd27a;filter:drop-shadow(0 0 2px #ffd27a)}
 .cosmos-tab:hover .orbit-ring,.cosmos-tab.active .orbit-ring{stroke:#d8fbff}
 @media (prefers-reduced-motion:reduce){.orbit-moon{display:none}}
+.browser-tab.side{border-color:#2f5a6b;border-style:dashed;color:#cfe9f2}

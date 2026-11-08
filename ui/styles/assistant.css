@@ -65,3 +65,7 @@
   .spotlight-footer{gap:3px;padding-inline:7px}
   #context-info{display:none}
 }
+.composer-tool.recording{color:#ff8992;background:#3a1b2a;box-shadow:0 0 0 2px #ff899240;animation:mic-pulse 1.2s ease-in-out infinite}
+.composer-tool.transcribing{color:#91a3ff;background:#1d2450;cursor:progress}
+@keyframes mic-pulse{50%{box-shadow:0 0 0 5px #ff899214}}
+@media (prefers-reduced-motion:reduce){.composer-tool.recording{animation:none}}

@@ -15,11 +15,25 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   const input = el("chat-input");
   const sendButton = el("chat-send");
   const status = el("ai-status");
-  const voice = createVoice({ onTranscript: (text) => {
-    input.value = text;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.focus();
-  } });
+  const voice = createVoice({
+    browser,
+    onTranscript: (text) => { open(); ask(text, { spoken: true }); },
+    onStateChange: (state) => {
+      if (state === "recording") status.textContent = "Listening… click the mic to send";
+      else if (state === "transcribing") status.textContent = "Transcribing…";
+      else showConfigStatus(aiConfig.get());
+    }
+  });
+  let pendingMessage = null;
+  let finishCurrentExploration = null;
+  // Orbit is opening a page: end the cosmos animation so the side tab can be
+  // seen loading.
+  browser.onAssistantProgress((note) => {
+    if (finishCurrentExploration) finishCurrentExploration();
+    const name = pendingMessage && pendingMessage.querySelector(".message-name span");
+    if (name) name.textContent = String(note).slice(0, 120);
+    status.textContent = String(note).slice(0, 80);
+  });
 
   function showConfigStatus(config) {
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
@@ -83,7 +97,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     scroll.scrollTop = scroll.scrollHeight;
   }
 
-  function appendMessage(text, role) {
+  function appendMessage(text, role, { spoken = false } = {}) {
     suggestions.hidden = true;
     const isAssistant = role === "assistant";
     const message = document.createElement("div");
@@ -94,7 +108,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       escapeHTML(text).replace(/\n/g, "<br>") + "</div></div>";
     scroll.appendChild(message);
     scrollToEnd();
-    if (isAssistant) voice.speak(text);
+    if (isAssistant) voice.speak(text, { spoken });
   }
 
   function appendPending() {
@@ -106,26 +120,32 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     pending.innerHTML = AVATAR + '<div class="message-content"><div class="message-name">ORBIT <span>thinking</span></div><div class="message-bubble"><span class="loading-dots" aria-hidden="true">•••</span></div></div>';
     scroll.appendChild(pending);
     scrollToEnd();
+    pendingMessage = pending;
     return pending;
   }
 
-  async function ask(prompt) {
+  // spoken: the prompt came from the mic, so the reply is read aloud.
+  async function ask(prompt, { spoken = false } = {}) {
     const trimmed = String(prompt || "").trim();
     if (!trimmed) return;
     appendMessage(trimmed, "user");
     input.value = "";
     input.style.height = "";
     syncSendButton();
+    const reply = (text) => appendMessage(text, "assistant", { spoken });
 
     const aiAvailable = Boolean(aiConfig.get().url);
-    const intentReply = handleBrowserIntent(trimmed, { browser, tabs, aiAvailable });
-    if (intentReply) return appendMessage(intentReply, "assistant");
-    if (isGroupingRequest(trimmed)) return organize(trimmed, aiAvailable);
-    if (!aiAvailable) return appendMessage(localAssistantReply(trimmed, { tabs }), "assistant");
+    // Spoken requests often start by addressing Orbit ("Orbit, open github").
+    const command = trimmed.replace(/^(?:hey\s+)?orbit[\s,.:!-]+/i, "").replace(/[.!?]+$/, "");
+    const intentReply = handleBrowserIntent(command, { browser, tabs, aiAvailable });
+    if (intentReply) return reply(intentReply);
+    if (isGroupingRequest(command)) return organize(command, aiAvailable, reply);
+    if (!aiAvailable) return reply(localAssistantReply(trimmed, { tabs }));
 
     const pending = appendPending();
     status.textContent = "Thinking…";
     const finishExploration = beginExploration();
+    finishCurrentExploration = finishExploration;
     try {
       const result = await browser.askAssistant({
         prompt: trimmed,
@@ -136,15 +156,15 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       });
       pending.remove();
       if (!result.ok) {
-        appendMessage("I couldn’t reach the configured AI endpoint. " + result.error, "assistant");
+        reply("I couldn’t reach the configured AI endpoint. " + result.error);
         status.textContent = "Connection issue";
         return;
       }
-      appendMessage(result.text, "assistant");
+      reply(result.text);
       status.textContent = "AI connected";
     } catch (error) {
       pending.remove();
-      appendMessage("I couldn’t reach the configured AI endpoint. " + ((error && error.message) || ""), "assistant");
+      reply("I couldn’t reach the configured AI endpoint. " + ((error && error.message) || ""));
       status.textContent = "Connection issue";
     } finally {
       finishExploration();
@@ -153,10 +173,10 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
 
   // "Group my tabs by project" and the like: the model plans the groups and
   // the main process applies them.
-  async function organize(instruction, aiAvailable) {
+  async function organize(instruction, aiAvailable, reply = (text) => appendMessage(text, "assistant")) {
     if (!aiAvailable) {
       const local = groupBySiteLocally(instruction, { browser, tabs });
-      return appendMessage(local || "Connect an AI endpoint in settings and I can group your tabs however you describe. Without one, try “group my tabs by site” or “group <tabs> as <name>”.", "assistant");
+      return reply(local || "Connect an AI endpoint in settings and I can group your tabs however you describe. Without one, try “group my tabs by site” or “group <tabs> as <name>”.");
     }
     const pending = appendPending();
     status.textContent = "Arranging constellations…";
@@ -165,15 +185,15 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       const result = await browser.organizeTabs({ instruction });
       pending.remove();
       if (!result.ok) {
-        appendMessage("I couldn’t group your tabs. " + result.error, "assistant");
+        reply("I couldn’t group your tabs. " + result.error);
         status.textContent = "Connection issue";
         return;
       }
-      appendMessage(describeGroupingResult(result), "assistant");
+      reply(describeGroupingResult(result));
       status.textContent = "AI connected";
     } catch (error) {
       pending.remove();
-      appendMessage("I couldn’t group your tabs. " + ((error && error.message) || ""), "assistant");
+      reply("I couldn’t group your tabs. " + ((error && error.message) || ""));
       status.textContent = "Connection issue";
     } finally {
       finishExploration();

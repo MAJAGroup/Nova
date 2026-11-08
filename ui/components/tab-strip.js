@@ -41,7 +41,7 @@ export function createTabStrip({ browser, tabs }) {
   function renderTab(tab) {
     const button = document.createElement("button");
     const group = tabs.groupOf(tab);
-    button.className = "browser-tab" + (tabs.isActive(tab) ? " active" : "") + (group ? " grouped" : "");
+    button.className = "browser-tab" + (tabs.isActive(tab) ? " active" : "") + (String(tab.id) === String(tabs.sideId) ? " side" : "") + (group ? " grouped" : "");
     button.title = (group ? group.name + " · " : "") + (tab.title || domainOf(tab.url));
     if (group) button.style.setProperty("--group-color", group.color);
     const mark = tab.favicon
