@@ -8,13 +8,14 @@ import { createAssistantPanel } from "./components/assistant/assistant-panel.js"
 import { createCosmosView } from "./components/cosmos/cosmos-view.js";
 
 import { createHistoryView } from "./components/history/history-view.js";
+import { createBookmarksView } from "./components/bookmarks/bookmarks-view.js";
 
 const browser = window.orbitBrowser;
 
 function start() {
   const tabs = createTabStore(browser);
   const aiConfig = createAIConfig(browser);
-  let cosmos, history;
+  let cosmos, history, bookmarks;
   let preserveCosmosTabChanges = 0;
   const openNewTab = () => {
     const preserveOrbit = Boolean(cosmos && cosmos.isOpen() && cosmos.stayOnNewTab());
@@ -31,14 +32,15 @@ function start() {
     browser,
     tabs,
     onNewTab: openNewTab,
+    onBookmark: () => bookmarks.bookmarkCurrent(),
     onSuggestionsVisibilityChange: open => browserView?.setSuggestionsOpen(open),
-    onNavigate: () => { cosmos.close(); history.close(); },
-    onToggleCosmos: () => { history.close(); cosmos.toggle(); }
+    onNavigate: () => { cosmos.close(); history.close(); bookmarks.close(); },
+    onToggleCosmos: () => { history.close(); bookmarks.close(); cosmos.toggle(); }
   });
   createTabStrip({
     browser,
     tabs,
-    onActivateCurrent: () => { cosmos?.close(); history?.close(); }
+    onActivateCurrent: () => { cosmos?.close(); history?.close(); bookmarks?.close(); }
   });
   browserView = createBrowserView({ browser, tabs });
   const settings = createSettingsModal({
@@ -50,19 +52,30 @@ function start() {
     browser,
     tabs,
     onVisibilityChange: (open) => {
+      if (open) bookmarks?.close();
       browserView.cover("cosmos", open);
       toolbar.setCosmosOpen(open);
     }
   });
 
   history = createHistoryView({ browser, onVisibilityChange: (open) => {
-    if (open) cosmos.close();
+    if (open) { cosmos.close(); bookmarks?.close(); }
     browserView.cover("history", open);
     const button = document.getElementById("history-tab");
     button.classList.toggle("active", open);
     button.setAttribute("aria-pressed", String(open));
   }});
   document.getElementById("history-tab").addEventListener("click", () => history.toggle());
+  bookmarks = createBookmarksView({ browser, tabs,
+    onVisibilityChange: open => {
+      if (open) { cosmos.close(); history.close(); }
+      browserView.cover("bookmarks", open);
+      const button = document.getElementById("bookmarks-tab");
+      button.classList.toggle("active", open); button.setAttribute("aria-pressed", String(open));
+    },
+    onEditorVisibilityChange: open => browserView.cover("bookmark-editor", open)
+  });
+  document.getElementById("bookmarks-tab").addEventListener("click", () => bookmarks.toggle());
 
   // Switching to an existing tab normally returns to its page. The New Tab
   // preference can preserve Orbit for the activation caused by the + button;
@@ -77,6 +90,7 @@ function start() {
     shownTabId = tabs.activeId;
     if (!wasClosed && !preserveOrbit) cosmos.close();
     history.close();
+    bookmarks.close();
   });
   const assistant = createAssistantPanel({
     browser,
@@ -85,7 +99,7 @@ function start() {
     onOpenSettings: settings.open,
     onVisibilityChange: (open) => browserView.setAssistantOpen(open),
     onExplorationChange: (busy) => {
-      if (busy) history.close();
+      if (busy) { history.close(); bookmarks.close(); }
       cosmos.setExploring(busy);
     }
   });
@@ -98,8 +112,10 @@ function start() {
     "reload": () => browser.reload(),
     "assistant": () => { if (!settings.isOpen()) assistant.toggle(); },
     "settings": () => settings.open(),
-    "cosmos": () => { history.close(); cosmos.toggle(); },
+    "cosmos": () => { history.close(); bookmarks.close(); cosmos.toggle(); },
     "history": () => history.toggle(),
+    "bookmarks": () => bookmarks.toggle(),
+    "bookmark-page": () => bookmarks.bookmarkCurrent(),
     "rename-group": (groupId) => cosmos.renameGroup(groupId)
   };
   browser.onCommand((command, arg) => { if (commands[command]) commands[command](arg); });
@@ -108,10 +124,14 @@ function start() {
     const mod = event.metaKey || event.ctrlKey;
     const key = event.key.toLowerCase();
     if (mod && key === "l") { event.preventDefault(); toolbar.focusAddress(); }
+    if (mod && !event.shiftKey && key === "d") { event.preventDefault(); bookmarks.bookmarkCurrent(); }
+    if (mod && event.shiftKey && key === "b") { event.preventDefault(); bookmarks.toggle(); }
     if (event.key === "Escape") {
-      if (settings.isOpen()) settings.close();
+      if (bookmarks.isEditorOpen()) bookmarks.closeEditor();
+      else if (settings.isOpen()) settings.close();
       else if (assistant.isOpen()) assistant.close();
       else if (history.isOpen()) history.close();
+      else if (bookmarks.isOpen()) bookmarks.close();
       else if (!cosmos.clearSelection()) cosmos.close();
     }
   });

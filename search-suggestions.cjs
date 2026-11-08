@@ -9,7 +9,7 @@ function webQueryAllowed(value) {
   return query.length >= 2 && query.length <= 100 && !/[\/:\\@?#=]/.test(query)
     && !/^\S+\.\S+$/.test(query) && !/^[\w-]{28,}$/.test(query);
 }
-function localSuggestions(value, { visits = [], tabs = [], activeId = null } = {}) {
+function localSuggestions(value, { visits = [], bookmarks = [], tabs = [], activeId = null } = {}) {
   const query = clean(value), needle = query.toLowerCase();
   const candidates = new Map();
   function add(item, source) {
@@ -20,7 +20,7 @@ function localSuggestions(value, { visits = [], tabs = [], activeId = null } = {
     const words = needle.split(/\s+/).filter(Boolean);
     if (words.some(word => !match.includes(word))) return;
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
-    const score = (source === "tab" ? 100 : 0) + (needle && host.startsWith(needle) ? 80 : 0)
+    const score = (source === "tab" ? 100 : source === "bookmark" ? 60 : 0) + (needle && host.startsWith(needle) ? 80 : 0)
       + (needle && title.toLowerCase().startsWith(needle) ? 50 : 0);
     const at = Number(item.lastVisited || item.lastAccessed || item.at) || 0;
     const display = new URL(url); display.username = ""; display.password = "";
@@ -30,6 +30,7 @@ function localSuggestions(value, { visits = [], tabs = [], activeId = null } = {
     if (!previous || score > previous.score || score === previous.score && at > previous.at) candidates.set(url.href, suggestion);
   }
   for (const visit of visits) add(visit, "history");
+  for (const bookmark of bookmarks) add(bookmark, "bookmark");
   for (const tab of tabs) if (String(tab.id) !== String(activeId)) add(tab, "tab");
   const results = [...candidates.values()].sort((a, b) => b.score - a.score || b.at - a.at).slice(0, query ? 6 : 7);
   if (query) {

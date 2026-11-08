@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="styles/toast.css">
     <link rel="stylesheet" href="styles/cosmos.css">
     <link rel="stylesheet" href="styles/history.css">
+    <link rel="stylesheet" href="styles/bookmarks.css">
     <script type="importmap">
       {
         "imports": {
@@ -39,12 +40,14 @@
           <div class="address-bar">
             <span id="connection-status" class="connection-status" role="img" aria-label="Connection security has not been verified" title="Connection security has not been verified" data-state="unknown"><svg class="connection-lock" viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="8.5" width="11" height="8" rx="2"/><path d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5M10 12v1.5"/></svg><svg class="connection-info" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6v.2"/></svg><span class="connection-label">Not secure</span></span>
             <input id="omnibox" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter a web address" aria-label="Search the web or enter a web address">
+            <button type="button" class="bookmark-page" id="bookmark-page" title="Bookmark this page (Ctrl+D)" aria-label="Bookmark this page" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"/></svg></button>
             <div id="address-suggestions" class="search-suggestions" hidden></div>
           </div>
           <div class="toolbar-actions">
             <button type="button" class="icon-button assistant-toolbar-open" id="assistant-toolbar-open" title="Ask Orbit (Ctrl+Space)" aria-label="Open Orbit AI assistant"><span class="assistant-toolbar-orb" aria-hidden="true">✦</span><span class="assistant-toolbar-label" aria-hidden="true">AI</span></button>
             <button class="icon-button cosmos-toggle" id="cosmos-toggle" title="Tab cosmos (Ctrl+Shift+O)" aria-label="Show tab cosmos" aria-pressed="false">✦</button>
             <button class="icon-button" id="new-tab" title="New tab" aria-label="Open a new tab">＋</button>
+            <button type="button" class="icon-button history-toggle bookmarks-toggle" id="bookmarks-tab" title="Bookmarks (Ctrl+Shift+B)" aria-label="Bookmarks" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4-6 4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <button type="button" class="icon-button history-toggle" id="history-tab" title="History (Ctrl+H)" aria-label="History" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10a8.5 8.5 0 1 1 1.7 7.5M3.5 4.5V10H9M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           </div>
         </div>
@@ -93,6 +96,42 @@
               <div class="cosmos-hint">Click to inspect · Double-click to reopen · Drag to orbit · Scroll to zoom</div>
             </div>
             <div class="history-clear-confirm" hidden role="alertdialog" aria-modal="true" aria-label="Delete browsing history"><p>Delete saved page visits and their trails? Your open tabs and website cookies will stay.</p><button class="history-cancel history-quiet">Cancel</button><button class="history-delete history-quiet">Delete history</button></div>
+          </section>
+          <section id="bookmarks" class="cosmos history-page bookmarks-page" hidden aria-label="Saved bookmarks" data-view="list">
+            <header class="history-topbar">
+              <div class="history-page-heading"><h1>Bookmarks</h1><span class="history-view-caption">Your bookmark universe</span></div>
+              <div class="history-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input class="history-search" type="search" placeholder="Search bookmarks" aria-label="Search bookmarks" autocomplete="off"><button class="history-search-clear" aria-label="Clear bookmark search" title="Clear search" hidden>×</button></div>
+              <div class="history-mode-switch" role="group" aria-label="Bookmarks view">
+                <button type="button" class="history-mode" data-mode="list" aria-pressed="false">List</button>
+                <button type="button" class="history-mode active" data-mode="universe" aria-pressed="true">Universe</button>
+                <button type="button" class="history-mode" data-mode="timeline" aria-pressed="false">Timeline</button>
+              </div>
+              <button type="button" class="bookmarks-save-current history-quiet">Save current page</button>
+              <button class="history-clear history-quiet">Clear bookmarks…</button>
+              <button class="history-close cosmos-icon-button" aria-label="Close bookmarks">×</button>
+            </header>
+            <div class="history-list-view">
+              <div class="history-list-heading"><span>SAVED PAGES</span><span class="history-list-count" role="status"></span></div>
+              <div class="history-entry-list" aria-label="Bookmark entries"></div>
+              <button class="history-load-more history-quiet" hidden>Show more bookmarks</button>
+              <p class="history-list-empty" hidden>Save a page with the address-bar star or Ctrl+D.</p>
+            </div>
+            <aside class="cosmos-sidebar" id="bookmarks-sidebar" aria-label="Saved bookmarks grouped by website" hidden>
+              <div class="history-sidebar-heading"><span class="cosmos-title">SAVED BOOKMARKS</span><span class="history-count" role="status"></span></div>
+              <nav class="history-dates" aria-label="Focus a matching date"></nav>
+              <div class="history-sidebar-label">CONSTELLATIONS <span>WEBSITES</span></div>
+              <div class="cosmos-tab-list history-visits" aria-label="Matching bookmarks"></div>
+              <section class="history-details" aria-label="Selected bookmark" hidden></section>
+            </aside>
+            <div class="cosmos-stage history-stage" hidden>
+              <div class="cosmos-header"><div class="cosmos-header-row"><button type="button" class="cosmos-icon-button history-sidebar-toggle" title="Hide bookmarks list" aria-label="Hide bookmarks list" aria-controls="bookmarks-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.3"/></svg></button><span class="cosmos-title history-period"></span></div><button type="button" class="cosmos-icon-button history-fit" title="Fit matching constellations (F or double-click empty space)" aria-label="Fit bookmarks"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button></div>
+              <div class="history-tools"><button class="history-orbit history-quiet" aria-pressed="false">Resume orbit</button></div>
+              <p class="history-empty"></p>
+              <p class="history-webgl-note">3D graphics are unavailable. Browse the matching bookmarks in the results list.</p>
+              <div class="history-legend"><span><i></i>Same website</span><span class="history-summary"></span></div>
+              <div class="cosmos-hint">Click to inspect · Double-click to reopen · Drag to orbit · Scroll to zoom</div>
+            </div>
+            <div class="history-clear-confirm" hidden role="alertdialog" aria-modal="true" aria-label="Delete all bookmarks"><p>Remove all saved bookmarks? Your open tabs and browsing history will stay.</p><button class="history-cancel history-quiet">Cancel</button><button class="history-delete history-quiet">Remove bookmarks</button></div>
           </section>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
             <aside class="cosmos-sidebar" id="cosmos-sidebar" aria-label="Tab information">
@@ -186,5 +225,14 @@
       </section>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog id="bookmark-editor" class="bookmark-editor" aria-labelledby="bookmark-editor-title">
+      <form id="bookmark-editor-form">
+        <header><h2 id="bookmark-editor-title">Edit bookmark</h2><button type="button" id="bookmark-editor-close" class="history-quiet" aria-label="Close bookmark editor">×</button></header>
+        <label for="bookmark-title">Name</label><input id="bookmark-title" name="title" maxlength="512" autocomplete="off">
+        <label for="bookmark-url">Address</label><input id="bookmark-url" name="url" type="url" maxlength="8192" required autocomplete="off" spellcheck="false">
+        <p id="bookmark-editor-error" role="alert" hidden></p>
+        <footer><button type="button" id="bookmark-editor-remove" class="history-quiet">Remove</button><span></span><button type="button" id="bookmark-editor-cancel" class="history-quiet">Cancel</button><button type="submit" class="history-quiet bookmark-editor-save">Save</button></footer>
+      </form>
+    </dialog>
   </body>
 </html>

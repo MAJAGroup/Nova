@@ -42,7 +42,7 @@ ORBIT opens with a local space start page filling the window. Its point-cloud ga
 ## Use the browser
 
 - **Open a page:** Enter a website address or search phrase in the address bar and press Enter.
-- **Search suggestions:** The address bar and new-tab search combine matching history, open tabs and Google autocomplete. Use ↑ / ↓ to choose a result and Enter to open it; open-tab results switch to the existing tab. Escape dismisses suggestions. Local results work offline. After a short typing pause, ordinary search phrases are sent to Google for autocomplete without browser cookies; full addresses, email addresses and URL parameters stay local. History is matched on your device.
+- **Search suggestions:** The address bar and new-tab search combine matching history, bookmarks, open tabs and Google autocomplete. Use ↑ / ↓ to choose a result and Enter to open it; open-tab results switch to the existing tab. Escape dismisses suggestions. Local results work offline. After a short typing pause, ordinary search phrases are sent to Google for autocomplete without browser cookies; full addresses, email addresses and URL parameters stay local. History and bookmarks are matched on your device.
 - **Read or edit an address:** While browsing, HTTPS addresses omit `https://`, a leading `www.`, and an empty trailing slash. Other subdomains, ports, paths, query parameters and fragments remain visible. HTTP keeps its scheme and a **Not secure** indicator. Click the address bar or press Ctrl+L / Command+L to reveal and select the full address for editing or copying; Escape restores the current page address. Trimming changes only the display.
 - **Check connection security:** A lock appears only when Chromium reports a secure main-page HTTPS response with a currently valid certificate. Hover over it for the issuing authority and expiry. Navigation clears the previous lock; certificate failures and loaded insecure content never receive a lock. If verification is unavailable, ORBIT shows a neutral information icon. Electron continues to reject invalid certificates by default.
 - **Switch tabs:** Use the tab strip next to the address bar.
@@ -60,6 +60,14 @@ ORBIT opens with a local space start page filling the window. Its point-cloud ga
 - **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Orbit assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
 ORBIT uses a persistent Chromium session, so website cookies, site storage, and cache are retained between launches. Open **Settings → Cookies and cache** to clear cookies and site data, cached images and files, or both. Clearing cookies can sign you out of websites; saved browsing history is managed separately. Website links that open a new window are opened as a new ORBIT tab. Sites that request camera, microphone, location, or notification access show an ORBIT permission prompt.
+
+## Bookmarks
+
+Select the **Bookmarks** ribbon beside History in the upper-right toolbar, or press **Ctrl+Shift+B / Command+Shift+B**. Like History, Bookmarks has **Universe**, **List**, and **Timeline** views. Universe groups saved pages from the same website into constellations; Timeline follows their saved dates, and List shows the newest saved pages first. Search filters matching titles and addresses, turning list results into stars while you type.
+
+Click the star beside the address bar or press **Ctrl+D / Command+D** to save the current website. A filled star marks a saved page; clicking it again edits its name or address. You can also edit or remove bookmarks from List or the star-details panel. Opening a bookmark returns to its existing tab when available, otherwise opening a new tab. Internal new-tab screens cannot be bookmarked.
+
+Bookmarks are saved locally in `orbit-bookmarks.json` in the application profile and survive restarts independently of history, cookies and cache. **Clear bookmarks…** asks for confirmation. Bookmarks also appear in local address-bar and new-tab suggestions. Run `npm run test:bookmarks` for persistence, editing, duplicate handling, website constellations, keyboard/menu actions, native tab opening and the narrow layout; previews are saved to `artifacts/bookmarks-list.png`, `artifacts/bookmarks-universe.png`, and `artifacts/bookmarks-narrow.png`.
 
 ## History
 

@@ -101,8 +101,12 @@ function arrangeHistoryOrbits(groups, visits, sourcePositions) {
   };
 }
 
-export function createHistoryView({ browser, onVisibilityChange }) {
-  const root = document.getElementById("history");
+// History and Bookmarks share the same list, timeline and constellation views.
+export function createHistoryView({ browser, onVisibilityChange, collection = "history", layout = historyLayout, onEdit, onRemove }) {
+  const saved = collection === "bookmarks", unit = saved ? "bookmarks" : "visits";
+  const universeTitle = saved ? "Your bookmark universe" : "History of the Universe";
+  const sidebarLabel = saved ? "SAVED BOOKMARKS" : "BROWSING HISTORY";
+  const root = document.getElementById(collection);
   const stage = root.querySelector(".history-stage");
   const sidebar = root.querySelector(".history-visits");
   const dates = root.querySelector(".history-dates");
@@ -119,7 +123,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
   let mode = "universe", visualize = true, timelineIndex = 0, pinnedGroup = null;
   let sceneVisits = [], sceneGroups = [], sceneShape = historyLayout([]), timelineFocusX = 0;
   let shape = historyLayout([]), focusIds = null, focusGroupId = null, detailsDismissed = false;
-  let openState = false, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop;
+  let openState = false, openVersion = 0, frame = 0, renderer, camera, controls, labels, stars, backdrop, blackHole, blackHoleRoot, timelineBackdrop;
   let constellations, arrows = [], flight = null, lastTime = null;
   const listeners = new Set();
   const store = {
@@ -350,25 +354,38 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     openingVisit = id;
     clearTimeout(openingTimer);
     openingTimer = setTimeout(() => { openingVisit = null; }, 500);
-    if (await browser.openHistory(id)) close();
+    const version = openVersion;
+    if (await browser.openHistory(id) && version === openVersion) close();
   }
   function showDetails() {
     details.replaceChildren(); const visit = visits.find(v => v.id === selected);
     details.hidden = !visit || detailsDismissed; if (!visit || detailsDismissed) return;
     const top = node("div", "history-detail-heading");
-    top.append(node("span", "cosmos-title", "VISIT DETAILS"));
-    const dismiss = node("button", "history-quiet", "×"); dismiss.setAttribute("aria-label", "Close visit details");
+    top.append(node("span", "cosmos-title", saved ? "BOOKMARK DETAILS" : "VISIT DETAILS"));
+    const dismiss = node("button", "history-quiet", "×"); dismiss.setAttribute("aria-label", saved ? "Close bookmark details" : "Close visit details");
     dismiss.onclick = () => { selected = null; detailsDismissed = true; refresh(false); }; top.append(dismiss);
     details.append(top, node("h2", "", visit.title || host(visit.url)), node("p", "history-detail-url", visit.url), node("p", "history-detail-time", `${dateLabel(dateKey(visit.at))} · ${clock(visit.at)}`));
-    const open = node("button", "history-open", visit.liveTabId ? "Return to open tab ↗" : "Reopen this page ↗"); open.onclick = () => openVisit(visit.id); details.append(open);
-    const linked = [visits.find(v => v.id === visit.parent), ...visits.filter(v => v.parent === visit.id)].filter(Boolean);
-    if (linked.length) details.append(node("h3", "cosmos-title", "CONNECTED VISITS"));
+    const open = node("button", "history-open", visit.liveTabId ? "Return to open tab ↗" : saved ? "Open bookmark ↗" : "Reopen this page ↗"); open.onclick = () => openVisit(visit.id); details.append(open);
+    if (saved) details.append(bookmarkActions(visit));
+    const linked = saved
+      ? visits.filter(v => v.id !== visit.id && host(v.url).replace(/^www\./, "") === host(visit.url).replace(/^www\./, ""))
+      : [visits.find(v => v.id === visit.parent), ...visits.filter(v => v.parent === visit.id)].filter(Boolean);
+    if (linked.length) details.append(node("h3", "cosmos-title", saved ? "SAME WEBSITE" : "CONNECTED VISITS"));
     for (const v of linked.slice(0, 8)) {
-      const relation = v.id === visit.parent ? "From" : v.kind === "new-tab" ? "New tab" : "To";
+      const relation = saved ? "Saved" : v.id === visit.parent ? "From" : v.kind === "new-tab" ? "New tab" : "To";
       const button = node("button", "history-related", `${relation} · ${clock(v.at)} · ${v.title || host(v.url)}`);
-      button.onclick = () => { search.value = ""; entryLimit = Math.max(100, visits.length); selected = null; day = "all"; refresh(false); entries.querySelector(`[data-visit-id="${v.id}"]`)?.scrollIntoView({ block: "center" }); }; details.append(button);
+      button.onclick = saved ? () => select(v.id, true) : () => { search.value = ""; entryLimit = Math.max(100, visits.length); selected = null; day = "all"; refresh(false); entries.querySelector(`[data-visit-id="${v.id}"]`)?.scrollIntoView({ block: "center" }); }; details.append(button);
     }
-    details.append(node("p", "history-note", "Saved visit information. Reopening loads the current version of the page."));
+    details.append(node("p", "history-note", saved ? "Saved on this device. Connections group bookmarks from the same website." : "Saved visit information. Reopening loads the current version of the page."));
+  }
+  function bookmarkActions(visit) {
+    const actions = node("div", "bookmark-actions");
+    for (const [label, action] of [["Edit", onEdit], ["Remove", onRemove]]) {
+      const button = node("button", "history-quiet bookmark-" + label.toLowerCase(), label);
+      button.type = "button"; button.setAttribute("aria-label", `${label} bookmark: ${visit.title || host(visit.url)}`);
+      button.onclick = () => action?.(visit); actions.append(button);
+    }
+    return actions;
   }
   function renderSidebar() {
     const focused = document.activeElement?.dataset.visitId;
@@ -412,7 +429,7 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       section.style.setProperty("--group-color", group.color);
       const heading = node("button", "cosmos-group-heading");
       heading.append(node("span", "cosmos-group-dot"), node("span", "cosmos-group-name", group.name), node("span", "cosmos-group-count", String(group.memberIds.length)));
-      heading.title = `${group.name} · Focus navigation journey`;
+      heading.title = `${group.name} · ${saved ? "Focus website bookmarks" : "Focus navigation journey"}`;
       heading.onclick = () => focusGroup(group.id); section.append(heading);
       const ids = new Set(group.memberIds);
       for (const visit of visible.filter(v => ids.has(v.id)).sort((a, b) => b.at - a.at)) {
@@ -458,9 +475,11 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       if (visit.liveTabId) link.append(node("span", "history-entry-live", "Open tab"));
       link.append(node("span", "history-entry-arrow", "↗"));
       link.onclick = event => { event.preventDefault(); void openVisit(visit.id); };
-      sections.get(key).append(link);
+      if (saved) {
+        const row = node("div", "bookmark-entry-row"); row.append(link, bookmarkActions(visit)); sections.get(key).append(row);
+      } else sections.get(key).append(link);
     }
-    root.querySelector(".history-list-count").textContent = `${Math.min(entryLimit, visits.length)} of ${visits.length} visits`;
+    root.querySelector(".history-list-count").textContent = `${Math.min(entryLimit, visits.length)} of ${visits.length} ${unit}`;
     root.querySelector(".history-list-empty").hidden = visits.length > 0;
     root.querySelector(".history-load-more").hidden = entryLimit >= visits.length;
   }
@@ -474,9 +493,10 @@ export function createHistoryView({ browser, onVisibilityChange }) {
       button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
     });
     const timeline = mode === "timeline" && visualize;
+    if (saved) root.querySelector(".history-legend > span").replaceChildren(node("i", ""), document.createTextNode(timeline ? "Saved order" : "Same website"));
     root.querySelector(".history-orbit").hidden = timeline;
     root.querySelector(".history-fit").hidden = timeline;
-    root.querySelector("#history-sidebar").setAttribute("aria-label", timeline ? "Chronological browsing history" : "Navigation journeys");
+    root.querySelector(".cosmos-sidebar").setAttribute("aria-label", timeline ? (saved ? "Bookmarks by date saved" : "Chronological browsing history") : saved ? "Bookmarks by website" : "Navigation journeys");
     root.querySelector(".cosmos-hint").textContent = timeline
       ? "Scroll either side to move through time · Click a star to open · Click a sidebar row to inspect"
       : "Click a star to open · Click a sidebar row to inspect · Drag to orbit · Scroll to zoom";
@@ -494,8 +514,8 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     stage.hidden = !searching; root.querySelector(".cosmos-sidebar").hidden = !searching; listView.hidden = searching;
     clearSearch.hidden = !search.value;
     root.querySelector(".history-view-caption").textContent = searching
-      ? search.value.trim() ? "Search results, connected" : mode === "timeline" || mode === "universe" ? "History of the Universe" : "Navigation journeys"
-      : "Your recent browsing";
+      ? search.value.trim() ? "Search results, connected" : mode === "timeline" || mode === "universe" ? universeTitle : "Navigation journeys"
+      : saved ? "Your saved pages" : "Your recent browsing";
     if (searching) {
       initializeScene();
       if (renderer && !frame) { lastTime = null; frame = requestAnimationFrame(tick); }
@@ -516,35 +536,35 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     }
     const keys = [...new Set(visits.map(v => dateKey(v.at)))].sort().reverse();
     dates.replaceChildren();
-    const recent = node("button", "history-date", "← Back to history"); recent.onclick = showAllHistory; dates.append(recent);
+    const recent = node("button", "history-date", saved ? "← All bookmarks" : "← Back to history"); recent.onclick = showAllHistory; dates.append(recent);
     const all = node("button", "history-date" + (day === "all" ? " active" : ""), "All dates"); all.onclick = overview; dates.append(all);
     for (const key of keys) {
       const button = node("button", "history-date" + (day === key ? " active" : "")); button.dataset.date = key;
       button.append(node("span", "", dateLabel(key)), node("small", "", String(visits.filter(v => dateKey(v.at) === key).length)));
       button.onclick = () => focusDate(key); dates.append(button);
     }
-    search.placeholder = "Search all history";
+    search.placeholder = saved ? "Search bookmarks" : "Search all history";
     const filtered = visits.filter(v => (!keys.includes(day) || dateKey(v.at) === day) && `${v.title} ${v.url}`.toLowerCase().includes(query)).sort((a,b) => a.at - b.at || a.id.localeCompare(b.id));
     visible = filtered;
     if (selected && !visible.some(v => v.id === selected)) selected = null;
-    shape = historyLayout(visible, visits); clearBlackHoleLane(shape); groups = shape.groups;
+    shape = layout(visible, visits); clearBlackHoleLane(shape); groups = shape.groups;
     const focusedDay = keys.includes(day) ? day : null;
     if (focusedDay && !detailsDismissed) selected = [...visible].reverse().find(v => dateKey(v.at) === focusedDay)?.id || null;
     if (day === "visit" && selected) focusGroupId = shape.groupOf.get(selected);
     focusIds = day === "all" ? null : new Set(visible.filter(v => focusedDay ? dateKey(v.at) === focusedDay : shape.groupOf.get(v.id) === focusGroupId).map(v => v.id));
     root.dataset.focusMode = day === "all" || day === "visit" || day === "group" ? day : "date";
     root.dataset.focusVisit = selected || "";
-    title.textContent = focusedDay ? dateLabel(focusedDay) : query ? "Search constellations" : mode === "timeline" || mode === "universe" ? "History of the Universe" : "Navigation journeys";
-    root.querySelector(".history-sidebar-heading .cosmos-title").textContent = query ? "SEARCH RESULTS" : "BROWSING HISTORY";
-    root.querySelector("#history-sidebar").setAttribute("aria-label", mode === "timeline" ? "Chronological browsing history" : query ? "Matching navigation journeys" : "Browsing history grouped by journey");
-    root.querySelector(".history-count").textContent = query ? `${visible.length} of ${filtered.length} visits` : `${visible.length} visits`;
+    title.textContent = focusedDay ? dateLabel(focusedDay) : query ? "Search constellations" : mode === "timeline" || mode === "universe" ? universeTitle : "Navigation journeys";
+    root.querySelector(".history-sidebar-heading .cosmos-title").textContent = query ? "SEARCH RESULTS" : sidebarLabel;
+    root.querySelector(".cosmos-sidebar").setAttribute("aria-label", saved ? "Bookmarks by website and date saved" : mode === "timeline" ? "Chronological browsing history" : query ? "Matching navigation journeys" : "Browsing history grouped by journey");
+    root.querySelector(".history-count").textContent = query ? `${visible.length} of ${visits.length} ${unit}` : `${visible.length} ${unit}`;
     empty.hidden = visible.length > 0;
-    empty.textContent = visits.length ? "No pages match your search. Try a title or website address." : "Your browsing history will appear here.";
+    empty.textContent = visits.length ? "No pages match your search. Try a title or website address." : saved ? "Save a page with the address-bar star or Ctrl+D to start your bookmark universe." : "Your browsing history will appear here.";
     setView(true);
     setSceneData();
     root.querySelector(".history-summary").textContent = mode === "timeline"
-      ? `Showing ${Math.min(TIMELINE_WINDOW_SIZE, visible.length)} of ${visible.length} visits · scroll either side to move through time`
-      : `Showing ${sceneGroups.length} of ${groups.length} connected journeys · newest first`;
+      ? `Showing ${Math.min(TIMELINE_WINDOW_SIZE, visible.length)} of ${visible.length} ${unit} · scroll either side to move through time`
+      : `Showing ${sceneGroups.length} of ${groups.length} ${saved ? "website constellations" : "connected journeys"} · newest first`;
     listeners.forEach(callback => callback()); renderSidebar(); showDetails();
     if (refit) fit();
   }
@@ -626,12 +646,12 @@ export function createHistoryView({ browser, onVisibilityChange }) {
     root.classList.toggle("sidebar-hidden", hidden);
     root.querySelector(".cosmos-sidebar").inert = hidden;
     sidebarToggle.setAttribute("aria-expanded", String(!hidden));
-    sidebarToggle.title = hidden ? "Show history list" : "Hide history list";
+    sidebarToggle.title = hidden ? (saved ? "Show bookmarks list" : "Show history list") : saved ? "Hide bookmarks list" : "Hide history list";
     sidebarToggle.setAttribute("aria-label", sidebarToggle.title);
-    try { localStorage.setItem("orbit.history.sidebarHidden", hidden ? "1" : "0"); } catch { /* storage unavailable */ }
+    try { localStorage.setItem(`orbit.${collection}.sidebarHidden`, hidden ? "1" : "0"); } catch { /* storage unavailable */ }
   }
   let sidebarHidden = false;
-  try { sidebarHidden = localStorage.getItem("orbit.history.sidebarHidden") === "1"; } catch { /* storage unavailable */ }
+  try { sidebarHidden = localStorage.getItem(`orbit.${collection}.sidebarHidden`) === "1"; } catch { /* storage unavailable */ }
   setSidebarHidden(sidebarHidden);
   sidebarToggle.onclick = () => { setSidebarHidden(!root.classList.contains("sidebar-hidden")); fit(); };
   root.querySelectorAll(".history-mode").forEach(button => { button.onclick = () => setMode(button.dataset.mode); });
@@ -675,13 +695,15 @@ export function createHistoryView({ browser, onVisibilityChange }) {
   browser.getHistory().then(payload => { if (!received) visits = payload; refresh(false); });
   new ResizeObserver(resize).observe(stage);
   function open() {
-    if (openState) return; openState = true; root.hidden = false; onVisibilityChange(true);
+    if (openState) return; openState = true; openVersion++; openingVisit = null; clearTimeout(openingTimer);
+    confirm.hidden = true;
+    root.hidden = false; onVisibilityChange(true);
     day = "all"; selected = null; detailsDismissed = false; search.value = ""; entryLimit = 100;
     refresh(true); listView.scrollTop = 0; sidebar.scrollTop = 0; search.focus();
   }
   function close() {
     if (!openState) return; openState = false; root.hidden = true; cancelAnimationFrame(frame); frame = 0; onVisibilityChange(false);
-    document.getElementById("history-tab").focus();
+    document.getElementById(`${collection}-tab`).focus();
   }
   return { open, close, toggle: () => openState ? close() : open(), isOpen: () => openState };
 }

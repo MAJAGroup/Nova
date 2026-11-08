@@ -11,7 +11,8 @@
     "test:history": "node --test tests/history*.test.cjs",
     "test:address": "node --test tests/address*.test.cjs",
     "test:newtab": "node --test tests/newtab*.test.cjs",
-    "test:suggestions": "node --test tests/suggestions*.test.cjs"
+    "test:suggestions": "node --test tests/suggestions*.test.cjs",
+    "test:bookmarks": "node --test tests/bookmarks*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",
@@ -30,6 +31,7 @@
       "ui/**/*",
       "README.md",
       "history-store.js",
+      "bookmark-store.js",
       "connection-security.js",
       "search-suggestions.cjs",
       "search-preload.js",

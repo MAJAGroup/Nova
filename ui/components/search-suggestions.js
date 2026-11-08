@@ -30,13 +30,13 @@ export function createSearchSuggestions({ input, popup, requestLocal, requestWeb
       option.className = "search-suggestion"; option.id = `${popup.id}-option-${index}`; option.setAttribute("role", "option");
       option.dataset.kind = item.kind; option.dataset.source = item.source;
       const mark = document.createElement("span"); mark.className = "search-suggestion-icon"; mark.setAttribute("aria-hidden", "true");
-      mark.textContent = item.kind === "tab" ? "▣" : item.source === "history" ? "◷" : item.kind === "url" ? "↗" : "⌕";
+      mark.textContent = item.kind === "tab" ? "▣" : item.source === "bookmark" ? "☆" : item.source === "history" ? "◷" : item.kind === "url" ? "↗" : "⌕";
       const copy = document.createElement("span"); copy.className = "search-suggestion-copy";
       const label = document.createElement("span"); label.className = "search-suggestion-title"; label.textContent = item.label;
       const description = document.createElement("span"); description.className = "search-suggestion-description"; description.textContent = item.description || "";
       copy.append(label, description);
       const source = document.createElement("span"); source.className = "search-suggestion-source";
-      source.textContent = item.kind === "tab" ? "Switch to tab" : item.source === "history" ? "History" : item.source === "google" ? "Google" : item.kind === "url" ? "Visit" : "Search";
+      source.textContent = item.kind === "tab" ? "Switch to tab" : item.source === "bookmark" ? "Bookmark" : item.source === "history" ? "History" : item.source === "google" ? "Google" : item.kind === "url" ? "Visit" : "Search";
       option.append(mark, copy, source);
       option.addEventListener("pointerdown", event => { if (event.button === 0) event.preventDefault(); });
       option.addEventListener("click", () => choose(item));

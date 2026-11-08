@@ -3,7 +3,7 @@ import { el } from "../lib/dom.js";
 import { HOME_URL, normalizeAddress, simplifyAddress } from "../lib/url.js";
 
 // Back / forward / reload, the address bar and the new-tab button.
-export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNewTab = () => browser.newTab(), onSuggestionsVisibilityChange = () => {} }) {
+export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onBookmark, onNewTab = () => browser.newTab(), onSuggestionsVisibilityChange = () => {} }) {
   const omnibox = el("omnibox");
   const cosmosToggle = el("cosmos-toggle");
   const cosmosTab = el("cosmos-tab");
@@ -28,6 +28,11 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNew
     const active = tabs.activeTab();
     el("go-back").disabled = !active || !active.canGoBack;
     el("go-forward").disabled = !active || !active.canGoForward;
+    const bookmark = el("bookmark-page");
+    bookmark.disabled = !/^https?:\/\//i.test(active?.url || "");
+    bookmark.setAttribute("aria-pressed", String(Boolean(active?.bookmarked)));
+    bookmark.setAttribute("aria-label", active?.bookmarked ? "Edit bookmark for this page" : "Bookmark this page");
+    bookmark.title = (active?.bookmarked ? "Edit bookmark" : "Bookmark this page") + " (Ctrl+D)";
     const switched = shownTabId !== tabs.activeId;
     if (switched) suggestions?.close();
     shownTabId = tabs.activeId;
@@ -70,6 +75,7 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNew
 
 
   el("go-back").addEventListener("click", () => browser.goBack());
+  el("bookmark-page").addEventListener("click", onBookmark);
   el("go-forward").addEventListener("click", () => browser.goForward());
   el("reload-page").addEventListener("click", () => browser.reload());
   el("go-home").addEventListener("click", () => {

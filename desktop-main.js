@@ -23,12 +23,14 @@ const { createTabGroups } = require("./tab-groups");
 const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
 const { HistoryStore } = require("./history-store");
+const { BookmarkStore } = require("./bookmark-store");
 const { trackConnectionSecurity } = require("./connection-security");
 const { localSuggestions, createWebSuggestions } = require("./search-suggestions.cjs");
 const fetchWebSuggestions = createWebSuggestions((url, options) => net.fetch(url, options));
 const suggestionRequests = new Map();
 if (process.env.ORBIT_USER_DATA) app.setPath("userData", process.env.ORBIT_USER_DATA);
 let visitHistory;
+let bookmarks;
 
 const tabs = new Map();
 const groups = createTabGroups();
@@ -76,6 +78,7 @@ function tabSnapshot(tab) {
     title: tab.title || "New tab",
     url: isStartPage(tab.url) ? "orbit://newtab" : tab.url || "",
     isStartPage: isStartPage(tab.url),
+    bookmarked: bookmarks.has(tab.url),
     favicon: tab.favicon || "",
     active: tab.id === activeTabId,
     loading: tab.loading,
@@ -101,6 +104,7 @@ function sendTabs() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send("browser:tabs-updated", tabsPayload());
   mainWindow.webContents.send("browser:history-updated", visitHistory.snapshot(tabs));
+  mainWindow.webContents.send("browser:bookmarks-updated", bookmarks.snapshot(tabs));
 }
 
 // Puts tabs into a group: an existing one (groupId) or a new one (optional
@@ -514,6 +518,7 @@ function createApplicationMenu() {
       label: "File",
       submenu: [
         { label: "New Tab", accelerator: "CommandOrControl+T", click: () => sendCommand("new-tab") },
+        { label: "Bookmark This Page", accelerator: "CommandOrControl+D", click: () => sendCommand("bookmark-page", { focusUI: true }) },
         { label: "Close Tab", accelerator: "CommandOrControl+W", click: () => sendCommand("close-tab") },
         { type: "separator" },
         { role: "quit" }
@@ -526,6 +531,7 @@ function createApplicationMenu() {
         { label: "Focus Address Bar", accelerator: "CommandOrControl+L", click: () => sendCommand("focus-address", { focusUI: true }) },
         { label: "Reload Page", accelerator: "CommandOrControl+R", click: () => sendCommand("reload") },
         { label: "History constellation", accelerator: "CommandOrControl+H", click: () => sendCommand("history", { focusUI: true }) },
+        { label: "Bookmarks", accelerator: "CommandOrControl+Shift+B", click: () => sendCommand("bookmarks", { focusUI: true }) },
         { label: "Tab Cosmos", accelerator: "CommandOrControl+Shift+O", click: () => sendCommand("cosmos", { focusUI: true }) },
         { label: "Ask Orbit", accelerator: "Control+Space", click: () => sendCommand("assistant", { focusUI: true }) },
         { type: "separator" },
@@ -613,10 +619,33 @@ function createWindow() {
 
 function registerIPC() {
   const fromShell = event => mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  ipcMain.handle("browser:get-bookmarks", event => fromShell(event) ? bookmarks.snapshot(tabs) : []);
+  const changeBookmark = (event, operation) => {
+    if (!fromShell(event)) return { ok: false, error: "Bookmarks can only be changed in ORBIT." };
+    try { const bookmark = operation(); sendTabs(); return { ok: true, bookmark }; }
+    catch (error) { return { ok: false, error: error.message }; }
+  };
+  ipcMain.handle("browser:save-bookmark", (event, input) => changeBookmark(event, () => {
+    if (input?.id) {
+      if (typeof input.id !== "string") throw Error("Invalid bookmark.");
+      return bookmarks.save({ id: input.id, title: input.title, url: input.url });
+    }
+    const tab = tabs.get(activeTabId);
+    if (!tab || !isWebUrl(tab.url)) throw Error("Open a website to bookmark it.");
+    return bookmarks.save({ url: tab.url, title: tab.title, favicon: tab.favicon });
+  }));
+  ipcMain.handle("browser:remove-bookmark", (event, id) => changeBookmark(event, () => bookmarks.remove(id)));
+  ipcMain.handle("browser:clear-bookmarks", event => changeBookmark(event, () => bookmarks.clear()));
+  ipcMain.handle("browser:open-bookmark", (event, id) => {
+    if (!fromShell(event)) return false;
+    const bookmark = bookmarks.items.find(item => item.id === id); if (!bookmark) return false;
+    const live = bookmarks.snapshot(tabs).find(item => item.id === id)?.liveTabId;
+    return live ? setActiveTab(live) : createTab(bookmark.url);
+  });
   const fromSearchUI = event => fromShell(event) || (event.senderFrame === event.sender.mainFrame && isStartPage(event.sender.getURL()) && Array.from(tabs.values()).some(tab => tab.view.webContents === event.sender));
   ipcMain.handle("browser:suggest-local", (event, query) => {
     if (!fromSearchUI(event) || typeof query !== "string" || query.length > 8192) return [];
-    return localSuggestions(query, { visits: visitHistory.nodes, tabs: Array.from(tabs.values()).map(tab => ({ id: tab.id, title: tab.title, url: tab.url, lastAccessed: tab.lastAccessed })), activeId: activeTabId });
+    return localSuggestions(query, { visits: visitHistory.nodes, bookmarks: bookmarks.items, tabs: Array.from(tabs.values()).map(tab => ({ id: tab.id, title: tab.title, url: tab.url, lastAccessed: tab.lastAccessed })), activeId: activeTabId });
   });
   ipcMain.handle("browser:suggest-web", async (event, query) => {
     if (!fromSearchUI(event) || typeof query !== "string" || query.length > 100) return [];
@@ -973,6 +1002,12 @@ function applyGroupingPlan(plan, ordered, { resetExistingGroups = false } = {}) 
 }
 
 app.whenReady().then(() => {
+  try { bookmarks = new BookmarkStore(path.join(app.getPath("userData"), "orbit-bookmarks.json")); }
+  catch (error) {
+    console.error("Bookmarks could not be loaded:", error.message);
+    bookmarks = new BookmarkStore(null);
+    dialog.showErrorBox("Bookmarks unavailable", "Your bookmarks file could not be read. It has been left untouched; new bookmarks will only last for this session.");
+  }
   try { visitHistory = new HistoryStore(path.join(app.getPath("userData"), "orbit-history.json")); }
   catch (error) {
     // Preserve an unreadable file instead of overwriting the user's history.
