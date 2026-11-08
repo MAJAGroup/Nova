@@ -1,5 +1,5 @@
 import { el } from "../lib/dom.js";
-import { normalizeAddress, simplifyAddress } from "../lib/url.js";
+import { HOME_URL, normalizeAddress, simplifyAddress } from "../lib/url.js";
 
 // Back / forward / reload, the address bar and the new-tab button.
 export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNewTab = () => browser.newTab() }) {
@@ -59,6 +59,10 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos, onNew
   el("go-back").addEventListener("click", () => browser.goBack());
   el("go-forward").addEventListener("click", () => browser.goForward());
   el("reload-page").addEventListener("click", () => browser.reload());
+  el("go-home").addEventListener("click", () => {
+    browser.navigate(HOME_URL);
+    onNavigate();
+  });
   el("new-tab").addEventListener("click", onNewTab);
   cosmosToggle.addEventListener("click", onToggleCosmos);
   cosmosTab.addEventListener("click", onToggleCosmos);
