@@ -8,7 +8,7 @@ import { createVoice } from "./voice.js";
 const AVATAR = '<div class="message-avatar"><span class="mini-orbit">✦</span></div>';
 
 // A right-side dock for chat, with a narrow edge handle while minimized.
-export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onVisibilityChange }) {
+export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, onVisibilityChange, onExplorationChange = () => {} }) {
   const root = el("assistant");
   const suggestions = el("assistant-suggestions");
   const scroll = el("chat-scroll");
@@ -18,6 +18,25 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
 
   function showConfigStatus(config) {
     status.textContent = config.connected ? "AI configured" : "Ready to explore";
+  }
+
+  let activeAIRequests = 0;
+  function beginExploration() {
+    activeAIRequests++;
+    if (activeAIRequests === 1) {
+      try { onExplorationChange(true); }
+      catch (error) { console.warn("Orbit exploration animation unavailable", error); }
+    }
+    let finished = false;
+    return () => {
+      if (finished) return;
+      finished = true;
+      activeAIRequests--;
+      if (activeAIRequests === 0) {
+        try { onExplorationChange(false); }
+        catch (error) { console.warn("Orbit exploration animation unavailable", error); }
+      }
+    };
   }
 
   let lastToggle = 0;
@@ -89,6 +108,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
 
     const pending = appendPending();
     status.textContent = "Thinking…";
+    const finishExploration = beginExploration();
     try {
       const result = await browser.askAssistant({
         prompt: trimmed,
@@ -109,6 +129,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       pending.remove();
       appendMessage("I couldn’t reach the configured AI endpoint. " + ((error && error.message) || ""), "assistant");
       status.textContent = "Connection issue";
+    } finally {
+      finishExploration();
     }
   }
 
@@ -121,6 +143,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
     }
     const pending = appendPending();
     status.textContent = "Arranging constellations…";
+    const finishExploration = beginExploration();
     try {
       const result = await browser.organizeTabs({ instruction });
       pending.remove();
@@ -135,6 +158,8 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
       pending.remove();
       appendMessage("I couldn’t group your tabs. " + ((error && error.message) || ""), "assistant");
       status.textContent = "Connection issue";
+    } finally {
+      finishExploration();
     }
   }
 

@@ -5,6 +5,7 @@ import { el, escapeHTML } from "../../lib/dom.js";
 import { domainOf } from "../../lib/url.js";
 import { createBackdrop } from "./backdrop.js";
 import { createBlackHole } from "./black-hole.js";
+import { createExplorerFlight } from "./explorer-flight.js";
 import { createTabStars } from "./tab-stars.js";
 import { createConstellations } from "./constellations.js";
 
@@ -28,7 +29,10 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   const stage = el("cosmos-stage");
   const tabList = el("cosmos-tab-list");
   const selectionBar = el("cosmos-selection");
+  const explorationStatus = el("cosmos-exploration");
   let isOpen = false;
+  let explorationPhase = "idle";
+  let explorationAutoOpened = false;
   let frame = 0;
   let flight = null;
   let lastTime = null;
@@ -55,7 +59,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     }
   }
 
-  let scene, camera, controls, labels, backdrop, blackHole, stars, constellations;
+  let scene, camera, controls, labels, backdrop, blackHole, explorer, stars, constellations;
   if (renderer) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(SPACE_COLOR);
@@ -90,6 +94,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
     backdrop = createBackdrop(scene, camera);
     blackHole = createBlackHole(scene);
+    explorer = createExplorerFlight(scene, camera);
     constellations = createConstellations({
       scene,
       camera,
@@ -451,8 +456,50 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
     blackHole.update(time);
     stars.update(time);
     constellations.update(time);
+    const explorationFinished = explorer ? explorer.update(time, delta) : false;
     renderer.render(scene, camera);
     labels.render(scene, camera);
+    if (explorationPhase === "exiting" && explorationFinished) finishExploration();
+  }
+
+  function showExplorationStatus(kicker, title) {
+    explorationStatus.querySelector(".cosmos-exploration-kicker").textContent = kicker;
+    explorationStatus.querySelector(".cosmos-exploration-title").textContent = title;
+    explorationStatus.hidden = false;
+  }
+
+  function clearExploration() {
+    explorationPhase = "idle";
+    explorationAutoOpened = false;
+    if (explorer) explorer.cancel();
+    container.classList.remove("exploring", "exploration-exiting");
+    explorationStatus.hidden = true;
+  }
+
+  function finishExploration() {
+    const closeAfter = explorationAutoOpened;
+    clearExploration();
+    if (closeAfter && isOpen) close();
+  }
+
+  function setExploring(busy) {
+    if (busy) {
+      if (explorationPhase === "active") return;
+      if (explorationPhase === "idle") explorationAutoOpened = !isOpen;
+      if (!isOpen) open();
+      explorationPhase = "active";
+      container.classList.add("exploring");
+      container.classList.remove("exploration-exiting");
+      showExplorationStatus("ORBIT AI · EXPLORING", "Charting a course through space…");
+      if (explorer) explorer.start();
+      return;
+    }
+    if (explorationPhase !== "active") return;
+    explorationPhase = "exiting";
+    container.classList.add("exploration-exiting");
+    showExplorationStatus("RESPONSE READY · RETURNING", "Bringing the explorer home…");
+    if (explorer) explorer.finish();
+    else finishExploration();
   }
 
   function open() {
@@ -469,6 +516,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
 
   function close() {
     if (!isOpen) return;
+    if (explorationPhase !== "idle") clearExploration();
     isOpen = false;
     cancelAnimationFrame(frame);
     if (press) endPress();
@@ -486,6 +534,7 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
   return {
     open,
     close,
+    setExploring,
     toggle: () => (isOpen ? close() : open()),
     isOpen: () => isOpen,
     // Returns true when there was a selection to clear.

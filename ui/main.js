@@ -62,7 +62,11 @@ function start() {
     tabs,
     aiConfig,
     onOpenSettings: settings.open,
-    onVisibilityChange: (open) => browserView.setAssistantOpen(open)
+    onVisibilityChange: (open) => browserView.setAssistantOpen(open),
+    onExplorationChange: (busy) => {
+      if (busy) history.close();
+      cosmos.setExploring(busy);
+    }
   });
 
   // Commands from the application menu and its shortcuts.

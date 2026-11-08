@@ -3,6 +3,7 @@
 .cosmos[hidden]{display:none}
 .cosmos-sidebar{position:absolute;z-index:2;inset:0 auto 0 0;width:clamp(220px,28%,320px);display:flex;flex-direction:column;min-height:0;border:0;background:transparent;box-shadow:none;transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s ease}
 .cosmos.sidebar-hidden .cosmos-sidebar{transform:translateX(-100%);opacity:0;pointer-events:none}
+.cosmos.exploring .cosmos-sidebar{transform:translateX(-100%);opacity:0;pointer-events:none}
 .cosmos-title{color:#8fe8ff;font:9px var(--font);letter-spacing:1.6px}
 .cosmos-tab-list{flex:1;min-height:0;overflow:auto;padding:14px 9px 18px;scrollbar-width:thin;scrollbar-color:#31415d transparent}
 .cosmos-list-group+.cosmos-list-group{margin-top:15px}
@@ -33,6 +34,7 @@
 .cosmos-labels{position:absolute;inset:0;pointer-events:none}
 .cosmos-header{position:absolute;z-index:2;top:10px;left:calc(clamp(220px,28%,320px) + 16px);display:flex;flex-direction:column;align-items:flex-start;gap:8px;font:8px var(--font);letter-spacing:1.2px;color:#667795;pointer-events:none;transition:left .28s cubic-bezier(.2,.8,.2,1)}
 .cosmos.sidebar-hidden .cosmos-header{left:14px}
+.cosmos.exploring .cosmos-header{left:14px}
 .cosmos-header-row{display:flex;align-items:center;gap:10px}
 .cosmos-icon-button{pointer-events:auto;width:28px;height:28px;flex:none;display:grid;place-items:center;padding:0;border:1px solid #2c3a5c;border-radius:8px;background:rgba(10,16,32,.78);color:#8fe8ff;backdrop-filter:blur(6px);transition:background .15s ease,border-color .15s ease,color .15s ease}
 .cosmos-icon-button svg{width:15px;height:15px}
@@ -42,6 +44,17 @@
 .cosmos-hint{position:absolute;z-index:1;bottom:12px;left:50%;transform:translateX(-50%);white-space:nowrap;font:9px var(--font);letter-spacing:.6px;color:#5f6c8c;pointer-events:none}
 .cosmos.dragging-star,.cosmos.dragging-star *{cursor:grabbing!important}
 .cosmos-hint.doom{color:#ffb070}
+.cosmos.exploring .cosmos-hint,.cosmos.exploring .cosmos-selection{display:none}
+.cosmos-exploration{position:absolute;z-index:3;bottom:26px;left:34%;transform:translateX(-50%);width:min(390px,58vw);display:flex;flex-direction:column;gap:8px;padding:14px 18px 15px;border:1px solid #6fdcf05c;border-radius:13px;background:linear-gradient(120deg,#0a1930de,#071321c9);box-shadow:0 12px 40px #0008,0 0 32px #43b8e228;backdrop-filter:blur(9px);pointer-events:none}
+.cosmos-exploration[hidden]{display:none}
+.cosmos-exploration-kicker{font:600 9px var(--font);letter-spacing:2px;color:#f0fbff;text-shadow:0 0 12px #44c8f66e}
+.cosmos-exploration-title{font:500 13px var(--font);color:#e8f3ff}
+.cosmos-exploration-progress{height:2px;overflow:hidden;border-radius:3px;background:#486c8b69}
+.cosmos-exploration-progress i{display:block;width:38%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#dff8ff,#ffffff,#b9c8ff);box-shadow:0 0 12px #e9faff;animation:cosmos-progress 1.55s ease-in-out infinite alternate}
+.cosmos.exploration-exiting .cosmos-exploration-progress i{width:100%;animation:cosmos-progress-complete 1.4s ease-out both}
+@keyframes cosmos-progress{from{transform:translateX(-100%)}to{transform:translateX(270%)}}
+@keyframes cosmos-progress-complete{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.cosmos-exploration-progress i,.cosmos.exploration-exiting .cosmos-exploration-progress i{animation:none;transform:none}}
 .cosmos-unavailable{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:#8996b2;font-size:12px}
 /* A tab's icon sits on its star. Hovering slides the title out to the
    right; the icon stays put because the pill grows from its left edge. */
