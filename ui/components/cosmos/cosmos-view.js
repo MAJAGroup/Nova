@@ -111,7 +111,14 @@ export function createCosmosView({ browser, tabs, onVisibilityChange }) {
       tabs,
       positionOf: (id) => stars.positionOf(id),
       onFocus: flyToGroup,
-      onRename: (groupId, name) => browser.renameGroup(groupId, name)
+      onRename: (groupId, name) => browser.renameGroup(groupId, name),
+      onMerge: (sourceId, targetId) => {
+        const source = tabs.groups.find(group => String(group.id) === String(sourceId));
+        const target = tabs.groups.find(group => String(group.id) === String(targetId));
+        if (!source || !target || String(source.id) === String(target.id)) return;
+        const memberIds = tabs.tabs.filter(tab => String(tab.groupId) === String(source.id)).map(tab => tab.id);
+        if (memberIds.length) browser.groupTabs(memberIds, { groupId: target.id });
+      }
     });
     stars = createTabStars({
       scene,

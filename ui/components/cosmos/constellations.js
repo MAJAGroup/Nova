@@ -25,9 +25,9 @@ function spanningTree(ids, positions) {
 }
 
 // Draws each tab group as a constellation: lines between its stars, a faint
-// nebula behind them and its name above. The name can be clicked (focus the
-// camera) or double-clicked (rename).
-export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, emphasisFor = () => 1 }) {
+// nebula behind them and its name above. In Orbit, the name can be dragged to
+// another group to merge them, clicked to focus, or double-clicked to rename.
+export function createConstellations({ scene, camera, tabs, positionOf, onFocus, onRename, onMerge, emphasisFor = () => 1 }) {
   const root = new THREE.Group();
   scene.add(root);
   const items = new Map();
@@ -47,13 +47,79 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
     element.className = "constellation-label";
     element.innerHTML = '<span class="constellation-name" role="button" tabindex="0" title="Click to focus · Double-click to rename"></span>';
     const button = element.firstChild;
+    button.dataset.groupId = String(group.id);
     const label = new CSS2DObject(element);
 
     root.add(lines, nebula, label);
     const item = { id: group.id, group, geometry, lines, nebula, label, element, button, edges: [], radius: 1, editing: false, center: new THREE.Vector3(), seed: Math.random() * 10 };
 
-    button.addEventListener("click", () => { if (!item.editing) onFocus(item.id); });
-    button.title = onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey";
+    button.addEventListener("click", () => {
+      if (item.suppressClick) { item.suppressClick = false; return; }
+      if (!item.editing) onFocus(item.id);
+    });
+    button.title = [
+      onMerge ? "Drag the name onto another group to merge" : null,
+      onRename ? "Click to focus · Double-click to rename" : "Click to focus this navigation journey"
+    ].filter(Boolean).join(" · ");
+    if (onMerge) {
+      button.classList.add("merge-handle");
+      button.addEventListener("pointerdown", event => {
+        if (event.button !== 0 || item.editing) return;
+        item.mergeGesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, targetId: null };
+        try { button.setPointerCapture(event.pointerId); } catch { /* optional pointer capture */ }
+        window.addEventListener("pointermove", item.mergeMove);
+        window.addEventListener("pointerup", item.mergeEnd);
+        window.addEventListener("pointercancel", item.mergeCancel);
+      });
+      item.mergeMove = event => {
+        const gesture = item.mergeGesture;
+        if (!gesture || event.pointerId !== gesture.pointerId) return;
+        if (!gesture.dragging && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >= 5) {
+          gesture.dragging = true;
+          item.element.classList.add("dragging");
+        }
+        if (!gesture.dragging) return;
+        event.preventDefault();
+        const hovered = document.elementFromPoint(event.clientX, event.clientY)?.closest(".constellation-name");
+        const targetId = hovered?.dataset.groupId || null;
+        const targetItem = targetId && String(targetId) !== String(item.id)
+          ? Array.from(items.values()).find(candidate => String(candidate.id) === String(targetId))
+          : null;
+        const nextId = targetItem ? String(targetItem.id) : null;
+        if (nextId === gesture.targetId) return;
+        if (gesture.targetId) {
+          const previous = Array.from(items.values()).find(candidate => String(candidate.id) === gesture.targetId);
+          previous?.element.classList.remove("merge-target");
+        }
+        gesture.targetId = nextId;
+        targetItem?.element.classList.add("merge-target");
+      };
+      item.mergeEnd = event => {
+        const gesture = item.mergeGesture;
+        if (!gesture || event.pointerId !== gesture.pointerId) return;
+        item.mergeCleanup();
+        if (!gesture.dragging) return;
+        item.suppressClick = true;
+        setTimeout(() => { item.suppressClick = false; }, 0);
+        if (gesture.targetId) onMerge(item.id, gesture.targetId);
+      };
+      item.mergeCancel = event => {
+        if (!item.mergeGesture || event.pointerId !== item.mergeGesture.pointerId) return;
+        item.mergeCleanup();
+      };
+      item.mergeCleanup = () => {
+        const gesture = item.mergeGesture;
+        window.removeEventListener("pointermove", item.mergeMove);
+        window.removeEventListener("pointerup", item.mergeEnd);
+        window.removeEventListener("pointercancel", item.mergeCancel);
+        item.element.classList.remove("dragging");
+        if (gesture?.targetId) {
+          const targetItem = Array.from(items.values()).find(candidate => String(candidate.id) === gesture.targetId);
+          targetItem?.element.classList.remove("merge-target");
+        }
+        item.mergeGesture = null;
+      };
+    }
     button.addEventListener("dblclick", () => { if (onRename) editName(item.id); });
     button.addEventListener("keydown", (event) => {
       if (!item.editing && (event.key === "Enter" || event.key === " ")) {

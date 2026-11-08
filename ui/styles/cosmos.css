@@ -95,8 +95,11 @@
 .cosmos-toggle{font-size:15px}
 .cosmos-toggle.active{color:#8fe8ff;background:#14203a}
 .constellation-label{pointer-events:none}
-.constellation-name{pointer-events:auto;display:inline-block;padding:3px 10px;border-radius:999px;font:600 10px var(--font);letter-spacing:2.4px;text-transform:uppercase;color:var(--group-color,#8fe8ff);background:rgba(5,8,19,.45);text-shadow:0 0 12px var(--group-color,#8fe8ff);cursor:pointer;white-space:nowrap;outline:0}
+.constellation-name{pointer-events:auto;display:inline-block;padding:3px 10px;border-radius:999px;font:600 10px var(--font);letter-spacing:2.4px;text-transform:uppercase;color:var(--group-color,#8fe8ff);background:rgba(5,8,19,.45);text-shadow:0 0 12px var(--group-color,#8fe8ff);cursor:pointer;white-space:nowrap;outline:0;user-select:none;-webkit-user-select:none}
+.constellation-name.merge-handle{cursor:grab}
 .constellation-label.drop-target .constellation-name{background:rgba(14,22,44,.92);box-shadow:0 0 0 1px var(--group-color,#8fe8ff),0 0 18px var(--group-color,#8fe8ff);transform:scale(1.12)}
+.constellation-label.dragging{z-index:2000!important;opacity:.7}.constellation-label.dragging .constellation-name{cursor:grabbing}
+.constellation-label.merge-target .constellation-name{background:rgba(17,34,51,.98);box-shadow:0 0 0 2px #e8f9ff,0 0 22px 7px var(--group-color,#8fe8ff);transform:scale(1.16)}
 .constellation-name{transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
 .constellation-name:hover,.constellation-name:focus-visible{background:rgba(14,22,44,.85)}
 .constellation-label.editing .constellation-name{text-transform:none;letter-spacing:.5px;cursor:text;background:rgba(14,22,44,.95);box-shadow:0 0 0 1px var(--group-color,#8fe8ff)}
