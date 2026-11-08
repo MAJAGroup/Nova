@@ -206,6 +206,7 @@ export function createAssistantPanel({ browser, tabs, aiConfig, onOpenSettings, 
   });
   el("assistant-menu").addEventListener("click", () => { close({ restoreFocus: false }); onOpenSettings(); });
   el("assistant-reopen").addEventListener("click", open);
+  el("assistant-toolbar-open").addEventListener("click", open);
   el("assistant-minimize").addEventListener("click", close);
 
   return { open, close, toggle, isOpen: () => root.classList.contains("expanded") };
