@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-const GROUP_GAP = 5;
+const GROUP_GAP = 3.5;
 
 function hashUnit(text) {
   let value = 2166136261;
@@ -12,12 +12,12 @@ function hashUnit(text) {
   return (value >>> 0) / 4294967296;
 }
 
-// Ungrouped tabs: a loose spiral disc around the core, each star lifted a
+// Ungrouped tabs: a loose spiral disc around the black hole, each star lifted a
 // little above or below the plane so the cosmos has depth.
 function looseSlot(index) {
-  const radius = 6 + 4.6 * Math.sqrt(index);
+  const radius = 4.5 + 3.3 * Math.sqrt(index);
   const angle = index * GOLDEN_ANGLE;
-  const lift = Math.sin(index * 2.1) * Math.min(6, 1.5 + radius * 0.22);
+  const lift = Math.sin(index * 2.1) * Math.min(4, 1 + radius * 0.15);
   return new THREE.Vector3(Math.cos(angle) * radius, lift, Math.sin(angle) * radius);
 }
 
@@ -25,14 +25,14 @@ function looseSlot(index) {
 // member's index, so adding a tab never moves the stars already there; the
 // seed turns each constellation so they don't all share one shape.
 function memberOffset(index, seed) {
-  const radius = 2 + 3 * Math.sqrt(index);
+  const radius = 1.6 + 2.2 * Math.sqrt(index);
   const angle = index * GOLDEN_ANGLE + seed * Math.PI * 2;
-  const lift = Math.sin(index * 2.3 + seed * 6) * 1.3;
+  const lift = Math.sin(index * 2.3 + seed * 6) * 0.9;
   return new THREE.Vector3(Math.cos(angle) * radius, lift, Math.sin(angle) * radius);
 }
 
 function clusterRadius(count) {
-  return 2 + 3 * Math.sqrt(Math.max(0, count - 1));
+  return 1.6 + 2.2 * Math.sqrt(Math.max(0, count - 1));
 }
 
 // Hands out the lowest free slot number per id and keeps it while the id stays.

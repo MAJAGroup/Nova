@@ -35,12 +35,15 @@ function start() {
     }
   });
 
-  // Switching tabs while the cosmos is open brings the page back.
+  // Switching tabs while the cosmos is open brings the page back. Closing
+  // the shown tab also changes the active tab, but then the cosmos stays so
+  // the star can be seen falling into the black hole.
   let shownTabId = tabs.activeId;
   tabs.subscribe(() => {
     if (tabs.activeId === shownTabId) return;
+    const wasClosed = shownTabId != null && !tabs.tabs.some((tab) => String(tab.id) === String(shownTabId));
     shownTabId = tabs.activeId;
-    cosmos.close();
+    if (!wasClosed) cosmos.close();
   });
   const assistant = createAssistantPanel({
     browser,

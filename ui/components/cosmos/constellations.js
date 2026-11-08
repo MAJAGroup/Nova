@@ -32,6 +32,7 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
   scene.add(root);
   const items = new Map();
   let pendingEdit = null;
+  let highlighted = null;
 
   function createItem(group) {
     const geometry = new THREE.BufferGeometry();
@@ -161,13 +162,22 @@ export function createConstellations({ scene, camera, tabs, positionOf, onFocus,
         if (count) item.center.divideScalar(count);
         item.nebula.position.copy(item.center);
         item.nebula.scale.setScalar(item.radius * 3.2 + 8);
-        item.nebula.material.opacity = 0.09 + Math.sin(time * 0.6 + item.seed) * 0.025;
-        item.lines.material.opacity = 0.38 + Math.sin(time * 0.9 + item.seed) * 0.1;
+        // A star being dragged over it lights the constellation up.
+        const lit = item.id === highlighted;
+        item.nebula.material.opacity = lit ? 0.24 + Math.sin(time * 6) * 0.05 : 0.09 + Math.sin(time * 0.6 + item.seed) * 0.025;
+        item.lines.material.opacity = lit ? 0.85 : 0.38 + Math.sin(time * 0.9 + item.seed) * 0.1;
         // Just above the constellation on screen.
         item.label.position.copy(item.center).addScaledVector(screenUp, item.radius * 0.75 + 2.5);
       }
     },
 
+    setHighlighted(groupId) {
+      if (highlighted === groupId) return;
+      if (items.has(highlighted)) items.get(highlighted).element.classList.remove("drop-target");
+      highlighted = groupId;
+      if (items.has(groupId)) items.get(groupId).element.classList.add("drop-target");
+    },
+    ids: () => Array.from(items.keys()),
     centerOf: (groupId) => (items.has(groupId) ? items.get(groupId).center.clone() : null),
     radiusOf: (groupId) => (items.has(groupId) ? items.get(groupId).radius : 0),
     editName

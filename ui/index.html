@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#080d1c">
     <title>ORBIT</title>
+    <link rel="stylesheet" href="../node_modules/@fontsource-variable/inter/opsz.css">
     <link rel="stylesheet" href="styles/base.css">
     <link rel="stylesheet" href="styles/toolbar.css">
     <link rel="stylesheet" href="styles/tab-strip.css">
@@ -41,7 +42,7 @@
           </div>
         </div>
         <div class="tab-row" aria-label="Open tabs">
-          <button type="button" class="cosmos-tab" id="cosmos-tab" title="Open orbit view (Ctrl+Shift+O)" aria-pressed="false"><span>✦</span><span>Orbit view</span></button>
+          <button type="button" class="cosmos-tab" id="cosmos-tab" title="Orbit view (Ctrl+Shift+O)" aria-label="Orbit view" aria-pressed="false"><svg class="orbit-icon" viewBox="0 0 24 24" aria-hidden="true"><defs><radialGradient id="orbit-planet" cx="38%" cy="35%" r="70%"><stop offset="0" stop-color="#e8fdff"/><stop offset=".45" stop-color="#74e3f0"/><stop offset="1" stop-color="#6a5cff"/></radialGradient></defs><g transform="rotate(-22 12 12)"><path class="orbit-ring" d="M2 12a10 3.6 0 0 1 20 0"/><circle class="orbit-moon" r="1.5"><animateMotion dur="5s" repeatCount="indefinite" path="M22 12a10 3.6 0 1 1 -20 0a10 3.6 0 1 1 20 0"/></circle><circle class="orbit-planet" cx="12" cy="12" r="5" fill="url(#orbit-planet)"/><path class="orbit-ring" d="M22 12a10 3.6 0 0 1 -20 0"/></g></svg></button>
           <div id="browser-tabs" class="browser-tabs" aria-label="Browser tabs"></div>
         </div>
         <section id="browser-content" class="browser-content" aria-label="Current web page">
@@ -51,13 +52,15 @@
             <p>Enter a web address above to begin.</p>
           </div>
           <section id="cosmos" class="cosmos" hidden aria-label="Tab cosmos">
-            <aside class="cosmos-sidebar" aria-label="Tab information">
-              <div class="cosmos-sidebar-heading"><div><span class="cosmos-title">STAR ATLAS</span><span class="cosmos-sidebar-caption">Your open tabs</span></div><span id="cosmos-count">0 tabs</span></div>
+            <aside class="cosmos-sidebar" id="cosmos-sidebar" aria-label="Tab information">
               <div class="cosmos-tab-list" id="cosmos-tab-list"></div>
             </aside>
             <div class="cosmos-stage" id="cosmos-stage">
-              <div class="cosmos-header"><span class="cosmos-title">TAB COSMOS</span><span>DRAG TO ORBIT</span></div>
-              <div class="cosmos-hint">Click a star to open · Shift-click to select · Right-click to group · Esc to return</div>
+              <div class="cosmos-header">
+                <div class="cosmos-header-row"><button type="button" class="cosmos-icon-button" id="cosmos-sidebar-toggle" title="Hide tab list" aria-label="Hide tab list" aria-controls="cosmos-sidebar" aria-expanded="true"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 2.8v10.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.9 5.5h1.8M2.9 7.7h1.8M2.9 9.9h1.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button></div>
+                <button type="button" class="cosmos-icon-button" id="cosmos-reset" title="Reset view: show every tab (or double-click empty space)" aria-label="Reset view"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.8 5.5V2.6c0-.4.4-.8.8-.8h2.9M10.5 1.8h2.9c.4 0 .8.4.8.8v2.9M14.2 10.5v2.9c0 .4-.4.8-.8.8h-2.9M5.5 14.2H2.6c-.4 0-.8-.4-.8-.8v-2.9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg></button>
+              </div>
+              <div class="cosmos-hint" id="cosmos-hint" hidden></div>
               <div class="cosmos-selection" id="cosmos-selection" hidden>
                 <span id="cosmos-selection-count">0 tabs selected</span>
                 <button type="button" class="cosmos-selection-group" id="cosmos-group">Make a constellation</button>
@@ -69,7 +72,7 @@
         <aside class="assistant-dock" id="assistant" aria-label="Orbit AI assistant">
           <button type="button" class="assistant-handle" id="assistant-reopen" aria-label="Open Orbit AI assistant (Ctrl+Space)" title="Ask Orbit · Ctrl+Space"><span class="assistant-handle-orb">✦</span><span>AI</span></button>
           <section class="assistant-panel" role="complementary" aria-label="Ask Orbit">
-            <div class="assistant-heading"><div><span class="assistant-heading-kicker">ORBIT</span><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
+            <div class="assistant-heading"><div><span class="assistant-heading-title">AI assistant</span></div><button type="button" class="assistant-minimize" id="assistant-minimize" aria-label="Minimize assistant" title="Minimize">›</button></div>
             <div class="spotlight-bar">
               <div class="assistant-orb" aria-hidden="true"><i></i><span></span></div>
               <textarea id="chat-input" rows="1" placeholder="Ask Orbit anything…" aria-label="Message Orbit assistant" spellcheck="false"></textarea>

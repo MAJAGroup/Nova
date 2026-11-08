@@ -1,5 +1,7 @@
 /* Page reset, layout grid and shared controls. */
-:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef2ff;background:#070b16;font-synthesis:none;text-rendering:optimizeLegibility;--bg:#070b16;--panel:#0b1020;--line:rgba(174,193,255,.11);--muted:#8791ad;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+/* Safari's interface font: San Francisco on Apple systems. Elsewhere SF
+   isn't available, so the bundled Inter, which is drawn to match it, stands in. */
+:root{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter Variable","Helvetica Neue",sans-serif;font-family:var(--font);color:#eef2ff;background:#070b16;font-synthesis:none;text-rendering:optimizeLegibility;--bg:#070b16;--panel:#0b1020;--line:rgba(174,193,255,.11);--muted:#8791ad}
 *{box-sizing:border-box}
 body{margin:0;height:100vh;overflow:hidden;background:#070b16}
 button,input,textarea{font:inherit}
