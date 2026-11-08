@@ -14,6 +14,10 @@ const {
 } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+const START_PAGE_URL = pathToFileURL(path.join(__dirname, "ui", "newtab", "index.html")).href;
+const START_PAGE_ICON = pathToFileURL(path.join(__dirname, "ui", "newtab", "icon.svg")).href;
+const isStartPage = url => url === START_PAGE_URL;
 const { createTabGroups } = require("./tab-groups");
 const { buildGroupingMessages, parseGroupingPlan } = require("./ai-grouping");
 
@@ -34,7 +38,7 @@ let settingsCache = null;
 
 function normalizeDestination(input) {
   const value = String(input || "").trim();
-  if (!value) return "https://www.google.com";
+  if (!value || value === "orbit://newtab" || value === "orbit://newtab/" || isStartPage(value)) return START_PAGE_URL;
 
   const looksLikeHost = /^(localhost(?::\d+)?|[\w-]+(?:\.[\w-]+)+(?:\/[^\s]*)?)$/i.test(value);
   if (looksLikeHost) {
@@ -64,7 +68,8 @@ function tabSnapshot(tab) {
   return {
     id: tab.id,
     title: tab.title || "New tab",
-    url: tab.url || "",
+    url: isStartPage(tab.url) ? "orbit://newtab" : tab.url || "",
+    isStartPage: isStartPage(tab.url),
     favicon: tab.favicon || "",
     active: tab.id === activeTabId,
     loading: tab.loading,
@@ -72,7 +77,7 @@ function tabSnapshot(tab) {
     canGoBack: history.canGoBack(),
     canGoForward: history.canGoForward(),
     currentVisit: tab.currentVisit,
-    connection: tab.connection?.snapshot(tab.url),
+    connection: isStartPage(tab.url) ? { state: "local", message: "Orbit start page — stored on this device" } : tab.connection?.snapshot(tab.url),
     groupId: tab.groupId || null
   };
 }
@@ -172,6 +177,11 @@ function attachWebContentsHandlers(tab) {
     // Carry it into same-site visits, and clear it when moving to another site.
     try { if (new URL(tab.url).origin !== new URL(nextUrl).origin) tab.favicon = ""; } catch (_) { tab.favicon = ""; }
     tab.url = nextUrl;
+    if (isStartPage(nextUrl)) {
+      tab.currentVisit = null;
+      tab.openerVisit = null;
+      tab.favicon = START_PAGE_ICON;
+    }
     tab.title = contents.getTitle() || tab.title;
     tab.loading = contents.isLoading();
     visitHistory.commit(tab, { url: tab.url, title: tab.title, index: contents.navigationHistory.getActiveIndex(), fresh: tab.freshNavigation, favicon: tab.favicon });
@@ -187,19 +197,19 @@ function attachWebContentsHandlers(tab) {
     tab.loading = false;
     tab.url = contents.getURL();
     tab.title = contents.getTitle() || tab.title;
-    visitHistory.title(tab, tab.title);
+    if (!isStartPage(tab.url)) visitHistory.title(tab, tab.title);
     sendTabs();
   });
   contents.on("did-navigate", (event, url) => updateUrl(event, url));
   contents.on("did-navigate-in-page", updateUrl);
   contents.on("page-title-updated", (_event, title) => {
     tab.title = title || tab.title;
-    visitHistory.title(tab, tab.title);
+    if (!isStartPage(contents.getURL())) visitHistory.title(tab, tab.title);
     sendTabs();
   });
   contents.on("page-favicon-updated", (_event, favicons) => {
     tab.favicon = Array.isArray(favicons) ? favicons[0] || "" : "";
-    visitHistory.favicon(tab, tab.favicon);
+    if (!isStartPage(contents.getURL())) visitHistory.favicon(tab, tab.favicon);
     sendTabs();
   });
   // Ctrl+Space opens the assistant even while the page has focus, in case the
@@ -211,12 +221,13 @@ function attachWebContentsHandlers(tab) {
     }
   });
   contents.on("will-navigate", (event, url) => {
+    if (isStartPage(url)) return;
     if (isWebUrl(url)) { tab.freshNavigation = true; return; }
     event.preventDefault();
     if (/^mailto:/i.test(url)) shell.openExternal(url);
   });
   contents.on("will-redirect", (event, url) => {
-    if (!isWebUrl(url)) event.preventDefault();
+    if (!isWebUrl(url) && !isStartPage(url)) event.preventDefault();
   });
   contents.setWindowOpenHandler(({ url }) => {
     // Links opened from a grouped tab join its group.
@@ -294,16 +305,8 @@ function closeTab(id) {
   const tab = tabs.get(String(id));
   if (!tab) return false;
   if (tabs.size === 1) {
-    visitHistory.attach(tab);
-    tab.view.webContents.navigationHistory.clear();
-    tab.view.webContents.loadURL("https://www.google.com").catch(() => {});
-    tab.title = "Loading…";
-    tab.url = "https://www.google.com";
-    tab.favicon = "";
-    tab.loading = true;
-    tab.groupId = null;
-    sendTabs();
-    return true;
+    if (!createTab()) return false;
+    return closeTab(id);
   }
   const wasActive = activeTabId === tab.id;
   mainWindow.contentView.removeChildView(tab.view);
@@ -532,7 +535,7 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "ui", "index.html"));
   win.webContents.once("did-finish-load", () => {
-    if (mainWindow === win && tabs.size === 0) createTab(process.env.ORBIT_START_URL || "https://www.google.com");
+    if (mainWindow === win && tabs.size === 0) createTab(process.env.ORBIT_START_URL);
   });
   win.on("closed", () => {
     if (mainWindow === win) {
@@ -577,7 +580,7 @@ function registerIPC() {
   });
   ipcMain.handle("browser:remove-group", (_event, groupId) => removeGroup(groupId));
   ipcMain.on("browser:show-tab-menu", (_event, id) => showTabMenu(id));
-  ipcMain.handle("browser:new-tab", (_event, url) => createTab(url || "https://www.google.com"));
+  ipcMain.handle("browser:new-tab", (_event, url) => createTab(url));
   ipcMain.handle("browser:activate-tab", (_event, id) => setActiveTab(id));
   ipcMain.handle("browser:close-tab", (_event, id) => closeTab(id));
   ipcMain.handle("browser:navigate", (_event, input) => {

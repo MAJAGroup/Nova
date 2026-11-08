@@ -9,7 +9,8 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "test:history": "node --test tests/history*.test.cjs",
-    "test:address": "node --test tests/address*.test.cjs"
+    "test:address": "node --test tests/address*.test.cjs",
+    "test:newtab": "node --test tests/newtab*.test.cjs"
   },
   "devDependencies": {
     "electron": "^45.0.0",

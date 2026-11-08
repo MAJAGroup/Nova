@@ -9,7 +9,7 @@ export function createToolbar({ browser, tabs, onNavigate, onToggleCosmos }) {
 
   const connection = el("connection-status");
   let shownTabId = null;
-  function activeUrl() { return tabs.activeTab()?.url || ""; }
+  function activeUrl() { return tabs.activeTab()?.isStartPage ? "" : tabs.activeTab()?.url || ""; }
   function showActiveUrl(editing = false) {
     omnibox.value = editing ? activeUrl() : simplifyAddress(activeUrl());
     omnibox.title = activeUrl();

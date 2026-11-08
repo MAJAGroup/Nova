@@ -37,7 +37,7 @@ Both commands should print version numbers. On Windows, use PowerShell or Comman
 
        npm start
 
-ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
+ORBIT opens with a local space start page filling the window. Its ringed planet and layered stars respond gently to mouse movement. Use its search box to search the web or enter a URL; GitHub, Wikipedia and YouTube shortcuts are included. The page works offline, respects reduced-motion preferences, offers a pause button, and suspends animation while hidden. Press Ctrl+Space to bring up the Orbit assistant as a Spotlight-style popup over the page.
 
 ## Use the browser
 
@@ -53,8 +53,8 @@ ORBIT opens with an initial web tab filling the window. Press Ctrl+Space to brin
   - Describe the grouping you want in your own words, for example “group my tabs by project”, “put everything about the trip to Japan together”, or “split my tabs into work and personal”. With an AI endpoint connected, the assistant sends your instruction and your open tab titles and URLs to the model, which plans the constellations; ORBIT then creates or updates them. Without an endpoint, “group my tabs by site” still works.
 
   Grouped tabs have a coloured line under them in the tab strip. Links opened from a grouped tab join its group. To rename a constellation, double-click its name in the cosmos or use the right-click menu. Groups last until ORBIT closes.
-- **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS).
-- **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh Google page.
+- **Open a tab:** Select **＋** or press Ctrl+T (Command+T on macOS). Each blank tab opens the local space start page with an empty address bar; explicit website links still open their destination.
+- **Close a tab:** Select its × button or press Ctrl+W (Command+W on macOS). Closing the last tab opens a fresh space start page.
 - **Navigate:** Use the back, forward, and reload buttons. The application menu also has these commands.
 - **Use keyboard shortcuts:** Ctrl+L / Command+L focuses the address bar. Ctrl+Space opens or closes the Orbit assistant popup (Esc or a click outside also closes it). Ctrl+Shift+O / Command+Shift+O shows or hides the tab cosmos. The application menu lists the main shortcuts.
 
@@ -71,6 +71,8 @@ Select a star or a sidebar row to inspect the page title, full address, date/tim
 Each star uses the page’s favicon as its nucleus, with a domain initial when no icon is available. Favicons are retained with visit metadata. History records top-level HTTP(S) visits and preserves navigation branches and closed-tab trails across restarts. It retains up to 3,000 visits locally in `orbit-history.json` under Electron's user-data directory. The scene shows the latest 300 matching visits; use a date filter or search to reach older entries. Back/forward returns to existing visit nodes; new navigation keeps the earlier branch. Reopening a historical page loads its current contents rather than an archived copy. Browsing from before recording was introduced cannot be reconstructed.
 
 **Clear history…** asks for confirmation and deletes saved visit metadata without closing current tabs or clearing website cookies. Website titles and addresses are displayed as text. History is not sent to the assistant's model.
+
+Run `npm run test:newtab` to check startup, new tabs, search, local-page history handling, animation controls, reduced motion and the narrow layout.
 
 Run `npm run test:address` (with OpenSSL installed) to check address display and connection states using local HTTP/TLS fixtures, a disposable profile, and a temporary certificate authority trusted only by the test session.
 
@@ -256,6 +258,7 @@ This creates a distributable for the current platform. The project is configured
 - tab-groups.js — tab group (constellation) names and colours, used by the main process.
 - desktop-preload.js — narrow, context-isolated bridge between the app UI and the main process.
 - connection-security.js — Chromium main-frame connection metadata, certificate validity, navigation resets, and insecure-content tracking.
+- ui/newtab/ — static local start page, procedural canvas space scene, mouse parallax and search.
 - ui/index.html — the app window's markup; ui/main.js starts the interface and wires the components together.
 - ui/components/ — one file per part of the interface: toolbar, tab strip, browser view, settings dialog, toast, the assistant (panel, built-in browser commands, voice), and the 3D tab cosmos (scene, tab stars, constellations, star layout, background sky). The cosmos uses three.js, loaded from node_modules through the import map in ui/index.html.
 - ui/lib/ — shared helpers: the tab list mirrored from the main process, AI settings, URL and DOM utilities.
